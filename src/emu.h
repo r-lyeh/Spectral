@@ -9,3 +9,4 @@
 #else
 #include "emu_ay.h"
 #endif
+#include "emu_fdc.h"

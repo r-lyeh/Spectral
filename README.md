@@ -10,6 +10,7 @@ Code is highly experimental and prone to change in the future. I will keep alter
 ## Credits
 - [x] Andre Weissflog, for their lovely Z80/AY/Beeper single-header chip emulators (Zlib licensed).
 - [x] Peter Sovietov, for their accurate AY chip emulator (MIT licensed).
+- [x] Ulrich Doewich, for their uPD765A floppy disc controller (GPL licensed).
 
 ## Unlicense
 This software is released into the [public domain](https://unlicense.org/). Also dual-licensed as [0-BSD](https://opensource.org/licenses/0BSD) or [MIT (No Attribution)](https://github.com/aws/mit-0) for those countries where public domain is a concern (sigh). Any contribution to this repository is implicitly subjected to the same release conditions aforementioned.
