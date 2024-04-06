@@ -6,13 +6,14 @@ typedef uint8_t        byte;
 
 #define do_once  static int _ = 1; for( ; _ ; _ = 0 )
 #define __thread __declspec(thread)
+#define FIXME(msg) printf("FIXME: " msg " (%s:%d)\n", __FILE__, __LINE__)
 
 #include "sys_file.h"
 #include "sys_string.h"
 #include "sys_sleep.h"
 #include "sys_video.h"
 #include "sys_audio.h"
-#include "sys_icon.h"
+#include "sys_window.h"
 
 #ifndef _WIN32
 #define min(a,b) ((a)<(b)?(a):(b))

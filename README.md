@@ -7,6 +7,36 @@ Hardcore ZX users will find little value in this emulator right now, but I hope 
 That being said, Spectral has a very compatible TAP/TZX loader and some other interesting features that provide me some fun in these days.
 Code is highly experimental and prone to change in the future. I will keep altering/breaking things randomly for good sake.
 
+## Features and wishlist
+- [x] Single executable.
+- [x] 48/128, +2A, +3/FDC.
+- [x] Z80/Beeper/AY.
+- [x] Issue 2/3.
+- [x] ULA/ULA+.
+- [x] Kempston mouse. <!-- @todo: AMX mouse.-->
+- [x] Kempston/Sinclair/Cursor joysticks.
+- [x] CRT experience (not physically accurate though).
+- [x] TAP/TZX/DSK/Z80/SNA/ROM/IF2/SCR/ZIP support. <!-- @todo: tzx info on window title -->
+- [x] Load games easily.
+- [x] Game browser. <!-- @todo: rewrite this -->
+- [x] Graphical tape browser.
+- [x] 50Hz lock.
+- [ ] Pentagon 128K + beta disk. SCL/TRD.
+- [ ] Savestates. <!-- @todo: savefile spec -->
+- [ ] Netplay.
+- [ ] RZX support. <!-- @todo: rzx loadsave http://ramsoft.bbk.org.omegahg.com/rzxform.html -->
+- [ ] ZXDB integration.
+- [ ] Graphical User Interface.
+- [ ] Cheats finder. POK support.
+- [ ] Extra accurate Z80+AY backends. <!-- @todo: contended mem, contended ports, memptr, snow, Q, floating bus (+2a/+3) -->
+- [ ] Cycle accurate (border, multicolor, etc).
+- [ ] Gallery marquee. <!-- Flex. Tape cases. ZX catalog on demand. -->
+- [ ] Shaders support. <!-- Barrel/CRT effects. -->
+- [ ] Gamepad support. <!-- Invert joystick/mouse axes/buttons -->
+- [ ] Portable.
+- [ ] Optimized.
+- [x] Unlicensed.
+
 ## Credits
 - [x] Andre Weissflog, for their lovely Z80/AY/Beeper single-header chip emulators (Zlib licensed).
 - [x] Peter Sovietov, for their accurate AY chip emulator (MIT licensed).

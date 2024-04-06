@@ -1,14 +1,3 @@
-#define window Tigr
-#define window_open(w,h,title) tigrWindow(w, h, title, 0)
-#define window_update(win) (tigrUpdate(win))
-#define window_alive(win) (!tigrClosed(win))
-#define window_close(win) (win = (win ? tigrFree(win), NULL : NULL))
-#define window_print(win, text) window_printxy(win, text, 1, 1)
-#define window_printxy(win, text, x,y) window_printxycol(win, text, x,y, tigrRGB(0xff, 0xff, 0xff))
-#define window_printxycol(win, text, x,y, col) tigrPrint(win, tfont, (x)*11,(y)*11, col, "%s", text)
-#define window_pressed(win, keycode) (!!(tigrKeyDown(win, keycode) || tigrKeyHeld(win, keycode)))
-#define window_trigger(win, keycode) (!!tigrKeyDown(win, keycode))
-#define window_title(win, text) SetWindowTextA((HWND)((win)->handle), text)
 #define rgb(r,g,b) (((r)<<0)|((g)<<8)|((b)<<16)|255<<24)
 #define rgb_split(p,r,g,b) (b=(p>>16)&255,g=(p>>8)&255,r=(p)&255)
 byte hh,ss,vv;
