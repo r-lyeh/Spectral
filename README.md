@@ -1,8 +1,8 @@
-# Spectral <img src="src/noto_1f47b.png" width="5%" height="5%" />
+# Spectral <img src="src/img/noto_1f47b.png" width="5%" height="5%" />
 Sinclair ZX Spectrum emulator from the 80s.
 
 ## About
-Spectral is an experimental emulator that I have been randomly assembling since the pandemic days, inspired by my old fZX32 emulator.
+Spectral is an experimental emulator that I have been randomly assembling [since the pandemic days](https://twitter.com/r_rlyeh/status/1280964279903158273), inspired by my old fZX32 emulator.
 Hardcore ZX users will find little value in this emulator right now, but I hope newbies may find its ease of use somehow appealing to try.
 That being said, Spectral has a very compatible TAP/TZX loader and some other interesting features that provide me some fun in these days.
 Code is highly experimental and prone to change in the future. I will keep altering/breaking things randomly for good sake.
