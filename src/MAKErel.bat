@@ -1,0 +1,1 @@
+call makeopt -Dmain=WinMain %*

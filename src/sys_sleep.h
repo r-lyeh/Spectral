@@ -35,20 +35,20 @@ uint64_t time_ns() {
 void timerSleep(double seconds) {
     // src: https://blog.bearcats.nl/accurate-sleep-function/
 
-    static HANDLE timer; do_once timer = CreateWaitableTimer(NULL, FALSE, NULL);
+    static HANDLE timer = 0; do_once timer = CreateWaitableTimerA(NULL, FALSE, NULL);
     static double estimate = 5e-3;
     static double mean = 5e-3;
     static double m2 = 0;
     static int64_t count = 1;
-
+    
     while (seconds - estimate > 1e-7) {
         double toWait = seconds - estimate;
-        LARGE_INTEGER due;
+        LARGE_INTEGER due = {0};
         due.QuadPart = -(int64_t)(toWait * 1e7);
-        int64_t start = time_ns();
         SetWaitableTimerEx(timer, &due, 0, NULL, NULL, NULL, 0);
+        uint64_t start = time_ns();
         WaitForSingleObject(timer, INFINITE);
-        int64_t end = time_ns();
+        uint64_t end = time_ns();
 
         double observed = (end - start) / 1e9;
         seconds -= observed;
@@ -63,9 +63,8 @@ void timerSleep(double seconds) {
     }
 
     // spin lock
-    int64_t start = time_ns();
-    int64_t delay = (int64_t)(seconds * 1e9);
-    while (time_ns() - start < delay);
+    uint64_t start = time_ns();
+    while ((time_ns() - start) < (seconds * 1e9));
 }
 
 // exports

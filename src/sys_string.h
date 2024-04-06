@@ -32,3 +32,15 @@ bool strendi(const char *src, const char *sub) { // returns true if both strings
     if( sublen > srclen ) return 0;
     return !strcmpi(src + srclen - sublen, sub);
 }
+int qsort_strcmp(const void * a, const void * b ) {
+    // smart strcmp which does:
+    // Narc - 128k.tzx < Narc - 128k - Levels.tzx, and also:
+    // Academy - Side 1.tzx < Academy - Side 2.tzx < Academy - Side 3.tzx < Academy - Side 4.tzx, and also:
+    // Outrun - Tape 1 - Side 1.tzx < Outrun - Tape 2 - Side 1.tzx < Outrun - Tape 2 - Side 2.tzx
+    const char *pa = *(const char**)a;
+    const char *pb = *(const char**)b;
+    int la = strlen(pa), lb = strlen(pb);
+    if( la < lb ) return -1;
+    if( la > lb ) return +1;
+    return strcmp(pa,pb);
+}

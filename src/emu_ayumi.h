@@ -457,19 +457,16 @@ void update_ayumi_state(struct ayumi* ay, int* r) {
 
 const int dc_filter_on = 1;
 
-float ayumi_render(struct ayumi* ay, int *regs, double sample_rate, int frame_rate) {
+float ayumi_render(struct ayumi* ay, int *regs, double isr_step) {
 #if 0
-  double isr_step = frame_rate / (double)sample_rate;
   static double isr_counter = 1;
 
   isr_counter += isr_step;
   if (isr_counter >= 1) {  // every new frame
     isr_counter -= 1;
-#else
-  if(1) {
-#endif
     update_ayumi_state(ay, regs);
   }
+#endif
   ayumi_process(ay);
   if (dc_filter_on) {
     ayumi_remove_dc(ay);

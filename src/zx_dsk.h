@@ -1,40 +1,51 @@
-   /*
-void dsk_eject (t_drive *drive)
+/* Caprice32 - Amstrad CPC Emulator
+   (c) Copyright 1997-2004 Ulrich Doewich
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+*/
+
+void dsk_eject (struct t_drive *drive)
 {
    dword track, side;
 
    for (track = 0; track < DSK_TRACKMAX; track++) { // loop for all tracks
       for (side = 0; side < DSK_SIDEMAX; side++) { // loop for all sides
          if (drive->track[track][side].data) { // track is formatted?
-            free(drive->track[track][side].data); // release memory allocated for this track
+            // free(drive->track[track][side].data); // release memory allocated for this track
          }
       }
    }
 
-   {
    dword dwTemp = drive->current_track; // save the drive head position
-   memset(drive, 0, sizeof(t_drive)); // clear drive info structure
+   memset(drive, 0, sizeof(struct t_drive)); // clear drive info structure
    drive->current_track = dwTemp;
-   }
 }
-   */
 
 
-
-//int dsk_load (char *pchFileName, t_drive *drive, char chID)
+//int dsk_load (char *pchFileName, struct t_drive *drive, char chID)
 int dsk_load(void *pchFileName)
 {
-   int iRetCode;
+   int iRetCode = 0;
    dword dwTrackSize, track, side, sector, dwSectorSize, dwSectors;
    byte *pbPtr, *pbDataPtr, *pbTempPtr, *pbTrackSizeTable;
-   t_drive *drive=&driveA;
-
-   iRetCode = 0;
+   struct t_drive *drive=&driveA;
 
 // dsk_eject(drive);
    {
    dword dwTemp = drive->current_track; // save the drive head position
-   memset(drive, 0, sizeof(t_drive));   // clear drive info structure
+   memset(drive, 0, sizeof(struct t_drive));   // clear drive info structure
    drive->current_track = dwTemp;
    }
 
@@ -43,6 +54,8 @@ int dsk_load(void *pchFileName)
       pbGPBuffer = (byte *)pchFileName;
 
       pbPtr = pbGPBuffer;
+
+      printf("dsk type: %.*s\n", 8, pbPtr);
 
       if (memcmp(pbPtr, "MV - CPC", 8) == 0) { // normal DSK image?
          drive->tracks = *(pbPtr + 0x30); // grab number of tracks
@@ -90,8 +103,8 @@ int dsk_load(void *pchFileName)
                for (sector = 0; sector < dwSectors; sector++) { // loop for all sectors
                   memcpy(drive->track[track][side].sector[sector].CHRN, (pbPtr + 0x18), 4); // copy CHRN
                   memcpy(drive->track[track][side].sector[sector].flags, (pbPtr + 0x1c), 2); // copy ST1 & ST2
-                  drive->track[track][side].sector[sector].size = dwSectorSize;
-                  drive->track[track][side].sector[sector].data = pbDataPtr; // store pointer to sector data
+                  sector_setSizes( &drive->track[track][side].sector[sector], dwSectorSize, dwSectorSize);
+                  sector_setData( &drive->track[track][side].sector[sector], pbDataPtr); // store pointer to sector data
                   pbDataPtr += dwSectorSize;
                   pbPtr += 8;
                }
@@ -121,7 +134,8 @@ int dsk_load(void *pchFileName)
             pbTrackSizeTable = pbPtr + 0x34; // pointer to track size table in DSK header
             drive->sides--; // zero base number of sides
             for (track = 0; track < drive->tracks; track++) { // loop for all tracks
-               for (side = 0; side <= drive->sides; side++) { // loop for all sides
+               for (side = 0; side <= drive->sides; side++, pbGPBuffer += dwTrackSize) { // loop for all sides
+                  memset(&drive->track[track][side], 0, sizeof(t_track)); // track not formatted
                   dwTrackSize = (*pbTrackSizeTable++ << 8); // track size in bytes
                   if (dwTrackSize != 0) { // only process if track contains data
                      dwTrackSize -= 0x100; // compensate for track header
@@ -153,12 +167,14 @@ int dsk_load(void *pchFileName)
 
                      pbDataPtr = drive->track[track][side].data; // pointer to start of memory buffer
                      pbTempPtr = pbDataPtr; // keep a pointer to the beginning of the buffer for the current track
+            pbPtr += 0x18;
                      for (sector = 0; sector < dwSectors; sector++) { // loop for all sectors
-                        memcpy(drive->track[track][side].sector[sector].CHRN, (pbPtr + 0x18), 4); // copy CHRN
-                        memcpy(drive->track[track][side].sector[sector].flags, (pbPtr + 0x1c), 2); // copy ST1 & ST2
-                        dwSectorSize = *(pbPtr + 0x1e) + (*(pbPtr + 0x1f) << 8); // sector size in bytes
-                        drive->track[track][side].sector[sector].size = dwSectorSize;
-                        drive->track[track][side].sector[sector].data = pbDataPtr; // store pointer to sector data
+                        memcpy(drive->track[track][side].sector[sector].CHRN, pbPtr, 4); // copy CHRN
+                        memcpy(drive->track[track][side].sector[sector].flags, (pbPtr + 0x04), 2); // copy ST1 & ST2
+                        dword dwRealSize = 0x80 << *(pbPtr+0x03);
+                        dwSectorSize = *(pbPtr + 0x6) + (*(pbPtr + 0x7) << 8); // sector size in bytes
+                        sector_setSizes( &drive->track[track][side].sector[sector], dwRealSize, dwSectorSize);
+                        sector_setData( &drive->track[track][side].sector[sector], pbDataPtr); // store pointer to sector data
                         pbDataPtr += dwSectorSize;
                         pbPtr += 8;
                      }
@@ -169,10 +185,6 @@ int dsk_load(void *pchFileName)
                      }
                      */
                      //memcpy(pbTempPtr, pbGPBuffer + 0x100, dwTrackSize);
-                     pbGPBuffer += dwTrackSize;
-
-                  } else {
-                     memset(&drive->track[track][side], 0, sizeof(t_track)); // track not formatted
                   }
                }
             }
@@ -201,6 +213,7 @@ exit:;
    }
    */
    if(iRetCode) puts("invalid disk");
+   if(iRetCode) dsk_eject(drive);
    return iRetCode;
 }
 

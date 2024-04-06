@@ -1,13 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-typedef unsigned char  byte;
-typedef unsigned short word;
-typedef unsigned int   dword;
-enum { max_tracksize = 5990 };
-
-// fdc.h -----------------------------------------------------------------------
-
 /* Caprice32 - Amstrad CPC Emulator
    (c) Copyright 1997-2004 Ulrich Doewich
 
@@ -26,10 +16,28 @@ enum { max_tracksize = 5990 };
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-// fdc.c
+/* Nec uPD765A Floppy Disk Controller emulation
+   (c) Copyright 1997-2003 Ulrich Doewich
+*/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+typedef unsigned char  byte;
+typedef unsigned short word;
+typedef unsigned int   dword;
+
 void fdc_write_data(unsigned char val);
 unsigned char fdc_read_status(void);
 unsigned char fdc_read_data(void);
+
+#define ERR_DSK_INVALID          22
+#define ERR_DSK_SIDES            23
+#define ERR_DSK_SECTORS          24
+#define ERR_DSK_WRITE            25
+#define MSG_DSK_ALTERED          26
+
+enum { max_tracksize = 6144-154 };
 
 // FDC constants
 #define DSK_BPTMAX      8192
@@ -55,6 +63,79 @@ unsigned char fdc_read_data(void);
 #define STATUSDRVB_flag 256   // status change of drive B
 
 typedef struct {
+   char id[12];
+   char unused1[4];
+   unsigned char track;
+   unsigned char side;
+   unsigned char unused2[2];
+   unsigned char bps;
+   unsigned char sectors;
+   unsigned char gap3;
+   unsigned char filler;
+   unsigned char sector[DSK_SECTORMAX][8];
+} t_track_header;
+
+typedef struct t_sector {
+   unsigned char CHRN[4]; // the CHRN for this sector
+   unsigned char flags[4]; // ST1 and ST2 - reflects any possible error conditions
+
+ //private:
+   unsigned int size_; // sector size in bytes
+   unsigned char *data_; // pointer to sector data
+   unsigned int total_size_; // total data size in bytes
+   unsigned int weak_versions_; // number of versions of this sector (should be 1 except for weak/random sectors)
+   unsigned int weak_read_version_; // version of the sector to return when reading
+} t_sector;
+
+void sector_setData(struct t_sector *self, unsigned char* data) {
+  self->data_ = data;
+}
+
+unsigned char* sector_getDataForWrite(t_sector *self) {
+  return self->data_;
+}
+
+unsigned char* sector_getDataForRead(t_sector *self) {
+  self->weak_read_version_ = (self->weak_read_version_ + 1) % self->weak_versions_;
+  return &self->data_[self->weak_read_version_*self->size_];
+}
+
+void sector_setSizes(t_sector *self, unsigned int size, unsigned int total_size) {
+  self->size_ = size;
+  self->total_size_ = total_size;
+  self->weak_read_version_ = 0;
+  self->weak_versions_ = 1;
+  if (self->size_ > 0 && self->size_ <= self->total_size_) self->weak_versions_ = self->total_size_ / self->size_;
+}
+
+unsigned int sector_getTotalSize(const t_sector *self) {
+  return self->total_size_;
+}
+
+typedef struct {
+   unsigned int sectors; // sector count for this track
+   unsigned int size; // track size in bytes
+   unsigned char *data; // pointer to track data
+   t_sector sector[DSK_SECTORMAX]; // array of sector information structures
+} t_track;
+
+struct t_drive {
+   unsigned int tracks; // total number of tracks
+   unsigned int current_track; // location of drive head
+   unsigned int sides; // total number of sides
+   unsigned int current_side; // side being accessed
+   unsigned int current_sector; // sector being accessed
+   bool altered; // has the image been modified?
+   unsigned int write_protected; // is the image write protected?
+   unsigned int random_DEs; // sectors with Data Errors return random data?
+   unsigned int flipped; // reverse the side to access?
+   long ipf_id; // IPF ID if the track is loaded with a IPF image
+   void (*track_hook)(struct t_drive *);  // hook called each disk rotation
+   void (*eject_hook)(struct t_drive *);  // hook called on disk eject
+   t_track track[DSK_TRACKMAX][DSK_SIDEMAX]; // array of track information structures
+};
+
+typedef struct {
    int timeout;
    int motor;
    int led;
@@ -65,109 +146,16 @@ typedef struct {
    int cmd_length;
    int res_length;
    int cmd_direction;
-   void (*cmd_handler)(void);
+   void (*cmd_handler)();
    unsigned char *buffer_ptr;
    unsigned char *buffer_endptr;
    unsigned char command[12];
    unsigned char result[8];
 } t_FDC;
 
-typedef struct {
-   unsigned char CHRN[4]; // the CHRN for this sector
-   unsigned char flags[4]; // ST1 and ST2 - reflects any possible error conditions
-   unsigned int size; // sector size in bytes
-   unsigned char *data; // pointer to sector data
-} t_sector;
+t_FDC FDC;
 
-typedef struct {
-   unsigned int sectors; // sector count for this track
-   unsigned int size; // track size in bytes
-   unsigned char *data; // pointer to track data
-   t_sector sector[DSK_SECTORMAX]; // array of sector information structures
-} t_track;
-
-typedef struct {
-   unsigned int tracks; // total number of tracks
-   unsigned int current_track; // location of drive head
-   unsigned int sides; // total number of sides
-   unsigned int current_side; // side being accessed
-   unsigned int current_sector; // sector being accessed
-   unsigned int altered; // has the image been modified?
-   unsigned int write_protected; // is the image write protected?
-   unsigned int random_DEs; // sectors with Data Errors return random data?
-   unsigned int flipped; // reverse the side to access?
-   t_track track[DSK_TRACKMAX][DSK_SIDEMAX]; // array of track information structures
-} t_drive;
-
-
-#define ERR_OUT_OF_MEMORY_        9
-#define ERR_DSK_INVALID          21
-#define ERR_DSK_SIDES            22
-#define ERR_DSK_SECTORS          23
-#define ERR_DSK_WRITE            24
-#define MSG_DSK_ALTERED          25
-
-void fdc_init (int a, int b);
-void fdc_motor(unsigned char on);
-int dsk_load (void *pchFileName);
-
-// fdc.c -----------------------------------------------------------------------
-
-/* Caprice32 - Amstrad CPC Emulator
-   (c) Copyright 1997-2004 Ulrich Doewich
-
-   This program is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
-   (at your option) any later version.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-*/
-
-/* Nec uPD765A Floppy Disk Controller emulation
-   (c) Copyright 1997-2003 Ulrich Doewich
-
-   Nov 08, 2000 - 18:02 started conversion of assembly FDC routines to C
-   Nov 22, 2000 - 17:50 added fdc_read_status()
-   Dec 19, 2000 - 00:05 added fdc_seek()
-   Jan 15, 2001 - 16:52 fdc_read() done
-   Jan 17, 2001 - 19:15 updated/fixed fdc_read(), fdc_readID, fdc_intstat; added fdc_recalib
-   Jan 18, 2001 - 23:43 inlined cmd_read(); added #defines for loading the result buffer; added fdc_drvstat()
-   Jan 24, 2001 - 22:26 fixed fdc_readID() (the result got overwritten by LOAD_RESULT_WITH_CHRN!)
-   Aug 03, 2001 - 00:07 added fdc_write()
-   Aug 04, 2001 - 10:40 added fdc_writeID()
-   Oct 06, 2001 - 23:21 added fdc_readtrk()
-   Oct 07, 2001 - 11:37 got fdc_readtrk() to work properly
-
-   Jan 12, 2003 - 18:49 fdc_drvstat now reports an error condition when accessing side 2 on a one sided disk
-   Jan 21, 2003 - 18:13 mod to fdc_drvstat was incorrect: drive falls back to 1st side on a single head drive
-   Jan 25, 2003 - 15:57 data transfers can now time out and will be reported via OVERRUN condition
-   Feb 05, 2003 - 19:42 changed the OVERRUN_TIMEOUT to 26µs as per NEC's documentation
-   Feb 08, 2003 - 16:26 added a delay to fdc_read_status in execution phase: FDC first indicates busy before
-                        starting data transfer ("Last Mission" loads)
-   Feb 10, 2003 - 21:45 fixed cmd_read: multi-sector reads end on the first sector that is found to have the
-                        opposite of the requested AM ("Nigel Mansell's Grand Prix" loads)
-   Feb 11, 2003 - 18:35 increased OVERRUN_TIMEOUT again ("Puffy's Saga" loads)
-   Mar 16, 2003 - 00:19 added the missing scan equal, scan low or equal and scan high or equal commands
-   Mar 16, 2003 - 12:22 modified find_sector: if a sector cannot be found, table index should be 0
-   Mar 16, 2003 - 16:12 fdc_seek now only changes track if the drive is ready (i.e. has a disk inserted)
-   Mar 17, 2003 - 22:42 updated fdc_intstat to report status changes (drive ready/not ready)
-   Mar 17, 2003 - 23:04 fixed fdc_drvstat: reset ready if motor is off or no disk inserted
-   Mar 22, 2003 - 18:54 added support for the "flipped" disk condition
-   Jun 03, 2003 - 18:34 fixed Bad Cylinder and No Cylinder handling when a sector cannot be found:
-                        ("Starfox - CPM version" loads)
-*/
-
-/*extern*/ t_FDC FDC;
-
-/*extern*/ byte *pbGPBuffer;
+byte *pbGPBuffer;
 
 #ifdef DEBUG_FDC
 extern FILE *pfoDebug;
@@ -193,31 +181,29 @@ dword dwBytesTransferred = 0;
 #define RES_R     5
 #define RES_N     6
 
-#define OVERRUN_TIMEOUT 128*4
-#define INITIAL_TIMEOUT OVERRUN_TIMEOUT*4
+#define OVERRUN_TIMEOUT (128*4)
+#define INITIAL_TIMEOUT (OVERRUN_TIMEOUT*4)
 
-void fdc_specify(void);
-void fdc_drvstat(void);
-void fdc_recalib(void);
-void fdc_intstat(void);
-void fdc_seek(void);
-void fdc_readtrk(void);
-void fdc_write(void);
-void fdc_read(void);
-void fdc_write(void);
-void fdc_readID(void);
-void fdc_read(void);
-void fdc_writeID(void);
-void fdc_scan(void);
-void fdc_scanlo(void);
-void fdc_scanhi(void);
+void fdc_specify();
+void fdc_drvstat();
+void fdc_recalib();
+void fdc_intstat();
+void fdc_seek();
+void fdc_readtrk();
+void fdc_write();
+void fdc_read();
+void fdc_readID();
+void fdc_writeID();
+void fdc_scan();
+void fdc_scanlo();
+void fdc_scanhi();
 
 typedef struct fdc_cmd_table_def {
    int cmd;
    int cmd_length;
    int res_length;
    int cmd_direction;
-   void (*cmd_handler)(void);
+   void (*cmd_handler)();
 } fdc_cmd_table_def;
 
 #define MAX_CMD_COUNT 15
@@ -243,9 +229,9 @@ fdc_cmd_table_def fdc_cmd_table[MAX_CMD_COUNT] = {
    {0x5d, 9, 7, CPU_TO_FDC, fdc_scan},    // scan high or equal
 };
 
-/*extern*/ t_drive driveA;
-/*extern*/ t_drive driveB;
-t_drive *active_drive; // reference to the currently selected drive
+struct t_drive driveA;
+struct t_drive driveB;
+struct t_drive *active_drive; // reference to the currently selected drive
 t_track *active_track; // reference to the currently selected track, of the active_drive
 dword read_status_delay = 0;
 
@@ -277,7 +263,7 @@ dword read_status_delay = 0;
 
 
 
-void check_unit(void)
+void check_unit()
 {
    switch (FDC.command[CMD_UNIT] & 1) // check unit selection bits of active command
    {
@@ -292,7 +278,7 @@ void check_unit(void)
 
 
 
-int init_status_regs(void)
+int init_status_regs()
 {
    byte val;
 
@@ -317,7 +303,6 @@ t_sector *find_sector(byte *requested_CHRN)
    loop_count = 0; // detection of index hole counter
    idx = active_drive->current_sector; // get the active sector index
    do {
-      byte cylinder;
       if (!(memcmp(&active_track->sector[idx].CHRN, requested_CHRN, 4))) { // sector matches requested ID?
          sector = &active_track->sector[idx]; // return value points to sector information
          if ((sector->flags[0] & 0x20) || (sector->flags[1] & 0x20)) { // any Data Errors?
@@ -328,7 +313,7 @@ t_sector *find_sector(byte *requested_CHRN)
          FDC.result[RES_ST2] &= ~(0x02 | 0x10); // remove possible Bad Cylinder + No Cylinder flags
          break;
       }
-      cylinder = active_track->sector[idx].CHRN[0]; // extract C
+      byte cylinder = active_track->sector[idx].CHRN[0]; // extract C
       if (cylinder == 0xff) {
          FDC.result[RES_ST2] |= 0x02; // Bad Cylinder
       }
@@ -344,13 +329,17 @@ t_sector *find_sector(byte *requested_CHRN)
    if (FDC.result[RES_ST2] & 0x02) { // Bad Cylinder set?
       FDC.result[RES_ST2] &= ~0x10; // remove possible No Cylinder flag
    }
+
+   if (loop_count && active_drive->track_hook)  // track looped and hook available?
+     active_drive->track_hook(active_drive);  // update flakey data
+
    active_drive->current_sector = idx; // update sector table index for active drive
    return sector;
 }
 
 
 
-void cmd_write(void)
+inline void cmd_write()
 {
    t_sector *sector;
 
@@ -376,7 +365,8 @@ void cmd_write(void)
          sector_size = 128 << FDC.command[CMD_N]; // determine number of bytes from N value
       }
       FDC.buffer_count = sector_size; // init number of bytes to transfer
-      FDC.buffer_ptr = sector->data; // pointer to sector data
+      // Note: do not handle writing to weak sectors (would need to write to all of them ?)
+      FDC.buffer_ptr = sector_getDataForWrite(sector); // pointer to sector data
       FDC.buffer_endptr = active_track->data + active_track->size; // pointer beyond end of track data
       FDC.timeout = INITIAL_TIMEOUT;
       read_status_delay = 1;
@@ -393,7 +383,7 @@ void cmd_write(void)
 
 
 
-void cmd_read(void)
+inline void cmd_read()
 {
    t_sector *sector;
 
@@ -434,7 +424,7 @@ loop:
             sector_size = 128 << FDC.command[CMD_N]; // determine number of bytes from N value
          }
          FDC.buffer_count = sector_size; // init number of bytes to transfer
-         FDC.buffer_ptr = sector->data; // pointer to sector data
+         FDC.buffer_ptr = sector_getDataForRead(sector); // pointer to sector data
          FDC.buffer_endptr = active_track->data + active_track->size; // pointer beyond end of track data
          FDC.timeout = INITIAL_TIMEOUT;
          read_status_delay = 1;
@@ -452,7 +442,7 @@ loop:
 
 
 
-void cmd_readtrk(void)
+inline void cmd_readtrk()
 {
    int sector_size;
    t_sector *sector;
@@ -474,7 +464,7 @@ void cmd_readtrk(void)
       sector_size = 128 << FDC.command[CMD_N]; // determine number of bytes from N value
    }
    FDC.buffer_count = sector_size; // init number of bytes to transfer
-   FDC.buffer_ptr = sector->data; // pointer to sector data
+   FDC.buffer_ptr = sector_getDataForRead(sector); // pointer to sector data
    FDC.buffer_endptr = active_track->data + active_track->size; // pointer beyond end of track data
    FDC.timeout = INITIAL_TIMEOUT;
    read_status_delay = 1;
@@ -482,7 +472,7 @@ void cmd_readtrk(void)
 
 
 
-void cmd_scan(void)
+inline void cmd_scan()
 {
    t_sector *sector;
 
@@ -512,7 +502,7 @@ loop:
          }
          sector_size = 128 << FDC.command[CMD_N]; // determine number of bytes from N value
          FDC.buffer_count = sector_size; // init number of bytes to transfer
-         FDC.buffer_ptr = sector->data; // pointer to sector data
+   FDC.buffer_ptr = sector_getDataForRead(sector); // pointer to sector data
          FDC.buffer_endptr = active_track->data + active_track->size; // pointer beyond end of track data
          FDC.flags &= ~SCANFAILED_flag; // reset scan failed flag
          FDC.result[RES_ST2] |= 0x08; // assume data matches: set Scan Equal Hit
@@ -652,6 +642,7 @@ void fdc_write_data(byte val)
 
                   if (active_track->sectors != 0) { // track is formatted?
                      free(active_track->data); // dealloc memory for old track data
+                     active_track->data = NULL;
                   }
                   sector_size = 128 << FDC.command[CMD_C]; // determine number of bytes from N value
                   if (((sector_size + 62 + FDC.command[CMD_R]) * FDC.command[CMD_H]) > max_tracksize) { // track size exceeds maximum?
@@ -662,13 +653,13 @@ void fdc_write_data(byte val)
 
                      track_size = sector_size * FDC.command[CMD_H];
                      active_track->sectors = FDC.command[CMD_H];
-                     active_track->data = (byte *)malloc(track_size); // attempt to allocate the required memory
+                     active_track->data = calloc(1, track_size); // attempt to allocate the required memory
                      pbDataPtr = active_track->data;
                      pbPtr = pbGPBuffer;
                      for (sector = 0; sector < FDC.command[CMD_H]; sector++) {
                         memcpy(active_track->sector[sector].CHRN, pbPtr, 4); // copy CHRN
                         memset(active_track->sector[sector].flags, 0, 2); // clear ST1 & ST2
-                        active_track->sector[sector].data = pbDataPtr; // store pointer to sector data
+                        sector_setData(&active_track->sector[sector], pbDataPtr); // store pointer to sector data
                         pbDataPtr += sector_size;
                         pbPtr += 4;
                      }
@@ -678,7 +669,7 @@ void fdc_write_data(byte val)
                   memcpy(&FDC.result[RES_C], pbPtr, 4); // copy sector's CHRN to result buffer
                   FDC.result[RES_N] = FDC.command[CMD_C]; // overwrite with the N value from the writeID command
 
-                  active_drive->altered = 1; // indicate that the image has been modified
+                  active_drive->altered = true; // indicate that the image has been modified
                   FDC.phase = RESULT_PHASE; // switch to result phase
                }
                else if (FDC.command[CMD_R] != FDC.command[CMD_EOT]) { // haven't reached End of Track?
@@ -686,7 +677,7 @@ void fdc_write_data(byte val)
                   cmd_write();
                }
                else {
-                  active_drive->altered = 1; // indicate that the image has been modified
+                  active_drive->altered = true; // indicate that the image has been modified
 
                   FDC.result[RES_ST0] |= 0x40; // AT
                   FDC.result[RES_ST1] |= 0x80; // End of Cylinder
@@ -703,7 +694,7 @@ void fdc_write_data(byte val)
 
 
 
-byte fdc_read_status(void)
+byte fdc_read_status()
 {
    byte val;
 
@@ -733,7 +724,7 @@ byte fdc_read_status(void)
 
 
 
-byte fdc_read_data(void)
+byte fdc_read_data()
 {
    byte val;
 
@@ -771,6 +762,8 @@ byte fdc_read_data(void)
                      if ((--FDC.command[CMD_EOT])) { // continue reading sectors?
                         if (active_drive->current_sector >= active_track->sectors) { // index beyond number of sectors for this track?
                            active_drive->current_sector = 0; // reset index
+                           if (active_drive->track_hook)
+                             active_drive->track_hook(active_drive);  // update flakey data
                         }
                         FDC.command[CMD_R]++; // advance to next sector
                         cmd_readtrk();
@@ -833,14 +826,14 @@ byte fdc_read_data(void)
 
 
 
-void fdc_specify(void)
+void fdc_specify()
 {
    FDC.phase = CMD_PHASE; // switch back to command phase (fdc_specify has no result phase!)
 }
 
 
 
-void fdc_drvstat(void)
+void fdc_drvstat()
 {
    byte val;
 
@@ -861,7 +854,7 @@ void fdc_drvstat(void)
 
 
 
-void fdc_recalib(void)
+void fdc_recalib()
 {
    FDC.command[CMD_C] = 0; // seek to track 0
    fdc_seek();
@@ -869,7 +862,7 @@ void fdc_recalib(void)
 
 
 
-void fdc_intstat(void)
+void fdc_intstat()
 {
    byte val;
 
@@ -914,7 +907,7 @@ void fdc_intstat(void)
 
 
 
-void fdc_seek(void)
+void fdc_seek()
 {
    check_unit(); // switch to target drive
    if (init_status_regs() == 0) { // drive Ready?
@@ -929,14 +922,13 @@ void fdc_seek(void)
 
 
 
-void fdc_readtrk(void)
+void fdc_readtrk()
 {
    FDC.led = 1; // turn the drive LED on
    check_unit(); // switch to target drive
    if (init_status_regs() == 0) { // drive Ready?
-      dword side;
       active_drive->current_side = (FDC.command[CMD_UNIT] & 4) >> 2; // extract target side
-      side = active_drive->sides ? active_drive->current_side : 0; // single sided drives only acccess side 1
+      dword side = active_drive->sides ? active_drive->current_side : 0; // single sided drives only acccess side 1
       if ((active_drive->flipped)) { // did the user request to access the "other" side?
          side = side ? 0 : 1; // reverse the side to access
       }
@@ -944,6 +936,8 @@ void fdc_readtrk(void)
       if (active_track->sectors != 0) { // track is formatted?
          FDC.command[CMD_R] = 1; // set sector ID to 1
          active_drive->current_sector = 0; // reset sector table index
+         if (active_drive->track_hook)
+           active_drive->track_hook(active_drive);  // update flakey data
 
          cmd_readtrk();
       }
@@ -965,14 +959,13 @@ void fdc_readtrk(void)
 
 
 
-void fdc_write(void)
+void fdc_write()
 {
    FDC.led = 1; // turn the drive LED on
    check_unit(); // switch to target drive
    if (init_status_regs() == 0) { // drive Ready?
-      dword side;
       active_drive->current_side = (FDC.command[CMD_UNIT] & 4) >> 2; // extract target side
-      side = active_drive->sides ? active_drive->current_side : 0; // single sided drives only acccess side 1
+      dword side = active_drive->sides ? active_drive->current_side : 0; // single sided drives only acccess side 1
       if ((active_drive->flipped)) { // did the user request to access the "other" side?
          side = side ? 0 : 1; // reverse the side to access
       }
@@ -986,9 +979,11 @@ void fdc_write(void)
          FDC.phase = RESULT_PHASE; // switch to result phase
       }
       else if (active_track->sectors != 0) { // track is formatted?
+         active_drive->altered = true;
          cmd_write();
       }
       else { // unformatted track
+         active_drive->altered = true;
          FDC.result[RES_ST0] |= 0x40; // AT
          FDC.result[RES_ST1] |= 0x01; // Missing AM
 
@@ -1006,14 +1001,13 @@ void fdc_write(void)
 
 
 
-void fdc_read(void)
+void fdc_read()
 {
    FDC.led = 1; // turn the drive LED on
    check_unit(); // switch to target drive
    if (init_status_regs() == 0) { // drive Ready?
-      dword side;
       active_drive->current_side = (FDC.command[CMD_UNIT] & 4) >> 2; // extract target side
-      side = active_drive->sides ? active_drive->current_side : 0; // single sided drives only acccess side 1
+      dword side = active_drive->sides ? active_drive->current_side : 0; // single sided drives only acccess side 1
       if ((active_drive->flipped)) { // did the user request to access the "other" side?
          side = side ? 0 : 1; // reverse the side to access
       }
@@ -1039,14 +1033,13 @@ void fdc_read(void)
 
 
 
-void fdc_readID(void)
+void fdc_readID()
 {
    FDC.led = 1; // turn the drive LED on
    check_unit(); // switch to target drive
    if (init_status_regs() == 0) { // drive Ready?
-      dword side;
       active_drive->current_side = (FDC.command[CMD_UNIT] & 4) >> 2; // extract target side
-      side = active_drive->sides ? active_drive->current_side : 0; // single sided drives only acccess side 1
+      dword side = active_drive->sides ? active_drive->current_side : 0; // single sided drives only acccess side 1
       if ((active_drive->flipped)) { // did the user request to access the "other" side?
          side = side ? 0 : 1; // reverse the side to access
       }
@@ -1057,6 +1050,8 @@ void fdc_readID(void)
          idx = active_drive->current_sector; // get the active sector index
          if (idx >= active_track->sectors) { // index beyond number of sectors for this track?
             idx = 0; // reset index
+            if (active_drive->track_hook)  // hook available?
+              active_drive->track_hook(active_drive);  // update flakey data
          }
          memcpy(&FDC.result[RES_C], &active_track->sector[idx].CHRN, 4); // copy sector's CHRN to result buffer
          active_drive->current_sector = idx + 1; // update sector table index for active drive
@@ -1073,14 +1068,13 @@ void fdc_readID(void)
 
 
 
-void fdc_writeID(void)
+void fdc_writeID()
 {
    FDC.led = 1; // turn the drive LED on
    check_unit(); // switch to target drive
    if (init_status_regs() == 0) { // drive Ready?
-      dword side;
       active_drive->current_side = (FDC.command[CMD_UNIT] & 4) >> 2; // extract target side
-      side = active_drive->sides ? active_drive->current_side : 0; // single sided drives only acccess side 1
+      dword side = active_drive->sides ? active_drive->current_side : 0; // single sided drives only acccess side 1
       if ((active_drive->flipped)) { // did the user request to access the "other" side?
          side = side ? 0 : 1; // reverse the side to access
       }
@@ -1094,6 +1088,7 @@ void fdc_writeID(void)
          FDC.phase = RESULT_PHASE; // switch to result phase
       }
       else {
+         active_drive->altered = true;
          FDC.buffer_count = FDC.command[CMD_H] << 2; // number of sectors * 4 = number of bytes still outstanding
          FDC.buffer_ptr = pbGPBuffer; // buffer to temporarily hold the track format
          FDC.buffer_endptr = pbGPBuffer + FDC.buffer_count;
@@ -1110,14 +1105,13 @@ void fdc_writeID(void)
 
 
 
-void fdc_scan(void)
+void fdc_scan()
 {
    FDC.led = 1; // turn the drive LED on
    check_unit(); // switch to target drive
    if (init_status_regs() == 0) { // drive Ready?
-      dword side;
       active_drive->current_side = (FDC.command[CMD_UNIT] & 4) >> 2; // extract target side
-      side = active_drive->sides ? active_drive->current_side : 0; // single sided drives only acccess side 1
+      dword side = active_drive->sides ? active_drive->current_side : 0; // single sided drives only acccess side 1
       if ((active_drive->flipped)) { // did the user request to access the "other" side?
          side = side ? 0 : 1; // reverse the side to access
       }
@@ -1153,17 +1147,20 @@ void fdc_scan(void)
 
 
 
-
 void fdc_init(int a, int b)
 {
- memset(&driveA, 0, sizeof(t_drive)); // clear disk drive A data structure
- memset(&driveB, 0, sizeof(t_drive)); // clear disk drive B data structure
+ memset(&driveA, 0, sizeof(struct t_drive)); // clear disk drive A data structure
+ memset(&driveB, 0, sizeof(struct t_drive)); // clear disk drive B data structure
 
  memset(&FDC, 0, sizeof(t_FDC));        // clear FDC data structure
 
  FDC.motor = 0;
  FDC.phase = CMD_PHASE;
- FDC.flags = STATUSDRVA_flag | STATUSDRVB_flag;
+ FDC.flags = STATUSDRVA_flag; // | STATUSDRVB_flag;
+
+
+ active_drive = &driveA; // reference to the currently selected drive
+ active_track = NULL; // reference to the currently selected track, of the active_drive
 }
 
 void fdc_motor(unsigned char on)

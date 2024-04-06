@@ -2,8 +2,10 @@
 // 3rd party libs
 
 #define TIGR_C
+#define TIGR_DO_NOT_PRESERVE_WINDOW_POSITION
 #include "3rd_tigr.h"
 
+#if 0
 #define LUA_IMPL                              // lua544
 #define TK_END TK_END2
 #define TK_RETURN TK_RETURN2
@@ -11,13 +13,10 @@
 #include "3rd_lua.h"
 #undef TK_END
 #undef TK_RETURN
-
-#define MA_NO_FLAC                            // miniaudio
-#ifdef __APPLE__
-#define MA_NO_RUNTIME_LINKING                 // miniaudio osx
 #endif
-#define MINIAUDIO_IMPLEMENTATION              // miniaudio
-#include "3rd_miniaudio.h"
+
+#define SOKOL_AUDIO_IMPL
+#include "3rd_sokolaudio.h"
 
 #define DEFLATE_C
 #include "3rd_deflate.h"

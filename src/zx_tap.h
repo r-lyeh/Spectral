@@ -1,9 +1,3 @@
-#define ROMHACK_TURBO 2.6 // x2 ok; x4,x6,x8 modes not working anymore
-#define IF_ROMHACK_FASTER_EDGES(...)             // __VA_ARGS__ // can be enabled
-#define IF_ROMHACK_FASTER_PILOTS_AND_PAUSES(...) // __VA_ARGS__ // can be enabled
-#define IF_ROMHACK_HALF_BITS(...)                // __VA_ARGS__ // not working anymore
-#define IF_ROMHACK_TURBO(...)                    // __VA_ARGS__ // can be enabled
-
 // fixme!
 // - [ ] voc renderer is mem hungry
 // - [ ] auto-tape (taps): madmix2, p47, gauntlet, batman caped (glue block)
@@ -219,9 +213,11 @@
 
 #define voc_pos RAW_fsm
 
-float AZIMUTH = 1.002501; // + 1.02631; // + 1.0450; // 0.9950; // 0.9950; // 0.9937f; // 0.9937 1.05 both fixes lonewolf+hijack(1986)(electric dreams software).tzx
 float DELAY_PER_MS = 3500; // 69888/20; // 3500; // (ZX_TS*50.06/1000) // (ZX_TS*50.6/1000)
 enum { PILOT = 2168, DELAY_HEADER = 8063, DELAY_DATA = 3223, SYNC1 = 667, SYNC2 = 735, ZERO = 855, ONE = 1710, END_MS = 1000 };
+
+#define AZIMUTH_DEFAULT 1.002501 // + 1.02631; // + 1.0450; // 0.9950; // 0.9950; // 0.9937f; // 0.9937 1.05 both fixes lonewolf+hijack(1986)(electric dreams software).tzx
+float AZIMUTH = AZIMUTH_DEFAULT;
 
 byte        mic,mic_on,mic_has_tape;
 int         mic_last_block;

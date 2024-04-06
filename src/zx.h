@@ -1,11 +1,5 @@
 int do_audio = 1;
 
-// romturbo stats
-// parapshock: 232s (normal)
-// parapshock:  73s (then, 50% processed bits, 6x pilots/pauses, x15 syncs) -> 30s -> 23s
-// parapshock:  18s (then, F1 boost)
-int patched_rom = 0;
-
 // todo (trap)
 // [ ] trap rom loading, edge detection
 // [ ] disable boost if tape == tape_prev for +1s
@@ -30,6 +24,7 @@ int patched_rom = 0;
 // [ ] loaders: spirits, song in 3 lines,
 //
 // fix: mic_on @ eot
+// fix: exolon main tune requires contended memory, otherwise it's too fast +15% tempo
 
 
 // ZX
@@ -42,7 +37,7 @@ int patched_rom = 0;
 int ZX_TS;
 int ZX_FREQ;
 int ZX_TV = 1;
-int ZX = 128;
+int ZX = 128; // 48, 128, 200 (+2), 210 (+2A), 300 (+3)
 int ZX_FAST = 1;
 
     byte *MEMr[4]; //solid block of 16*4 = 64kb for reading
@@ -77,12 +72,11 @@ void port_0xfffd(byte value);
 void port_0xbffd(byte value);
 void reset(int model);
 
-#include "zx_dis.h"
+#include "zx_rom.h"
 #include "zx_dsk.h"
 #include "zx_tap.h" // requires page128
 #include "zx_tzx.h"
 #include "zx_sna.h" // requires page128, ZXBorderColor
-#include "zx_rom.h"
 
 void outport(word port, byte value);
 byte inport(word port);
@@ -145,6 +139,24 @@ rgba ZXPalette[64], ZXPaletteDef[64] = { // 16 regular, 64 ulaplus
     rgb(0x36,0xEF,0xDE),
     rgb(0xEE,0xEB,0x46),
     rgb(0xFD,0xFF,0xF7)
+#elif 1 // vivid
+    rgb(0x06,0x08,0x00), // normal: black,blue,red,pink,green,cyan,yellow,white
+    rgb(0x00,0x00,0xD8),
+    rgb(0xD8,0x00,0x00),
+    rgb(0xD8,0x00,0xD8),
+    rgb(0x00,0xD8,0x00),
+    rgb(0x00,0xD8,0xD8),
+    rgb(0xD8,0xD8,0x00),
+    rgb(0xD8,0xD8,0xD8),
+
+    rgb(0x06,0x08,0x00), // bright: black,blue,red,pink,green,cyan,yellow,white
+    rgb(0x00,0x00,0xFF),
+    rgb(0xFF,0x00,0x00),
+    rgb(0xFF,0x00,0xFF),
+    rgb(0x00,0xFF,0x00),
+    rgb(0x00,0xFF,0xFF),
+    rgb(0xFF,0xFF,0x00), // rgb(0xEE,0xEB,0x46), brighter yellow because jacknipper2 looks washed
+    rgb(0xFF,0xFF,0xFF)
 #elif 1 // latest
     rgb(0x00,0x00,0x00), // normal: black,blue,red,pink,green,cyan,yellow,white
     rgb(0x00,0x00,0xC0), // note: D7 seems fine too
@@ -383,17 +395,65 @@ ay38910_t ay;
 byte ay_current_reg;
 int/*byte*/ ay_registers[ 16 ];
 void port_0xfffd(byte value) {
-//mic_on = 0;
     ay_current_reg=(value&15);
 #if !AYUMI
     // select ay-3-8912 register
     ay38910_iorq(&ay, AY38910_BDIR|AY38910_BC1|ay_current_reg<<16);
 #endif
+
+#if 1 // stop the tape when AY activity is detected
+    // mic_on = 0;
+#endif
 }
 void port_0xbffd(byte value) {
 //mic_on = 0;
     ay_registers[ay_current_reg]=value;
-#if !AYUMI
+#if AYUMI
+    int *r = ay_registers;
+    switch (ay_current_reg)
+    {
+    case 0:
+    case 1:
+        ayumi_set_tone(&ay, 0, (r[1] << 8) | r[0]);
+        break;
+    case 2:
+    case 3:
+        ayumi_set_tone(&ay, 1, (r[3] << 8) | r[2]);
+        break;
+    case 4:
+    case 5:
+        ayumi_set_tone(&ay, 2, (r[5] << 8) | r[4]);
+        break;
+    case 6:
+        ayumi_set_noise(&ay, r[6]);
+        break;
+    case 8:
+        ayumi_set_mixer(&ay, 0, r[7] & 1, (r[7] >> 3) & 1, r[8] >> 4);
+        ayumi_set_volume(&ay, 0, r[8] & 0xf);
+        break;
+    case 9:
+        ayumi_set_mixer(&ay, 1, (r[7] >> 1) & 1, (r[7] >> 4) & 1, r[9] >> 4);
+        ayumi_set_volume(&ay, 1, r[9] & 0xf);
+        break;
+    case 10:
+        ayumi_set_mixer(&ay, 2, (r[7] >> 2) & 1, (r[7] >> 5) & 1, r[10] >> 4);
+        ayumi_set_volume(&ay, 2, r[10] & 0xf);
+        break;
+    case 7:
+        ayumi_set_mixer(&ay, 0, r[7] & 1, (r[7] >> 3) & 1, r[8] >> 4);
+        ayumi_set_mixer(&ay, 1, (r[7] >> 1) & 1, (r[7] >> 4) & 1, r[9] >> 4);
+        ayumi_set_mixer(&ay, 2, (r[7] >> 2) & 1, (r[7] >> 5) & 1, r[10] >> 4);
+        break;
+    case 11:
+    case 12:
+        ayumi_set_envelope(&ay, (r[12] << 8) | r[11]);
+        break;
+    case 13:
+        if (r[13] != 255) 
+        ayumi_set_envelope_shape(&ay, r[13]);
+        break;
+    }
+#else
     ay38910_iorq(&ay, AY38910_BDIR|value<<16);
 #endif
 }
@@ -433,17 +493,14 @@ void init() {
     pins = z80_init(&cpu);
 
     beeper_desc_t bdesc = {0};
-    bdesc.tick_hz = ZX_FREQ;
-    bdesc.sound_hz = DEVICE_SAMPLE_RATE;
-    bdesc.base_volume = 1.f;
+    bdesc.tick_hz = ZX_FREQ; // ZX_FREQ_48K
+    bdesc.sound_hz = AUDIO_FREQUENCY;
+    bdesc.base_volume = 1.f; // 0.25f
     beeper_init(&buzz, &bdesc);
 
 #if AYUMI
-    const double sample_rate = DEVICE_SAMPLE_RATE; // 44100;
-    const double clock_rate = ZX_FREQ /2;
+    const int is_ym = 0;
     const int eqp_stereo_on = 0;
-    const int is_ym = 0; // 1;
-    const int pan[3] = {0,0,0};
     const double pan_ABC[7][3] = { // pan modes, 7 stereo types
       {0.50, 0.50, 0.50}, // MONO
       {0.10, 0.50, 0.90}, // ABC
@@ -454,10 +511,10 @@ void init() {
       {0.90, 0.50, 0.10}, // CBA
     };
 
-    if (!ayumi_configure(&ay, is_ym, clock_rate, sample_rate)) {
+    if (!ayumi_configure(&ay, is_ym, ZX_FREQ / 2, AUDIO_FREQUENCY)) {
         exit(-printf("ayumi_configure error (wrong sample rate?)\n"));
     }
-    double *pan = &pan_ABC[0][0]; // mono
+    const double *pan = pan_ABC[0]; // mono
     ayumi_set_pan(&ay, 0, pan[0], eqp_stereo_on);
     ayumi_set_pan(&ay, 1, pan[1], eqp_stereo_on);
     ayumi_set_pan(&ay, 2, pan[2], eqp_stereo_on);
@@ -465,8 +522,8 @@ void init() {
     ay38910_desc_t ay_desc = {0};
     ay_desc.type = AY38910_TYPE_8912;
     ay_desc.tick_hz = ZX_FREQ / 2;
-    ay_desc.sound_hz = DEVICE_SAMPLE_RATE;
-    ay_desc.magnitude = 1.f;
+    ay_desc.sound_hz = AUDIO_FREQUENCY; // * 0.75; // fix: -25% speed
+    ay_desc.magnitude = 1.0f;
     ay38910_init(&ay, &ay_desc);
 #endif
 
@@ -488,7 +545,6 @@ void reset(int model) {
 
 //    memset(mem, 0x00, 128*1024);
 //    memcpy(rom, ZX < 128 ? rom48 : rom128, ZX < 128 ? 16384 : 2*16384);
-    void rom_patch(int);
     rom_patch(0);
 
     beeper_reset(&buzz);
@@ -504,6 +560,8 @@ void reset(int model) {
     kempston_mouse = 0;
 
 config(ZX);
+
+    AZIMUTH = AZIMUTH_DEFAULT;
 
     pins = z80_reset(&cpu);
 
@@ -569,29 +627,34 @@ zx_vsync = 0;
             }
         }
 
-        // tick the AY (at half frequency)
-        static unsigned char tick = 0; ++tick;
+#if 1
+        sys_audio();
+#endif
+    }
+}
+
+void sys_audio() {
+    // tick the beeper (full frequency)
+    bool sample_ready = beeper_tick(&buzz);
+
+    // tick the AY (half frequency)
+    static float ay_sample = 0;
 #if AYUMI
-        static float ay_sample = 0;
-        if( tick & 1 ) ay_sample = ayumi_render(&ay, ay_registers, DEVICE_SAMPLE_RATE, ZX < 128 ? 50.08:50.01);
+    static byte even = 0; ++even; if( even == 0 || even == 0x80 ) {
+        // update_ayumi_state(&ay, ay_registers);
+        ay_sample = ayumi_render(&ay, ay_registers, 50.00 / AUDIO_FREQUENCY); // frame_rate / audio_rate
+    }    
 #else
-        if( tick & 1 ) ay38910_tick(&ay);
+    static byte even = 0; if( ++even & 1 ) {
+        ay38910_tick(&ay); ay_sample = ay.sample;
+    }
 #endif
 
-        // tick the beeper
-        bool sample_ready = beeper_tick(&buzz); // full frequency
-        if( sample_ready && do_audio ) {
-            float master = 0.95f * ( (mic_on && mic_has_tape) ? 0.05 : 1 );
-#if AYUMI
-            float sample = (buzz.sample * 0.75f + ay_sample * 0.25f) * master;
-#else
-            float sample = (buzz.sample * 0.75f + ay.sample * 0.25f) * master;
-#endif
-            audio_buffer[audio_pos++] = sample;
-            if (audio_pos >= AUDIO_BUFFER) {
-                audio_pos = 0;
-            }
-        }
+    if( do_audio && sample_ready ) {
+        float master = 0.95f * ( (mic_on && mic_has_tape) ? 0.05 : 1 );
+        float sample = (buzz.sample * 0.75f + ay_sample * 0.25f) * master;
+
+        audio_queue(sample);
     }
 }
 
@@ -648,7 +711,7 @@ void outport(word port, byte value) {
     if(contended_mask & 4) //if +2a or +3 then apply (fixes fairlight games)
 #else
     // +2a/+3
-    if( ZX >= 300 )
+    if( ZX >= 210 )
 #endif
     {
         if (!(port & (0xFFFF^0x1FFD))) { outport_0x1ffd(value); return; }
@@ -723,12 +786,12 @@ byte inport(word port) {
     if( kempston_mouse == 7 ) {
 //mic_on = 0;
         extern Tigr *app;
-        int mx, my, mbuttons;
-        tigrMouse(app, &mx, &my, &mbuttons);
+        int mx, my, mb, lmb, mmb, rmb; // buttons: R2M1L0 bits
+        tigrMouse(app, &mx, &my, &mb); lmb = mb & 1; mmb = !!(mb & 2); rmb = !!(mb & 4);
         RECT rect; GetWindowRect((HWND)app->handle, &rect); //int hw = (rect.right - rect.left)/2, hh = (rect.bottom - rect.top)/2; rect.left+=hw; rect.right-=hw; rect.top+=hh; rect.bottom-=hh;
-        if(!(port & (0xFFFF^0xFADF))) return ShowCursor(FALSE), ClipCursor(&rect), /*SetCursorPos((rect.right-rect.left)/2,(rect.bottom-rect.top)/2),*/ 0xFF-((mbuttons&1)+2*!!(mbuttons&4)); // ----.--10.--0-.----  =  Buttons: D0 = right, D1 = left button
-        if(!(port & (0xFFFF^0xFBDF))) return ShowCursor(FALSE), ClipCursor(&rect), /*SetCursorPos((rect.right-rect.left)/2,(rect.bottom-rect.top)/2),*/  mx;                                  // ----.-011.--0-.----  =  X-axis:  $00 … $FF
-        if(!(port & (0xFFFF^0xFFDF))) return ShowCursor(FALSE), ClipCursor(&rect), /*SetCursorPos((rect.right-rect.left)/2,(rect.bottom-rect.top)/2),*/ -my;                                  // ----.-111.--0-.----  =  Y-axis:  $00 … $FF
+        if(!(port & (0xFFFF^0xFADF))) return ShowCursor(FALSE), ClipCursor(&rect), /*SetCursorPos((rect.right-rect.left)/2,(rect.bottom-rect.top)/2),*/ 0xFF&~(1*rmb+2*lmb+4*mmb); // ----.--10.--0-.----  =  Buttons: D0 = RMB, D1 = LMB, D2 = MMB
+        if(!(port & (0xFFFF^0xFBDF))) return ShowCursor(FALSE), ClipCursor(&rect), /*SetCursorPos((rect.right-rect.left)/2,(rect.bottom-rect.top)/2),*/  mx;                       // ----.-011.--0-.----  =  X-axis:  $00 … $FF
+        if(!(port & (0xFFFF^0xFFDF))) return ShowCursor(FALSE), ClipCursor(&rect), /*SetCursorPos((rect.right-rect.left)/2,(rect.bottom-rect.top)/2),*/ -my;                       // ----.-111.--0-.----  =  Y-axis:  $00 … $FF
     }
     // kempston joystick
     else {
@@ -920,9 +983,9 @@ struct checkpoint {
     //#include "dsk.c"
     t_FDC FDC;
     byte *pbGPBuffer;
-    t_drive driveA;
-    t_drive driveB;
-    t_drive *active_drive; // reference to the currently selected drive
+    struct t_drive driveA;
+    struct t_drive driveB;
+    struct t_drive *active_drive; // reference to the currently selected drive
     t_track *active_track; // reference to the currently selected track, of the active_drive
     dword read_status_delay;
 
@@ -1000,7 +1063,7 @@ void checkpoint_save(unsigned slot) {
     // ay
     c->ay = ay;
     c->ay_current_reg = ay_current_reg;
-    memcpy(c->ay_registers, ay_registers, sizeof(ay_registers[0])*16);
+    memcpy(c->ay_registers, ay_registers, sizeof(ay_registers));
     // ula+
     c->ulaplus_mode = ulaplus_mode;
     c->ulaplus_data = ulaplus_data;
@@ -1098,7 +1161,7 @@ port_0x7ffd(c->page128);
     // ay
     ay = c->ay;
     ay_current_reg = c->ay_current_reg;
-    memcpy(ay_registers, c->ay_registers, sizeof(ay_registers[0])*16);
+    memcpy(ay_registers, c->ay_registers, sizeof(ay_registers));
     // ula+
     ulaplus_mode = c->ulaplus_mode;
     ulaplus_data = c->ulaplus_data;
