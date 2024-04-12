@@ -6529,8 +6529,13 @@ void tigrGAPICreate(Tigr* bmp) {
     glGenTextures(2, gl->tex);
     for (int i = 0; i < 2; ++i) {
         glBindTexture(GL_TEXTURE_2D, gl->tex[i]);
+#if 0 // @r-lyeh
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+#else
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl->gl_legacy ? GL_NEAREST : GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl->gl_legacy ? GL_NEAREST : GL_LINEAR);
+#endif
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     }

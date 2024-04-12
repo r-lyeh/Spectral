@@ -44,3 +44,30 @@ int qsort_strcmp(const void * a, const void * b ) {
     if( la > lb ) return +1;
     return strcmp(pa,pb);
 }
+
+// find a mem blob in a mem section; similar to strstr()
+const void *memmem(const void *stack, size_t stack_len, const void * const blob, const size_t blob_len) {
+    if((uintptr_t)stack * stack_len * (uintptr_t)blob * blob_len)
+    for (const char *h = stack; stack_len >= blob_len; ++h, --stack_len) {
+        if (!memcmp(h, blob, blob_len)) {
+            return h;
+        }
+    }
+    return NULL;
+}
+
+// memset words instead of chars
+void *memset32(void *dst, unsigned ch, unsigned bytes) {
+    unsigned ch4 = (ch >> 24) & 0xff;
+    unsigned ch3 = (ch >> 16) & 0xff;
+    unsigned ch2 = (ch >>  8) & 0xff;
+    unsigned ch1 = (ch >>  0) & 0xff;
+    char *ptr = (char*)dst;
+    while( bytes ) {
+        if( bytes-- ) *ptr++ = ch4;
+        if( bytes-- ) *ptr++ = ch3;
+        if( bytes-- ) *ptr++ = ch2;
+        if( bytes-- ) *ptr++ = ch1;
+    }
+    return dst;
+}

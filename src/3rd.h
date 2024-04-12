@@ -24,3 +24,19 @@
 #include "3rd_zip.h"
 #define DIR_C
 #include "3rd_dir.h"
+
+#if SQLITE_C
+//#include "3rd_sqlite3.h"
+#include "3rd_sqlite3.c"
+#undef TK_ESCAPE
+#undef TK_SPACE
+#undef TK_END
+#undef TK_INSERT
+#undef TK_DELETE
+#undef TK_LSHIFT
+#undef TK_RSHIFT
+#undef TK_COMMA
+#undef TK_MINUS
+#undef TK_DOT
+#undef TK_SLASH
+#endif

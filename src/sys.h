@@ -4,7 +4,10 @@ typedef unsigned int   dword;
 typedef unsigned int   rgba;
 typedef uint8_t        byte;
 
-#define do_once  static int _ = 1; for( ; _ ; _ = 0 )
+#define joint(a,b) a##b
+#define join(a,b)  joint(a,b)
+
+#define do_once  static int join(once,__LINE__) = 1; for( ; join(once,__LINE__) ; join(once,__LINE__) = 0 )
 #define __thread __declspec(thread)
 #define FIXME(msg) printf("FIXME: " msg " (%s:%d)\n", __FILE__, __LINE__)
 
@@ -14,6 +17,7 @@ typedef uint8_t        byte;
 #include "sys_video.h"
 #include "sys_audio.h"
 #include "sys_window.h"
+#include "sys_db.h"
 
 #ifndef _WIN32
 #define min(a,b) ((a)<(b)?(a):(b))

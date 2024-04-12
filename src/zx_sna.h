@@ -1,3 +1,5 @@
+char *prompt(void *wndHandle, const char *title, const char *body, const char *value);
+
 static void *p = 0;
 #define mread8()  (*src++)
 #define mread16() (p = realloc(p, 2), 0[(byte*)p]=*src++, 1[(byte*)p]=*src++, *((unsigned short*)p))
@@ -5,6 +7,58 @@ static void *p = 0;
 //#define fread8()  (v = fgetc(fp), v)
 //#define fread16() (v = fgetc(fp), v |= fgetc(fp) << 8, v)
 //#define freadnum(n) (fread(p = realloc(p, (n)), 1, (n), fp), p)
+
+int pok_load(const byte *src, int len) {
+/*
+NInfinite lives
+M  8 41047   0  53
+Z  8 41046 195  91
+NSet number of lives
+Z  8 23343 256   0
+Y
+
+lbbb aaaaa vvv ooo
+Where l determines the content, bbb is the bank, aaaaa is the address to be poked with value vvv and ooo is the original 
+value of aaaaa. All values are decimal, and separated by one or more spaces, apart from between l and bbb; however, 
+the bank value is never larger than 8, so you will always see 2 spaces in front of the bank. The field bank field is
+built from;
+
+bit 0-2 : bank value
+bit 3 : ignore bank (1=yes, always set for 48K games)
+
+If the field [value] is in range 0-255, this is the value to be POKEd. If it is 256, a requester should pop up where
+the user can enter a value.
+*/
+    if( *src != 'N' ) return 0; // not a .pok file
+
+    char trainer[256] = {0};
+    char line[256] = {0};
+    while( strchr("NMZY", *src) && sscanf(src, "%[^\r\n]", line) > 0 ) {
+        src += strlen(line);
+        while( strchr("\r\n", *src) ) ++src;
+
+        if( line[0] == 'N' ) { if(trainer[0]) warning(trainer); strcpy(trainer, line+1); continue; }
+        if( line[0] == 'Y' ) { if(trainer[0]) warning(trainer); return 1; }
+
+        int bank, addr, val, defaults;
+        if( 4 != sscanf(line+1, "%d %d %d %d", &bank, &addr, &val, &defaults) ) break;
+
+        // int current = bank & 8 ? READ8(addr) : RAM_BANK(bank&7)[addr & 0x3FFF];
+        // if( current != defaults ) { warning("poke mismatch"); continue; }
+
+        extern Tigr *app;
+        if( val == 256 ) val = (byte)atoi(prompt(app->handle, trainer, "", va("%d",defaults))), printf("prompt: %d\n", val), trainer[0] = '\0';
+
+        if( bank & 8 )
+        WRITE8(addr, val);
+        else
+        RAM_BANK(bank&7)[addr & 0x3FFF] = val; 
+    }
+
+    puts(".pok error");
+    return 0;
+}
+
 
 int rom_load(const byte *src, int len) { // interface2 cartridge
     if( src && len == 16384 ) {
@@ -14,7 +68,7 @@ int rom_load(const byte *src, int len) { // interface2 cartridge
         port_0x7ffd(32|16);
         */
         ZXBorderColor = 0;
-        cpu.pc = 0;
+        PC(cpu) = 0;
         memcpy(rom, src, len);
         return 1;
     }
@@ -32,7 +86,7 @@ int scr_load(const byte *src, int len) { // screenshot
     port_0x7ffd(32|16);
     */
     ZXBorderColor = 0;
-    cpu.pc = 0;
+    PC(cpu) = 0;
 #endif
     memcpy(rom, "\xF3\x00\x00\x76\x00\x00\x00", 7); // di, nop2, halt, nop3
     memcpy(VRAM, src, 6912);
@@ -62,61 +116,73 @@ int sna_load(const byte *src, int size) {
 reset(size == 49179 ? 48 : 128);
     page128 = 0; port_0x7ffd(32|16);
 
-    cpu.i = mread8();
-    cpu.hl2 = mread16();
-    cpu.de2 = mread16();
-    cpu.bc2 = mread16();
-    cpu.af2 = mread16();
-    cpu.hl = mread16();
-    cpu.de = mread16();
-    cpu.bc = mread16();
-    cpu.iy = mread16();
-    cpu.ix = mread16();
+    I(cpu) = mread8();
+    HL2(cpu) = mread16();
+    DE2(cpu) = mread16();
+    BC2(cpu) = mread16();
+    AF2(cpu) = mread16();
+    HL(cpu) = mread16();
+    DE(cpu) = mread16();
+    BC(cpu) = mread16();
+    IY(cpu) = mread16();
+    IX(cpu) = mread16();
 
     int iff2 = mread8();
-    cpu.iff1 = (iff2 & 0x04) > 0 ? 1 : 0;
-    cpu.iff2 = (iff2 & 0x04) > 0 ? 1 : 0;
+    IFF1(cpu) = 
+    IFF2(cpu) = !!(iff2 & 0x04);
 
-    cpu.r = mread8();
-    cpu.af = mread16();
-    cpu.sp = mread16();
-    cpu.im = mread8() & 3;
-    ZXBorderColor = mread8() & 7;
+    R(cpu) = mread8();
+    AF(cpu) = mread16();
+    SP(cpu) = mread16();
+    IM(cpu) = mread8() & 3; if(IM(cpu) == 3) IM(cpu) = 2;
+    ZXBorderColor = mread8(); // & 7;
+
     memcpy(RAM_BANK(5), mreadnum(16384), 16384);
     memcpy(RAM_BANK(2), mreadnum(16384), 16384);
     memcpy(RAM_BANK(0), mreadnum(16384), 16384);
 
     // 128k
     if( size != 49179 ) {
-        unsigned short pc128 = mread16();
-        byte pg128 = mread8();
+        unsigned short pc = mread16();
+        byte page = mread8();
         byte trdos128 = !!mread8();
-cpu.pc = pc128;
-        page128 = 0; port_0x7ffd(pg128);
-        if( pg128 & 7 ) {
-        memcpy(RAM_BANK(pg128&7), RAM_BANK(0), 16384);
+
+        PC(cpu) = pc;
+        page128 = 0; port_0x7ffd(page); page &= 7;
+
+        if( page ) {
+            memcpy(RAM_BANK(page), RAM_BANK(0), 16384);
         }
-        for( int i = 0; i < 8; ++i ) {
-            if( i == 2 || i == 5 ) continue;
-            if( i == (pg128 & 7) ) continue;
+        for( int i = 0; i < 8; ++i ) {  // pentagon has up to 16 pages
+            if( i == 2 || i == 5 || i == page ) continue;
             memcpy(RAM_BANK(i), mreadnum(16384), 16384);
         }
-        for( int i = 0; i < 8; ++i ) {
-        //    printf("RAMBANK-%d) [%02x]\n", i, RAM_BANK(i)[0]);
-        }
-    } else {
-        // Rui Ribeiro's fix as seen in CSS FAQ
-        unsigned short sp = cpu.sp, sp_bak = sp;
-        unsigned short pc = READ16(sp);
-        cpu.pc = pc;
-        if(sp <= 0xfffd) cpu.sp = sp+2;
-        if(sp >= 0x4000) WRITE16(sp_bak, 0);
     }
+    else {
+        // Rui Ribeiro's fix as seen in CSS FAQ
+        unsigned short sp = SP(cpu);
+        unsigned short pc = READ16(sp);
+        PC(cpu) = pc;
+
+        // if( sp < 0x4000 || sp == 0xffff ) return 0;
+        if(sp >= 0x4000) WRITE16(sp, 0);
+        if(sp <= 0xfffd) SP(cpu) = sp+2;
+    }
+
+#if !NEWCORE
+    EI(cpu) = IFF1(cpu);
+#endif
+
+    outport(0xFE, ZXBorderColor);
+
+#if FLAGS & DEV
+    regs();
+#endif
 
     return 1;
 }
 
-enum { Z80V1_RAW, Z80V1_RLE, Z80V2_RAW, Z80V2_RLE };
+enum { Z80V1_RAW, Z80V1_RLE, Z80V2_RAW = 3, Z80V2_RLE };
 
 void z80_unrle(int type, byte *dest, const byte* src, int len) {
     int limit;
@@ -144,8 +210,7 @@ void z80_unrle(int type, byte *dest, const byte* src, int len) {
             else {
                 byte rep=src[count++];
                 byte val=src[count++];
-                //memset(dest+pc, val, rep); pc += rep;
-                for(int x=0;x<rep;x++) dest[pc++]=val;
+                memset(dest+pc, val, rep); pc += rep;
             }
         }
 
@@ -154,20 +219,30 @@ void z80_unrle(int type, byte *dest, const byte* src, int len) {
     }
 }
 
-//#define reset(x) reset_quick(x)
-
 int z80_load(const byte *source_, int len) {
     int f, tam, sig;
-    byte buffer[86+10], pag, ver = 0;
+    byte buffer[86+10], pag, ver = 0, ver_rle = 0;
     const byte *source = source_;
     const byte *end = source_ + len;
 
-    memcpy(buffer, source, 86); 
+    memcpy(buffer, source, 87); // was, 86 before
 
     if( buffer[12]==255 ) buffer[12]=1; /*as told in CSS FAQ / .z80 section */
 
     // Check file version
-    if( buffer[6] != 0 ) {
+    unsigned pc = buffer[7]<<8|buffer[6];
+    if(! pc ) {
+        pc = buffer[33]<<8|buffer[32];
+        switch( buffer[30] ) {
+            case 23:   ver = 2; break;
+            default:   warning(va(".z80 unknown version: %d\n", buffer[30])); // ?
+            case 54: 
+            case 55:   ver = 3; break;
+        }        
+    }
+
+    // Reset + Config pages
+    if( ver < 2 ) {
         reset(48);
 
         // .z80 v1.45 or earlier
@@ -175,38 +250,30 @@ int z80_load(const byte *source_, int len) {
 
         char *pages3 = malloc(0x4000*3);
         z80_unrle((buffer[12] & 0x20 ? Z80V1_RLE : Z80V1_RAW), pages3, source, 0);
-        memcpy(RAM_BANK(0), pages3+0x4000*2, 0x4000);
-        memcpy(RAM_BANK(2), pages3+0x4000*1, 0x4000);
         memcpy(RAM_BANK(5), pages3+0x4000*0, 0x4000);
+        memcpy(RAM_BANK(2), pages3+0x4000*1, 0x4000);
+        memcpy(RAM_BANK(0), pages3+0x4000*2, 0x4000);
         free(pages3);
-
-        cpu.pc = buffer[7]<<8|buffer[6];
     } else {
-        switch( buffer[30] ) {
-            case 23:   ver = 2; break;
-            case 54: 
-            case 55:   ver = 3; break;
-            default:            break; //?
-        }
 
         // common extended values (v2+v3)
         /**/ if(buffer[34]== 7) reset(buffer[37]&0x80 ? 210 : 300); //OK!
         else if(buffer[34]== 8) reset(buffer[37]&0x80 ? 210 : 300); //OK!
-        else if(buffer[34]== 9) return 0; // Pentagon 128k
-        else if(buffer[34]==10) return 0; // Scorpion 256k
-        else if(buffer[34]==11) return 0; // Didaktik-Kompakt
+        else if(buffer[34]== 9) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // Pentagon 128k
+        else if(buffer[34]==10) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // Scorpion 256k
+        else if(buffer[34]==11) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // Didaktik-Kompakt
         else if(buffer[34]==12) reset(200); //OK!
         else if(buffer[34]==13) reset(210); //OK!
-        else if(buffer[34]==14) return 0; // TC2048
-        else if(buffer[34]==15) return 0; // TC2068
-        else if(buffer[34]==16) return 0; // TS2068
+        else if(buffer[34]==14) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // TC2048
+        else if(buffer[34]==15) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // TC2068
+        else if(buffer[34]==16) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // TS2068
         else {
         // v2 hw, v3 hw or Unknown hardware
-        /**/ if(buffer[34]== 0 && ver==2) reset(buffer[37]&0x80 ? 16 : 48); //OK!
-        else if(buffer[34]== 1 && ver==2) reset(buffer[37]&0x80 ? 16 : 48); //MISSING 48+IF1
-        else if(buffer[34]== 2 && ver==2) reset(buffer[37]&0x80 ? 16 : 48); //MISSING 48+SAMRAM
-        else if(buffer[34]== 3 && ver==2) reset(buffer[37]&0x80 ?200 :128); //OK!
-        else if(buffer[34]== 4 && ver==2) reset(buffer[37]&0x80 ?200 :128); //MISSING 128+IF1:
+        /**/ if(buffer[34]== 0 && ver>=2) reset(buffer[37]&0x80 ? 16 : 48); //OK!
+        else if(buffer[34]== 1 && ver>=2) reset(buffer[37]&0x80 ? 16 : 48); //MISSING 48+IF1
+        else if(buffer[34]== 2 && ver>=2) reset(buffer[37]&0x80 ? 16 : 48); //MISSING 48+SAMRAM
+        else if(buffer[34]== 3 && ver>=2) reset(buffer[37]&0x80 ?200 :128); //OK!
+        else if(buffer[34]== 4 && ver>=2) reset(buffer[37]&0x80 ?200 :128); //MISSING 128+IF1:
         else if(buffer[34]== 0 && ver!=2) reset(buffer[37]&0x80 ? 16 : 48); //OK!
         else if(buffer[34]== 1 && ver!=2) reset(buffer[37]&0x80 ? 16 : 48); //MISSING 16+IF1 & 48+IF1:
         else if(buffer[34]== 2 && ver!=2) reset(buffer[37]&0x80 ? 16 : 48); //MISSING 16+SAMRAM & 48+SAMRAM
@@ -218,13 +285,16 @@ int z80_load(const byte *source_, int len) {
         }
 
         if(ZX>=128) {
+            //  if the word [30] is 23:
             for(int psg=0;psg<16;psg++) { port_0xfffd(psg); port_0xbffd(buffer[39+psg]); }
             port_0xfffd(buffer[38]);
-            if(buffer[30] == 55) outport_0x1ffd(buffer[86]);
+
+            if(buffer[30] == 55) port_0x1ffd(buffer[86]);
+
             port_0x7ffd(buffer[35]);
         }
 
-        sig = 30 + 2 + buffer[30];
+        sig = 30 + 2 + buffer[30]; // [30] should be 16bits
 
         for (f = 0; f < 16 ; f++) { //up 16 pages (ZS Scorpion)
             byte *target=NULL;
@@ -235,6 +305,7 @@ int z80_load(const byte *source_, int len) {
             tam = tam + ((*source++) << 8);
             pag = *source++; 
             sig += 3 + tam;
+if (tam==65535) sig-=49151;
 
             if(ZX<128)
             switch(pag) {
@@ -243,10 +314,9 @@ int z80_load(const byte *source_, int len) {
 
              //case 0:  target=ROM_BANK(0); break;
              case 8:  target=RAM_BANK(5); break;
-             case 4:  target=RAM_BANK(2); break;
-             case 5:  
-            default:  target=RAM_BANK(0); break;
-
+             case 4:  target=RAM_BANK(2); break; // (2)?
+             case 5:  target=RAM_BANK(0); break; // (3)?
+             default: break;
             }
             else
             switch(pag) {
@@ -255,57 +325,54 @@ int z80_load(const byte *source_, int len) {
 
              //case 0:  target=ROM_BANK(1); break;
              //case 2:  target=ROM_BANK(0); break;
-             default: if((pag>=3) && (pag<=18))
+             default: if((pag>=3) && (pag<=10)) // [3..18] pages for scorpion
                                 target=RAM_BANK(pag-3); break;
             }
 
             if(target!=NULL)
-             z80_unrle((tam == 0xffff ? Z80V2_RAW : Z80V2_RLE), target, source, tam);
+             z80_unrle(ver_rle = (tam == 0xffff ? Z80V2_RAW : Z80V2_RLE), target, source, tam);
 
             if(source_+sig>=end) break;
         }
-        cpu.pc = buffer[33]<<8|buffer[32];
     }
 
-    cpu.af = buffer[1]<<8|buffer[0];
-    cpu.bc = buffer[3]<<8|buffer[2];
-    cpu.hl = buffer[5]<<8|buffer[4];
-    cpu.sp = buffer[9]<<8|buffer[8];
-    cpu.i = buffer[10];
+    PC(cpu) = pc;
 
-    cpu.r = ((buffer[11] & 0x7F) | (buffer[12] & 1 ) << 7);
-    ZXBorderColor = (buffer[12] >> 1) & 7;
+    AF(cpu) = buffer[1]<<8|buffer[0];
+    BC(cpu) = buffer[3]<<8|buffer[2];
+    HL(cpu) = buffer[5]<<8|buffer[4];
 
-    cpu.de = buffer[14]<<8|buffer[13];
-    cpu.bc2 = buffer[16]<<8|buffer[15];
-    cpu.de2 = buffer[18]<<8|buffer[17];
-    cpu.hl2 = buffer[20]<<8|buffer[19];
-    cpu.af2 = buffer[22]<<8|buffer[21];
-    cpu.iy = buffer[24]<<8|buffer[23];
-    cpu.ix = buffer[26]<<8|buffer[25];
+    SP(cpu) = buffer[9]<<8|buffer[8];
+    I(cpu) = buffer[10];
+    R(cpu) = (buffer[11] & 0x7F) | ((buffer[12] & 1) << 7);
+    ZXBorderColor = (buffer[12] >> 1); // & 7;
 
-    cpu.iff1 = buffer[27] > 0 ? 1 : 0;
-    cpu.iff2 = buffer[28] > 0 ? 1 : 0;
+    DE(cpu) = buffer[14]<<8|buffer[13];
+    BC2(cpu) = buffer[16]<<8|buffer[15];
+    DE2(cpu) = buffer[18]<<8|buffer[17];
+    HL2(cpu) = buffer[20]<<8|buffer[19];
+    AF2(cpu) = buffer[22]<<8|buffer[21];
+    IY(cpu) = buffer[24]<<8|buffer[23];
+    IX(cpu) = buffer[26]<<8|buffer[25];
 
-    cpu.im = buffer[29] & 0x03;
+#if NEWCORE
+    IFF1(cpu) = !!buffer[27];
+#else
+    EI(cpu) = !!buffer[27];
+    IFF1(cpu) = 
+#endif
+    IFF2(cpu) = !!buffer[28];
+
+    IM(cpu) = buffer[29] == 0xFF ? 1 : buffer[29] & 0x03;
+    if(IM(cpu) == 3) IM(cpu) = 2;
+
+    outport(0xFE, ZXBorderColor);
+
+    printf("z80 v%d (rle:%d) (machine:%d)\n", ver, ver_rle, buffer[34]);
+
+#if FLAGS & DEV
+    regs();
+#endif
 
     return 1;
-/*
-    // double int freq
-    // highvideo,lowvideo,normal
-
-    //issue2
-    keyboard_issue=flag&4 ? 255 : 191;
-
-    //joystick type
-    joy_type=(flag&0xC0)>>6;
-    switch(joy_type) {
-        case 0 : printf("Cursor\n");break;
-        case 1 : printf("Kempston\n");break;
-        case 2 : printf("Sinclair 1\n");break;
-        case 3 : printf("Sinclair 2\n");break;
-    }
-*/
 }
-
-//#undef reset

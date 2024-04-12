@@ -455,9 +455,7 @@ void update_ayumi_state(struct ayumi* ay, int* r) {
   }
 }
 
-const int dc_filter_on = 1;
-
-float ayumi_render(struct ayumi* ay, int *regs, double isr_step) {
+float ayumi_render(struct ayumi* ay, int *regs, double isr_step, int dc_filter_on) {
 #if 0
   static double isr_counter = 1;
 
@@ -478,5 +476,3 @@ void ayumi_reset(struct ayumi *ay) {
     int regs[16] = {0};
     update_ayumi_state(ay, regs);
 }
-
-struct ayumi ay;

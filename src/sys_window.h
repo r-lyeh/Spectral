@@ -1,5 +1,6 @@
 #define window Tigr
-#define window_open(w,h,title) tigrWindow(w, h, title, 0)
+#define window_open(w,h,title) tigrWindow(w, h, title, TIGR_2X)
+#define window_bitmap(w,h) tigrBitmap(w,h)
 #define window_update(win) (tigrUpdate(win))
 #define window_alive(win) (!tigrClosed(win))
 #define window_close(win) (win = (win ? tigrFree(win), NULL : NULL))
@@ -11,24 +12,25 @@
 #define window_title(win, text) SetWindowTextA((HWND)((win)->handle), text)
 
 // Set the window icon for every window in your app (including MessageBox() calls and assertion failures) instead of just your primary window.
-static
-LRESULT window_create_callback(int type, WPARAM wparam, LPARAM lparam) {
+static HICON appIcon; // = (HICON)GetClassLong(hWnd, GCL_HICON);
+static LRESULT window_create_callback(int type, WPARAM wparam, LPARAM lparam) {
     if (type == HCBT_CREATEWND) {
-        static HICON hIcon; // = (HICON)GetClassLong(hWnd, GCL_HICON);
-        do_once {
-        HANDLE hInstance = GetModuleHandleA(NULL);
-        hIcon = ExtractIconA(hInstance, __argv[0], 0 );
-        if(!hIcon) hIcon = ExtractIconA(hInstance, va("%s.exe", __argv[0]), 0 );
-        }
-        SendMessage((HWND)wparam, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
-        SendMessage((HWND)wparam, WM_SETICON, ICON_BIG, (LPARAM)hIcon);    
+        SendMessage((HWND)wparam, WM_SETICON, ICON_SMALL, (LPARAM)appIcon);
+        SendMessage((HWND)wparam, WM_SETICON, ICON_BIG, (LPARAM)appIcon);
     }
     return CallNextHookEx(NULL, type, wparam, lparam);
 }
 void window_override_icons() {
+    do_once {
+        HANDLE hInstance = GetModuleHandleA(NULL);
+        appIcon = ExtractIconA(hInstance, __argv[0], 0 );
+        if(!appIcon) appIcon = ExtractIconA(hInstance, va("%s.exe", __argv[0]), 0 );
+    }
     SetWindowsHookEx(WH_CBT, window_create_callback, NULL, GetCurrentThreadId());
 }
 
 void warning(const char *msg) {
     MessageBoxA(0,msg,"Warning",MB_OK);    
 }
+
+char* prompt( void *hwndParentWindow, const char *title, const char *caption, const char *defaults );

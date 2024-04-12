@@ -1,0 +1,56 @@
+The Looking Glass ROM - LG18v07.rom
+
+Welcome to the Looking Glass ROM for the 16K and 48K ZX Spectrum.
+This ROM is a development of the Gosh Wonderful ROM GW03.
+The reason for the name change is that the GW03 ROM is still viable 
+and supported. The new ROM no longer has Renumber and Block Delete.
+
+While GW03 ROM had a mode that used single letter entry of keywords, Extended 
+Mode was necessary when using keywords in response to the INPUT prompt.
+In this respect it was no different to the 128K editor and other systems.
+
+The LG ROM presents two enchanting and contrasting environments in which to
+edit and run Sinclair ZX Spectrum BASIC. To switch between the two worlds
+enter 'stop' (4 letter word) or 'STOP' (Symbol Shift A) at the command line. 
+Which one to use depends on the mode you are in.
+
+Both modes are completely compatible with the original ZX Spectrum and in
+keyword mode you will be hard pressed to tell the difference. One clue is 
+that if you enter 'REM s' or 'rem s' as a direct command you will see a banner 
+showing LG and the version alongside an estimate of free memory.
+Below this is a listing of the streams area, for both system and user,
+indicating by letter any channel attached to the stream.
+
+The only other clue is that all of the imperfections have been corrected.
+There weren't many but try 
+PRINT INT -65536 or PRINT INT -65535.5
+Also, if you hold down the 'T' key then the screen will quickly fill with
+repetitions of the command RANDOMIZE. I wasn't going to take all the fun away. 
+
+If in keyword mode, you enter 'STOP' then you enter single Letter mode. 
+Now you enter ALL BASIC words and symbols as single letters, numbers, graphics 
+or symbols. In this mode SYMBOL-SHIFT is much simpler and produces the red 
+symbol associated with the key, either on the key or below it. 
+The exception is the copyright symbol which is moved to the 'I' key which was
+the only key without one of the symbols.  The three compound symbols - '<>', 
+'>=' and '<=' are not present so 'Q' also has the copyright symbol.
+
+Extended Mode is available only for embedded colour control codes 
+The only way to enter keywords is one character at a time.
+
+From the Vickers manual try the expression
+
+10 print  val"val""val""""2"""""""
+
+which is tokenized correctly.
+The same expression can also be used as numeric input.
+
+Try
+
+10 if val"val""2+1"""=val"val""3"""then print"Val Kilmer"
+
+
+Have fun,
+
+
+Geoff Wearmouth, AUG-2018

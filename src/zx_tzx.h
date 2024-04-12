@@ -151,8 +151,13 @@ mic_queue_has_turbo = 1;
                 blockname = "pauseOrStop";
                 pause  = (*src++); pause  |= (*src++)*0x100; 
                 debug = va("%ums", pause);
+#if 0
                 if(ZX < 128) mic_render_stop();      // added ZX<128 for munsters.tzx
                 else mic_render_pause(pause+!pause); // added for Untouchables(HitSquad).tzx ??? // tzx 1.13 says: if(pause==0)pause=1;
+#else
+                if(!pause) mic_render_stop();
+                else mic_render_pause(pause);
+#endif
 
             break; case 0x21: // IGNORED (see: BleepLoad)
                 blockname = "groupStart";
@@ -204,7 +209,7 @@ mic_queue_has_turbo = 1;
                 blockname = "48KStopTape"; 
                 count  = (*src++); count  |= (*src++)*0x100; count  |= (*src++)*0x10000; count  |= (*src++)*0x1000000;
                 // src += count; // batman the movie has count(0), oddi the viking has count(4). i rather ignore the count value
-                if(ZX < 128) mic_render_stop();
+                if(ZX < 128) mic_render_stop(); // @fixme: || page128 & 16
 
             break; case 0x2b: // REV
                 blockname = "signalLevel";

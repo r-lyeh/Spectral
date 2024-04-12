@@ -1,0 +1,290 @@
+     ZX Spectrum Plus 2C
+     --------------------
+
+     Unofficial ROM by Andrew Owen
+     Note this should not be confused with the +2C ROM from NamCo.
+
+
+     Copyrights
+     ----------
+
+     Sinclair BASIC is copyright (c)1982-87 Amstrad plc.
+
+     This software is distributed with the kind permission of Amstrad plc.
+
+                        Amstrad plc. Registered in England No. 955321.
+     Registered Office: Brentwood House, 169 Kings Road, Brentwood,
+                        Essex CM14 4EF, England
+
+     Visit the Amstrad website at http://www.amstrad.com
+
+     You may freely distributed this software providing it is unmodified
+     and is accompanied by this text file.
+
+
+     Disclaimer
+     ----------
+
+     The author accepts no responsibility for any damage caused to
+     anything by this software - no software is bug free (although it's
+     probably got fewer bugs than the ROMs you're using right now).
+
+
+     Introduction
+     ------------
+
+     First there was the ZX Spectrum, then there was the ZX Spectrum Plus,
+     and if Sinclair had continued Apple's naming convention, next there
+     would have been the ZX Spectrum SE. Except that's not what happened.
+
+
+     Ancient History (you can skip this bit)
+     ---------------------------------------
+
+     The Spectrum was originally named the ZX82, after its predecessors
+     the ZX80 and ZX81. The Spectrum name came from the fact that it was
+     Sinclair's first colour computer. The ROM was written by Steven
+     Vickers of Nine Tiles, who had also worked on the ZX80 and ZX81.
+       Sinclair launched the machine before the ROM was finished which
+     explains several bugs and a large empty chunk at the end of the ROM.
+     Nine Tiles continued to work on the ROM after the launch but by then
+     too many units had been sold. Sinclair and Nine Tiles split
+     acrimoniously and Steven Vickers went on to write the ROM for the
+     Jupiter Ace.
+      This meant that when the 128K machine was created in 1985, the ROM
+     had to be written in-house. The programmers used the original ROM as
+     the basis for their work but the Sinclair disassembly was inacurrate
+     and incomplete - they ended up using Logan and O'Hara's disassembly.
+       The editor was written on a network of VAX machines running CP/M
+     and at the end of the ROM you can see the initials of all those who
+     worked on the project. Given the lack of knowledge about the original
+     ROM, the fact that each programmer was working on only one part of
+     the ROM without a general overview, and the limits of the available
+     technology, it is a tribute to the programmers that they managed to
+     get it to work so well.
+       The original 128 was launched in Spain without the now familiar
+     menus. They were added to the later English version. Unfortunately
+     the number of bugs was also increased. On the positive side, this
+     meant that hardly any 128 software relied on a specific version of
+     the editor ROM and so would run happily on Spanish or English 128s
+     and the subsequent Amstrad machines.
+       But this was not true of earlier software. Reliablity had been an
+     issue with early Spectrums so a factory test program was added in the
+     spare space in the original ROM. Unfortunately some programs which
+     used this space as an interrupt table were now incompatible.
+       Shortly after the launch of the English 128, financial difficulties
+     forced Sinclair to sell the Spectrum to rival Amstrad. The editor on
+     the rapidly launched +2 was recompiled on a network of PCWs. The tape
+     test code was removed and the copyright message was changed but this
+     moved a lot of the code further back in the ROM and there is a chunk
+     of empty space at the end of the ROM.
+       In 1987 Cliff Lawson led a team of programmers, including some who
+     had worked on the original 128, to create the +3. Lawson wrote the
+     operating system PLUS3DOS while the others expanded the editor into
+     two ROMs. The code was moved all over the place but all the bugs were
+     left in and new bugs were added. This wasn't really the fault of the
+     programmers since they were not aware of many of the bugs in the
+     first place and they were trying to add support for PLUS3DOS to the
+     128 editor with an ever diminishing set of notes on how it was
+     supposed to work.
+       Changes in syntax meant the +3 even refused to run some 128
+     programs and hardware changes meant even more pre-128 progamms would
+     not run. Some of the hardware problems were ironed out in the +3B and
+     one or two bugs were fixed in the +2A which was the last Spectrum.
+ 
+
+     Alternate ROMs
+     -------------- 
+ 
+     ZX Spectrum +4/48
+
+     My first attempt at creating a new ROM for the Spectrum. At the time
+     it was the most bug free ROM around and featured a tokeniser and a
+     built in monitor. I later discovered there were some more bugs.
+ 
+     ZX Spectrum 48D
+
+     Late in 2000 I managed to fix all but one of the bugs in the original
+     ROM. Unfortunately I fixed them in the 128 version of the BASIC ROM
+     because I was trying to debug the 128 as well. After I completed the
+     ROM I realised the extra code in the 128 BASIC ROM was unneccesary.
+     Now I'd have to extract all the patches and do them from scratch.
+     As a result I did not release this ROM.
+ 
+     ZX Spectrum Plus 2C
+
+     With a bug-free version of the original ROM complete I looked at
+     doing the same for the 128 ROM. Eventually I realised it was
+     impossible - the code is too fragmented. I added TR-DOS support from
+     the Pentagon, cleaned up as many bugs as I could and replaced the
+     BASIC with the original ROM. Then I plugged it into my +2 (which I
+     modified to drive an Amstrad stereo monitor). This is the ROM you
+     have here.
+ 
+     ZX Spectrum +3e
+
+     Garry Lancaster's enhanced +3 ROMs with IDE support. I had a number
+     of email conversations with Garry about ways to improve the Spectrum
+     ROMs and he burned the +2C EPROM for me. I wanted IDE support for my
+     next project but I didn't want to be limited to 8-bit access. 
+ 
+     ZX Spectrum SE
+
+     If you want a reasonably bug free, very stable and 100% backward
+     compatible ROM, you can't go far wrong with the Plus 2C. But I still
+     wanted to fix all the bugs, so that's what this ROM will do when it
+     is released. Support for the new hardware of the ZX Spectrum SE will
+     be built on top of it.
+
+
+     Bug-fixes to the 128 Editor
+     ---------------------------
+
+     ROM 1 is the original, unmodified, 48 Basic ROM with the huge number
+     of FF instructions. This improves compatibility.
+
+     In ROM 0 I have used all the avaiable space to fix as many bugs as I
+     could in the 128 editor.
+
+     I have code which fixes even more bugs in the 128 Editor but because
+     the BASIC ROM is the unmodified original ROM I had no where to put
+     all the patches. As such I did all the fixes I could fit in:
+
+
+     0064 - Enabled NMI calls with ROM 0 paged in
+
+     The NMI bug in ROM 1 is not fixed. If there is no value set it will
+     reset the machine as usual (for compatibility reasons), but if there
+     is a value set it will be called even when ROM 0 is paged in.
+
+     01C3 - Fixed the NEW bug
+
+     Values were written to the wrong addresses making many 48K programs
+     crash in 128K mode. They should now function normally.
+
+     0240 - Fixed the 48 incompatibility bug
+
+     Changing three instructions to NOP allows the original, unmodified
+     ROM from the Spectrum 48K to be used in place of ROM 1. When the
+     SPECTRUM command is entered from 128 BASIC this gives 100%
+     compatibility with all 48K programs written for issue 3 and later.
+
+     032C - Replaced HALT with NOP
+
+     Could cause a crash in a few unusual circumstances
+
+     034B - Fixed the ERROR NUMBER bug
+
+     I can't remeber what it did but it is a simple fix.
+
+     048A - Fixed the missing error message bug
+
+     In the original 128 (Spanish, without the menus) there was a p,
+     Parameter error. Its absence in the UK and subsequent 128s can cause
+     the machine to crash in a few circumstances.
+
+     0B96 - Fixed the PLAY "O256" bug
+
+     This value should not be accepted by play but on other machines it
+     is.
+
+     2199 - Fixed the DFSZ bug
+
+     Minor bug.
+
+     26F1 - Fixed the keyclick bug
+
+     The keyclick is supposed to sound the same in 48 and 128 mode but an
+     error in the 128 ROM means it looks in the wrong place to find the
+     value.
+
+     2D4A - Fixed the ALT CURSOR COLUMN bug
+
+     Could cause crashes.
+
+     2DA1 - Fixed the lower screen edit mode bug
+
+     Could cause crashes.
+
+     3012 - Fixed the DELETE WORD bug
+
+     Minor bug.
+
+     335E - Fixed the RET NC bug
+
+     Minor bug.
+
+     3474 - Fixed the LINE 0 bug
+
+     It now shows up although there wasn't room to do a fix to prevent it
+     filling the screen.
+
+     36CC - Centred menu (36F1, 3770, 37CE, 37EE)
+
+     I hated the fact that the menu was offset to the left to line up with
+     the copyright message since the message is only displayed once.
+
+     37F6 - Changed colour scheme (3864)
+
+     I prefer blue title bars to black. It's more restful on the eyes. It
+     is also an easy way to tell you are using this ROM.
+
+     3857 - 48 BASIC selects USR 0 mode
+
+     When I run a demo I don't want to have to go into 128 basic and type
+     USR 0. Now I don't have to. Everything that runs in 48 mode should
+     run in USR 0 mode. If it doesn't you can still get 48 mode using the
+     SPECTRUM command from 128 basic.
+
+     3966 - Fixed the RENUMBER bug
+
+     Can't remember what it did before.
+
+     3BE9 - Added TR-DOS/removed Tape Tester
+
+     Although there is a TR-DOS menu option it just resets the machine
+     unless there is a Beta Disk interface plugged into the expansion
+     port or TR-DOS emulation is turned on.
+
+     3DDE - Fixed the IF n1<n2 THEN bug
+
+     Try typing that line on a normal 128.
+
+     3F22 - Fixed the ERROR MARKER bug
+
+     Not a perfect fix but much better than a normal 128.
+
+     3F40 - Fixed the INC DE bug
+
+     Minor bug.
+
+
+     Bug fixes not implimented for space considerations
+     --------------------------------------------------
+
+     Most of these bugs are not serious and work-arounds are available for
+     those that are. There are also some minor bugs not listed here for
+     which no fix presently exists.
+
+     006B - The SWAP bug
+     016D - SCREEN ONE bug
+     09CD - PLAY bug
+     1CA2 - RAM DISK bug
+     232F - TOO MANY CHANNELS bug
+     36B9 - MENU FLASH bug
+     386E - BAR FLASH bug
+     3960 - LINE-ADDR bug
+     3966 - RENUMBER bug
+
+
+     A completely debugged 128 editor
+     --------------------------------
+
+     Although I had a go at doing this, it is beyond my ability to track
+     down all the bugs and fix them within 32K of ROM space. On the other
+     hand, the +3 has plenty of spare room so maybe Garry Lancaster will
+     get them all eventually. I've given up and am working on other things
+     instead.
+
+     Andrew Owen
+     4-10-01

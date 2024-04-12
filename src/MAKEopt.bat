@@ -1,2 +1,2 @@
-call make /O2 /MT /DNDEBUG /GL /GF /arch:AVX2 %*
-upx ..\spectral.exe
+@rem do not use /O1 or /O2 below. ayumi drums will be broken in AfterBurner.dsk otherwise
+@call make /Ox /MT /DNDEBUG /GL /GF /arch:AVX2 %*

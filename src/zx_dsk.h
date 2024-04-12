@@ -33,9 +33,9 @@ void dsk_eject (struct t_drive *drive)
    drive->current_track = dwTemp;
 }
 
+const char *dsk_id(const void *data, int datalen);
 
-//int dsk_load (char *pchFileName, struct t_drive *drive, char chID)
-int dsk_load(void *pchFileName)
+int dsk_load(const void *data, int datalen)
 {
    int iRetCode = 0;
    dword dwTrackSize, track, side, sector, dwSectorSize, dwSectors;
@@ -49,13 +49,13 @@ int dsk_load(void *pchFileName)
    drive->current_track = dwTemp;
    }
 
-//   if ((pfileObject = fopen(pchFileName, "rb")) != NULL) {
+//   if ((pfileObject = fopen(data, "rb")) != NULL) {
 //    fread(pbGPBuffer, 0x100, 1, pfileObject); // read DSK header
-      pbGPBuffer = (byte *)pchFileName;
+      pbGPBuffer = (byte *)data;
 
       pbPtr = pbGPBuffer;
 
-      printf("dsk type: %.*s\n", 8, pbPtr);
+      printf("dsk type: %.*s [%s]\n", 8, pbPtr, dsk_id(data, datalen));
 
       if (memcmp(pbPtr, "MV - CPC", 8) == 0) { // normal DSK image?
          drive->tracks = *(pbPtr + 0x30); // grab number of tracks
@@ -218,3 +218,30 @@ exit:;
 }
 
 
+const char *dsk_id(const void *data, int datalen) {
+   static const char *nil = "", *ids[] = {
+      "HEXAGON DISK PROTECTION", // ERR:DoubleDragonII.dsk, Final Fight(1991)(U.S.Gold).dsk, G-LOC(1992).dsk
+      "SPEEDLOCK +3 DISC PROTECTION", // ERR:AfterBurner(1988).dsk, Ok:DanDareII.dsk,TheVindicator.dsk
+      "Loader Copyright Three Inch Software", // Ok: DoubleDragon.dsk, P47Thunderbolt.dsk, Virus.dsk
+      "NEW DISK PROTECTION SYSTEM", // North & South.dsk
+      "PAUL OWENS\x80PROTECTION SYSTEM", // Cabal.dsk, BatmanTheMovie.dsk, ChaseHQ.dsk, RedHeat.dsk
+      "SPEEDLOCK DISC PROTECTION SYSTEM", // Ok: BackToTheFuturePartII.dsk, BarbarianII.dsk, TotalRecall.dsk
+      "THE ALKATRAZ PROTECTION SYSTEM", // Ok: BedLam.dsk, ButcherHill.dsk, ForgottenWorlds.dsk, Vigilante.dsk
+      "ALKATRAZ PROTECTION SYSTEM", //
+      "SPEEDLOCK Protection System V", // International Karate (1985)(System 3 Software).dsk
+      "PROGRAM PROTECTION", // Starglider (1986)(Rainbird Software).dsk
+      "PROTECTION SYSTEM", // Generic
+
+      // custom
+      "\x03\x00\x08\x02\x00\x00\x00\x02\x03\x00\x09\x02\x00\x40\x00\x02" "SPEEDLOCK +3 DISC 1988-2",  // Tai-Pan.dsk, Action Force.dsk
+      "\x01\x00\x00\x00\x06\x01\x4e\xe5\x01\x00\x01\x06\x20\x60\x00\x18" "UNKNOWN PROTECTION SYSTEM", // Bonanza Bros - Side B (Spectrum).dsk , X-Out.dsk
+      // "i must zip zap off now", // "Last Mohican, The (1987)(CRL Group)",
+      0
+   };
+
+   for( int i = 0; ids[i]; ++i ) {
+      if( memmem(data, datalen, ids[i], strlen(ids[i])) ) return ids[i];
+      if( ids[i][0] < 32 && memmem(data, datalen, ids[i], 16) ) return ids[i] + 16;
+   }
+   return nil;
+}

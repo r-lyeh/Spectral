@@ -217,7 +217,7 @@ float DELAY_PER_MS = 3500; // 69888/20; // 3500; // (ZX_TS*50.06/1000) // (ZX_TS
 enum { PILOT = 2168, DELAY_HEADER = 8063, DELAY_DATA = 3223, SYNC1 = 667, SYNC2 = 735, ZERO = 855, ONE = 1710, END_MS = 1000 };
 
 #define AZIMUTH_DEFAULT 1.002501 // + 1.02631; // + 1.0450; // 0.9950; // 0.9950; // 0.9937f; // 0.9937 1.05 both fixes lonewolf+hijack(1986)(electric dreams software).tzx
-float AZIMUTH = AZIMUTH_DEFAULT;
+float azimuth = AZIMUTH_DEFAULT;
 
 byte        mic,mic_on,mic_has_tape;
 int         mic_last_block;
@@ -274,14 +274,14 @@ void mic_render_pilot(float count, float pulse) {
     mic_queue[mic_queue_wr].debug = "pilot";
     mic_queue[mic_queue_wr].block = RAW_blockinfo;
     mic_queue[mic_queue_wr].count = count;
-    mic_queue[mic_queue_wr++].pulse = pulse;
+    mic_queue[mic_queue_wr++].pulse = pulse; assert(pulse > 0);
 }
 void mic_render_sync(float pulse) {
     // SYNC1 or SYNC2 (usually)
     mic_queue[mic_queue_wr].debug = "sync";
     mic_queue[mic_queue_wr].block = RAW_blockinfo;
     mic_queue[mic_queue_wr].count = 1;
-    mic_queue[mic_queue_wr++].pulse = pulse;
+    mic_queue[mic_queue_wr++].pulse = pulse; assert(pulse > 0);
 }
 void mic_render_data(byte *data, unsigned bytes, unsigned bits, unsigned zero, unsigned one) {
     // COPY
@@ -326,7 +326,7 @@ void mic_render_pause(unsigned pause_ms) {
 
 void mic_render_stop(void) { // REV
     mic_render_pause(1);
-    return;
+//    return;
 
     // oddi the viking
     // untouchables hitsquad
@@ -336,7 +336,7 @@ void mic_render_stop(void) { // REV
     mic_queue[mic_queue_wr].debug = "stop";
     mic_queue[mic_queue_wr].block = RAW_blockinfo;
     mic_queue[mic_queue_wr].count = 1;
-    mic_queue[mic_queue_wr++].pulse = 0;
+    mic_queue[mic_queue_wr++].pulse = DELAY_PER_MS; //0;
 }
 
 void mic_render_full(byte *data, unsigned bytes, unsigned bits, float pilot_len, unsigned pilot, unsigned sync1, unsigned sync2, unsigned zero, unsigned one, unsigned pause) {
@@ -357,7 +357,7 @@ void mic_render_standard(byte *data, unsigned bytes, float pilot_len) {
 byte ReadMIC(int tstates) {
     if(mic_queue_rd >= mic_queue_wr) return mic_on = 0, mic; // end of tape
 
-    unsigned pc = cpu.pc;
+    unsigned pc = PC(cpu);
 #if 1
     bool rom1 = ZX==48 || (ZX == 128 && (page128 & 16));
     bool loading_from_rom = rom1 && (pc >= 0x04C2 && pc < 0x09F4); // (pc == 0x562 || pc == 0x5f1);
@@ -383,7 +383,7 @@ autotape_indicators |= 0x10000 * !!(loading_from_rom && mic_has_tape);
 autotape_indicators |= 0x01000 * !!((last_fe_&~64) == (last_fe&~64));    // keyboard pressed? border changed? beeper started to change? 
 autotape_indicators |= 0x00100 * !!(abs(pc-pc_avg) < 0x1000);        // large jump in pc? changed from loading routine to game likely?
 autotape_indicators |= 0x00010 * !!(abs(ts-ts_avg) > 100);           // changed timing? did we stop polling EAR/MIC?
-autotape_indicators |= 0x00001 * !!(mic_queue[mic_queue_rd].debug[2] != 'o' && mic_queue[mic_queue_rd].debug[2] != 'o'); // pa(u)se st(o)p
+autotape_indicators |= 0x00001 * !!(mic_queue[mic_queue_rd].debug[2] != 'u' && mic_queue[mic_queue_rd].debug[2] != 'o'); // pa(u)se st(o)p
                                                 // changed ay rw/ro?
                                                 // changed 1/7ffd rw/ro? page128
                                                 // changed mouse rw/ro?
@@ -454,16 +454,16 @@ repeat:;
 
     mic_low = mic_invert_polarity ? 0 : 64; // <-- polarity sensitive: 64: fixes hudson hawk,starbike, 0: fixes lonewolf,basil,mask,
     mic = mic_low;
-    voc_init(128 * 1024 * 1024);
+    voc_init(128 * 1024 * 1024); // @fixme: 128 mib seems excessive
     for( int i = 0; i < mic_queue_wr; ++i ) {
         int count = queue[i].count;
         for( int j = 0; j < count; ++j ) {
             mic ^= 64;
             if( !strcmp(queue[i].debug, "pause") ) mic = mic_low;
-            int pulse = queue[i].pulse; // * (rom_turbo ? 1.0 : AZIMUTH);
+            int pulse = queue[i].pulse; // * (rom_turbo ? 1.0 : azimuth);
 //if( !strcmp(queue[i].debug, "pilot") ) pulse *= 1.0250; // longer pilots: breaks: italy90, fixes: untouchables (hitsquad), dogfight 2187, lightforce, ATF, TT Racer
 //if( !strcmp(queue[i].debug, "sync") ) pulse -= 2; // shorter syncs: fix italy 1990 (winners), hijack (1986)(electric dreams software)
-            voc_push(mic, (pulse / 4) + !!(pulse % 4));
+            voc_push( mic<<1 | queue[i].debug[2], (pulse / 4) + !!(pulse % 4));
         }
         // if( (i+1)==mic_queue_wr || !(i%100000) ) printf("%d/%d,%d bytes\r", i, mic_queue_wr, voclen);
     }
@@ -481,11 +481,14 @@ repeat:;
         RAW_fsm+=diff>=0?diff:69888-diff; // ZX_TS, max tstates
 
         mic_on = (RAW_fsm/4) < voclen;
-        mic = mic_on ? voc[RAW_fsm/4] : mic; // 0
+        mic = mic_on ? (voc[RAW_fsm/4]>>1)&64 : mic; // 0
     }
 
     // stop tape if needed
-    if(RAW_pulse <= 0) {
+    if(mic_on)
+    if(RAW_pulse <= 0
+        || strchr(/*!mic_queue_has_turbo ? "uo" :*/ "o", voc[RAW_fsm/4]&0x7f) // pa(u)se st(o)p
+        ) {
         mic_on = 0;
         // advance tape for upcoming resume event
         mic_queue_rd++;
@@ -547,6 +550,11 @@ void mic_reset() {
     mic_datalen = 0;
 
     memset(mic_preview, 0, sizeof(mic_preview));
+
+#if OLDCORE // only Lord knows why this crap is required now
+    mic_render_pilot(DELAY_HEADER/2, PILOT);
+    mic_render_sync(SYNC2);
+#endif
 }
 
 int tap_load(void *fp, int siz) {
@@ -568,7 +576,7 @@ int tap_load(void *fp, int siz) {
         pos += 2 + bytes;
 
         // create tape preview
-        unsigned pct = (320.f * (unsigned)(pos - begin)) / ((unsigned)(end - begin));
+        unsigned pct = (1.f * _320 * (unsigned)(pos - begin)) / ((unsigned)(end - begin));
         mic_preview[pct] |= 1;
     }
 
@@ -582,5 +590,12 @@ void tap_prev() {
     while(mic_queue_rd &&  strcmp(mic_queue[mic_queue_rd].debug,"pause")) mic_queue_rd--;
 }
 void tap_next() {
+#if 1
     while(mic_queue_rd && !strcmp(mic_queue[mic_queue_rd+1].debug,mic_queue[mic_queue_rd].debug)) mic_queue_rd++;
+#else
+    printf("%d: %s\n", mic_queue_rd, mic_queue[mic_queue_rd].debug);
+    mic_on = 0;
+    while(!strchr("uo", mic_queue[mic_queue_rd].debug[2])) mic_queue_rd++; // pa(u)se st(o)p
+    printf("%d: %s\n", mic_queue_rd, mic_queue[mic_queue_rd].debug);
+#endif
 }
