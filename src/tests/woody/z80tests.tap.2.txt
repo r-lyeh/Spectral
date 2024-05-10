@@ -1,0 +1,74 @@
+
+Program: loader    
+
+Bytes: code      
+
+Z80 Test Suite
+1: Run Z80 Flags test
+2: Run Z80 MEMPTR test
+3: Exit to BASIC
+All results are compared against
+   a real NEC D780C-1 Z80 CPU
+
+         Testing Z80 MEMPTR...
+
+LD A,(addr)        : 2FF8 passed
+LD (addr),A        : 35FC passed
+LD A,(BC)          : 1F8D passed
+LD A,(DE)          : 311F passed
+LD A,(HL)          : 0000 passed
+LD (BC),A          : 179C passed
+LD (DE),A          : 3A08 passed
+LD (HL),A          : 0000 passed
+LD HL,(addr)       : 0F0A passed
+LD HL,(addr) [ED]  : 21DB passed
+LD DE,(addr)       : 347B passed
+LD BC,(addr)       : 0140 passed
+LD IX,(addr)       : 2F40 passed
+LD IY,(addr)       : 0001 passed
+LD SP,(addr)       : 1978 passed
+LD (addr),HL       : 3042 passed
+LD (addr),HL [ED]  : 1A45 passed
+LD (addr),DE       : 000A passed
+LD (addr),BC       : 2E98 passed
+LD (addr),IX       : 0D56 passed
+LD (addr),IY       : 1912 passed
+LD (addr),SP       : 0115 passed
+EX (SP),HL         : 3809 passed
+EX (SP),IX         : 2114 passed
+EX (SP),IY         : 0737 passed
+ADD HL,BC          : 099B passed
+ADD IX,BC          : 2A44 passed
+ADD IY,BC          : 019D passed
+ADC HL,BC          : 1773 passed
+SBC HL,BC          : 2446 passed
+DJNZ (taken)       : 002B passed
+DJNZ (not taken)   : 0000 passed
+RLD                : 117F passed
+RRD                : 34AE passed
+IN A,(port)        : 3100 passed
+IN A,(C)           : 0AFF passed
+OUT (port),A       : 2100 passed
+OUT (C),A          : 3DFF passed
+LDI                : 0000 passed
+LDD                : 0000 passed
+LDIR (BC=1)        : 0000 passed
+LDIR (BC>1)        : 0007 passed
+LDDR (BC=1)        : 0000 passed
+LDDR (BC>1)        : 000E passed
+CPI                : 0001 passed
+CPD                : 3FFF passed
+CPIR (BC=1)        : 0001 passed
+CPIR (BC>1)        : 0017 passed
+CPDR (BC=1)        : 3FFF passed
+CPDR (BC>1)        : 001F passed
+INI                : 3FFF passed
+IND                : 3FFD passed
+INIR               : 01FF passed
+INDR               : 01FD passed
+OUTI               : 3F00 passed
+OUTD               : 01FE passed
+OTIR               : 0100 passed
+OTDR               : 00FE passed
+
+All tests finished - press a key

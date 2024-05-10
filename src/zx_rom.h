@@ -4,17 +4,17 @@
 #include "res/roms/plus3"
 
 #include "res/roms/plus2c"
-#include "res/roms/gw03v33"
 #include "res/roms/lg18v07"
+//#include "res/roms/gw03v33"
 
 #include "res/snaps/ld48bas"
 #include "res/snaps/ld48bin"
-#include "res/snaps/ld128scr"
+//#include "res/snaps/ld128scr"
 #include "res/snaps/ld128bas"
 #include "res/snaps/ld128bin"
-#include "res/snaps/ldusr0bas"
-#include "res/snaps/ldusr0bin"
 #include "res/snaps/ldplus3"
+//#include "res/snaps/ldusr0bas"
+//#include "res/snaps/ldusr0bin"
 
 #define ROMHACK_TURBO 2.6 // x2 ok; x4,x6,x8 modes not working anymore :(
 #if FLAGS & TURBOROM
@@ -53,6 +53,10 @@ void rom_patch(int on) {
 
     // also gw03 on 16/48/128/+2 models.
     if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48), romlg18v07/*romgw03v33*//*rom48*/, 0x4000);
+#endif
+
+#if FLAGS & TESTS
+    if( ZX <= 200) memset(rom+0x4000 * (ZX > 48)+0x0C93, 0, 0xCD2-0xC93); // supress "Scroll?" message: JP #0CD2
 #endif
 
     patched_rom = on && ZX <= 128;

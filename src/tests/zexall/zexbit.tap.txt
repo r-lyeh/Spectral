@@ -1,0 +1,9 @@
+
+Program: zexall FIX
+
+Bytes: zexall FIX
+Z80all instruction exerciser
+
+bit n,(<ix,iy>+1)............OK
+bit n,<b,c,d,e,h,l,(hl),a>...OK
+Tests complete

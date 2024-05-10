@@ -176,7 +176,7 @@ reset(size == 49179 ? 48 : 128);
     outport(0xFE, ZXBorderColor);
 
 #if FLAGS & DEV
-    regs();
+//    regs("sna_load");
 #endif
 
     return 1;
@@ -371,7 +371,7 @@ if (tam==65535) sig-=49151;
     printf("z80 v%d (rle:%d) (machine:%d)\n", ver, ver_rle, buffer[34]);
 
 #if FLAGS & DEV
-    regs();
+//    regs("z80_load");
 #endif
 
     return 1;

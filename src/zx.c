@@ -1,4 +1,4 @@
-#define SPECTRAL "v0.2"
+#define SPECTRAL "v0.3"
 
 // # build (windows)
 // cl run.c /O2 /MT /DNDEBUG /GL /GF /arch:AVX2
@@ -39,20 +39,20 @@
 // kms windowed (clip), window focus @ MMB+tigr
 // z80 or fdc not being reset sometimes: load mercs.dsk, then wrestlingSuperstars.dsk
 //
-// fixme: mic_on @ eot. remove trailing silences at eot?
 // fixme: exolon main tune requires contended memory, otherwise it's too fast +15% tempo
 // fixme: mouse clip when resizing app while mouse is hidden
-// fixme: tape advances even if F2 browser is hidden
 
 // @todo:
+// auto rewind
 // disable mic_on if...
-// ay write
-// out beeper
 // input keyboard != space
 // [ ] stop tape if next block is PROGRAM (side 2)
 // [ ] stop tape if pause && key/joy pressed
-// formalize snapshot format
 // animated states
+
+// @todo: tests
+// - send keys via cmdline: "--keys 1,wait,wait,2"
+// - send termination time "--maxidle 300"
 
 // fixme: edos tapes: streecreedfootball(edos).tzx,
 //      beyondtheicepalace(edos).tzx,elvenwarrior(edos).tzx, uses additional non-standard padding bytes in headers (19->29), making the EAR routine to loop pretty badly
@@ -66,10 +66,10 @@
 // prev \ stop tape -> slow down --> test joeblade2,atlantis,vegasolaris,amc
 // score128: 128 in filename + memcmp("19XY") X <= 8 Y < 5 + sizeof(tape) + memfind("in ayffe") + side b > 48k + program name "128" + filename128  -> load as 128, anything else: load as usr0
 //      if single bank > 49k (navy seals), if size(tap)>128k multiload (outrun)
-// auto rewind
 
 // try
 // https://github.com/anotherlin/z80emu
+// https://github.com/kspalaiologos/tinyz80/
 
 // try
 // https://damieng.com/blog/2020/05/02/pokes-for-spectrum/
@@ -79,6 +79,9 @@
 // https://simonowen.com/blog/2009/03/21/further-edsk-extensions/
 // https://simonowen.com/misc/extextdsk.txt
 // http://www.cpctech.org.uk/docs/extdsk.html
+
+// try (pentagon-128)
+// https://worldofspectrum.net/rusfaq/index.html
 
 #include <stdlib.h>
 #include <string.h>
@@ -107,12 +110,16 @@ int file_is_supported(const char *filename) {
     return 0;
 }
 
-void regs() {
-    extern byte page128;
-    printf("af:%04x,bc:%04x,de:%04x,hl:%04x,ix:%04x\n", AF(cpu),BC(cpu),DE(cpu),HL(cpu),IX(cpu));
-    printf("af'%04x,bc'%04x,de'%04x,hl'%04x,iy:%04x\n", AF2(cpu),BC2(cpu),DE2(cpu),HL2(cpu),IY(cpu));
-    printf("pc:%04x,sp:%04x,ir:%02x%02x,im:%d,iff%d%d,ei:%d\n", PC(cpu),SP(cpu),I(cpu),R(cpu),IM(cpu),IFF1(cpu),IFF2(cpu),EI(cpu));
-    printf("page128(%02x)\n", page128);
+void regs(const char *title) {
+    printf("\n--- %s ---\n", title);
+    printf("af:%04x,af'%04x,bc:%04x,bc':%04x\n", AF(cpu), AF2(cpu), BC(cpu), BC2(cpu));
+    printf("de:%04x,de'%04x,hl:%04x,hl':%04x\n", DE(cpu), DE2(cpu), HL(cpu), HL2(cpu));
+    printf("iff%04x,im:%04x,ir:%02x%02x,ix :%04x,iy:%04x\n", IFF1(cpu) << 8 | IFF2(cpu), IM(cpu), I(cpu),R(cpu), IX(cpu), IY(cpu));
+    printf("pc:%04x,sp:%04x\n", PC(cpu),SP(cpu));
+    printf("out254(%02x) page128(%02x) page2a(%02x)\n", ZXBorderColor, page128, page2a);
+    for( int i = 0; i < 16; ++i ) printf("%s%s%04x", i == 0 ? "ay " : " ", i == ay_current_reg ? "*":"", ay_registers[i]); puts("");
+    printf("mem%d%d%d%d%s ", !!(page128&16), (page128&8?7:5), 2, page128&7, page128&32?"!":"");
+    for( int i = 0; i < 16; ++i ) printf("%s%04x", i == 0 ? "" : " ", (crc32(0,RAM_BANK(i), 0x4000) & 0xffff) ^ 0xd286); puts("");
 }
 
 int trapped;
@@ -171,6 +178,8 @@ texture += shift0;
             byte attr = *attribs;
             byte pixel = *pixels, fg, bg;
 
+            // @fixme: make section branchless
+
             if (ulaplus_enabled) {
                 fg = ((attr & 0xc0) >> 2) | ((attr & 0x07));
                 bg = ((attr & 0xc0) >> 2) | ((attr & 0x38) >> 3) | 8;
@@ -179,6 +188,8 @@ texture += shift0;
                 fg = (attr & 0x07) | ((attr & 0x40) >> 3);
                 bg = (attr & 0x78) >> 3;
             }
+
+            // @fixme: make section branchless
 
             texture[0]=ZXPalette[pixel & 0x80 ? fg : bg];
             texture[1]=ZXPalette[pixel & 0x40 ? fg : bg];
@@ -292,6 +303,37 @@ void scanlines(window *win) {
 }
 
 const char *shader = 
+#if 0
+"/* HSV from/to RGB conversion functions by Inigo Quilez. https://www.shadertoy.com/view/lsS3Wc (MIT licensed)*/\n"
+"const float eps = 0.0000001;\n"
+"vec3 hsv2rgb( vec3 c ) {\n"
+"    vec3 rgb = clamp( abs(mod(c.x*6.0+vec3(0.0,4.0,2.0),6.0)-3.0)-1.0, 0.0, 1.0 );\n"
+"    return c.z * mix( vec3(1.0), rgb, c.y);\n"
+"}\n"
+"vec3 rgb2hsv( vec3 c) {\n"
+"    vec4 k = vec4(0.0, -1.0/3.0, 2.0/3.0, -1.0);\n"
+"    vec4 p = mix(vec4(c.zy, k.wz), vec4(c.yz, k.xy), (c.z<c.y) ? 1.0 : 0.0);\n"
+"    vec4 q = mix(vec4(p.xyw, c.x), vec4(c.x, p.yzx), (p.x<c.x) ? 1.0 : 0.0);\n"
+"    float d = q.x - min(q.w, q.y);\n"
+"    return vec3(abs(q.z + (q.w - q.y) / (6.0*d+eps)), d / (q.x+eps), q.x);\n"
+"}\n"
+
+"/* YUV conversions by icalvin102 https://www.shadertoy.com/view/3lycWz */\n"
+"vec3 rgb2yuv(vec3 rgb){\n"
+"    float y = 0.299*rgb.r + 0.587*rgb.g + 0.114*rgb.b;\n"
+"    return vec3(y, 0.493*(rgb.b-y), 0.877*(rgb.r-y));\n"
+"}\n"
+"vec3 yuv2rgb(vec3 yuv){\n"
+"    float y = yuv.x;\n"
+"    float u = yuv.y;\n"
+"    float v = yuv.z;   \n"
+"    return vec3(\n"
+"        y + 1.0/0.877*v,\n"
+"        y - 0.39393*u - 0.58081*v,\n"
+"        y + 1.0/0.493*u\n"
+"    );\n"
+"}\n"
+#endif
     "/* based on code by lalaoopybee https://www.shadertoy.com/view/DlfSz8 */\n"
     "#define CURVATURE 8.2\n"
     "#define BLUR .01\n"
@@ -434,11 +476,21 @@ int load(const char *file, int must_clear, int do_rompatch) {
 
     if( must_clear ) {
         // hard reset
+#if 0
+
 #if NEWCORE
 pins = z80_reset(&cpu);
 #else
         z80_reset(&cpu);
 #endif
+
+#else
+        // http://www.z80.info/interrup.htm
+        IFF1(cpu) = IFF2(cpu) = IM(cpu) = 0;
+        PC(cpu) = I(cpu) = R(cpu) = 0;
+        SP(cpu) = AF(cpu) = 0xffff;
+#endif
+
         // soft reset
         mic_reset();
         trapped = 0;
@@ -447,6 +499,10 @@ rom_patch(do_rompatch);
         if(ZX>=128) port_0x7ffd(0); // 128
         if(ZX>=210) port_0x1ffd(0); // +2a/+3
     }
+
+#if FLAGS & TESTS
+    printf("\n\n%s\n-------------\n\n", file);
+#endif
 
     char *ptr = 0; size_t size = 0;
     void *zip_read(const char *filename, size_t *size);
@@ -470,24 +526,20 @@ rom_patch(do_rompatch);
 
     // dsk first
     if(!memcmp(ptr, "MV - CPC", 8) || !memcmp(ptr, "EXTENDED", 8)) {
-        if(must_clear) z80_load(ldplus3, sizeof(ldplus3));
-        return dsk_load(ptr, size), /*fdc_motor(0),*/ pins = z80_prefetch(&cpu, cpu.pc), 1;
+        if(must_clear) z80_load(ldplus3, sizeof(ldplus3)), pins = z80_prefetch(&cpu, cpu.pc);
+        return dsk_load(ptr, size), 1;
     }
-
-/*
-Comparando archivos ..\good.bin y ..\BAD.BIN
-000001E3: 00 07 last_fe 0:7
-000001FB: 00 0E ay_current_reg 0:e
-00000280: 46 06 *mic_last_type 0:0
-*/
 
     #define preload_snap(blob,len) do { \
         if( sna_load(blob,len) || z80_load(blob,len) ) { \
-            if(ZX>=128) memcpy(VRAM, ld128scr, 6912); /* make usr0 (128) pretty O:) */ \
-            ZXBorderColor = 7; /* ZXKeyUpdate(); page128 = ZX<128?32:16; */ \
+            /* clear vram in case pre-loaders are not clear snaps */ \
+            /* set border, ink and paper according to current ROM theme */ \
+            ZXBorderColor = VRAM[6144] & 7; \
+            memset(VRAM,0,6144); \
+            memset(VRAM+6144,VRAM[6144],32*24); \
         } } while(0)
 
-    // loaders
+    // pre-loaders
     const byte*    bins[] = { ld128bas, ld48bas, ld128bin, ld48bin };
     const unsigned lens[] = { sizeof(ld128bas), sizeof(ld48bas), sizeof(ld128bin), sizeof(ld48bin) };
 
@@ -518,7 +570,7 @@ pins = z80_prefetch(&cpu, cpu.pc);
     }
     if( sna_load(ptr, size) ) {
 pins = z80_prefetch(&cpu, cpu.pc);
-        return regs(), 1;
+        return /*regs("load"),*/ 1;
     }
 
     // headerless variable-size formats now
@@ -527,7 +579,7 @@ pins = z80_prefetch(&cpu, cpu.pc);
     }
     if( z80_load(ptr, size) ) {
 pins = z80_prefetch(&cpu, cpu.pc);
-        return regs(), 1;
+        return /*regs("load"),*/ 1;
     }
 
     puts("unknown file format");
@@ -571,7 +623,11 @@ void input() {
     if(window_pressed(app, TK_CONTROL))     ZXKey(ZX_SYMB);
     if(window_pressed(app, TK_ALT))         ZXKey(ZX_CTRL);
 
+#if FLAGS & DEV
+    if(window_trigger(app, TK_F1))        boost_on ^= 1;
+#else
     if(window_pressed(app, TK_F1))        boost_on = 1; else boost_on = 0;
+#endif
     if(window_trigger(app, TK_F2))        mic_on ^= 1;
     if(window_trigger(app, TK_F3))        tap_prev();
     if(window_trigger(app, TK_F4))        tap_next();
@@ -750,7 +806,11 @@ void rescan() {
     {
         numok=0,numwarn=0,numerr=0;
 
-        for( dir *d = dir_open("./games/", "r"); d; dir_close(d), d = NULL ) {
+        const char *folder = "./games/";
+#if FLAGS & TESTS
+        folder = "./src/tests/";
+#endif
+        for( dir *d = dir_open(folder, "r"); d; dir_close(d), d = NULL ) {
             for( unsigned count = 0, end = dir_count(d); count < end; ++count ) {
                 if( !dir_file(d, count) ) continue;
 
@@ -939,13 +999,12 @@ int game_browser() { // returns true if loaded
                 // basenames and their lengths
                 const char *b1 = strrchr(a1, '/') ? strrchr(a1, '/')+1 : a1; int l1 = strlen(b1);
                 const char *b2 = strrchr(a2, '/') ? strrchr(a2, '/')+1 : a2; int l2 = strlen(b2);
-
-                printf("%s(%d) %s(%d)\n", b1,l1, b2,l2);
+                // printf("%s(%d) %s(%d)\n", b1,l1, b2,l2);
 
                 // multi-load tapes and disks are well named (eg, Mutants - Side 1.tzx). 
                 // following oneliner hack prevents some small filenames to be catched in the 
                 // diff trap below. eg, 1942.tzx / 1943.tzx; they do not belong to each other
-                // albeit their diff is exactly `1`.                
+                // albeit their diff is exactly `1`.
                 if( l1 > 8 )
 
                 if( l1 == l2 ) {
@@ -964,6 +1023,11 @@ int game_browser() { // returns true if loaded
 
         if( load(games[selected], must_clear, window_pressed(app,TK_CONTROL) ? 1:0) ) {
             window_title(app, va("Spectral%s %s%d - %s", FLAGS & DEV ? " DEV" : "", ZX > 128 ? "+":"", ZX > 128 ? ZX/100:ZX, 1+strrchr(games[selected], DIR_SEP)));
+
+            // clear window keys so the current key presses are not being sent to the 
+            // next emulation frame. @fixme: use ZXKeyUpdate(); instead
+            memset(tigrInternal(app)->keys, 0, sizeof(tigrInternal(app)->keys));
+            memset(tigrInternal(app)->prev, 0, sizeof(tigrInternal(app)->prev));
         }
 
         return 1;
@@ -1010,16 +1074,28 @@ int main() {
     // install icon hooks for any upcoming window or modal creation
     window_override_icons();
 
-    {
-        // convert relative paths
-        for( int i = 1; i < __argc; ++i ) {
-            if( __argv[i][0] != '-' ) {
-                char full[MAX_PATH] = {0};
-                realpath(__argv[i], full);
-                __argv[i] = strdup(full); // @leak
-            }
+    // convert relative paths
+    for( int i = 1; i < __argc; ++i ) {
+        if( __argv[i][0] != '-' ) {
+            char full[MAX_PATH] = {0};
+            realpath(__argv[i], full);
+            __argv[i] = strdup(full); // @leak
         }
+    }
 
+    // initialize tests
+    printer = stdout;
+#if FLAGS & TESTS
+    {
+        if( __argc <= 1 ) die("error: no test file provided");
+        printer = fopen(va("%s.txt", __argv[1]), "wt"); //"a+t");
+        if(!printer) die("cant open file for logging");
+
+        boost_on = 1;
+    }
+#endif
+
+    {
         // relocate cwd to exe folder (relative paths wont work from this point)
         char path[MAX_PATH]={0};
         GetModuleFileName(0,path,MAX_PATH);
@@ -1033,15 +1109,6 @@ int main() {
             rescan();
             dt += tigrTime();
             printf("%5.2fms rescan\n", dt*1000);
-        }
-
-        // dismiss banner and jump directly into game when game arg is providedd. show banner otherwise.
-        if( __argc <= 1 )
-        {
-            int total = numok+numwarn+numerr;
-
-            if( !(FLAGS & DEV) )
-            warning(va(SPECTRAL "\n%d games (%d%%)\n\n%s", numgames, 100 - (numerr * 100 / (total + !total)), static_options()));
         }
     }
 
@@ -1058,8 +1125,16 @@ int main() {
     // zx
     clear(ZX);
 
+    // import state
+    for( FILE *state = fopen("spectral.sav","rb"); state; fclose(state), state = 0) {
+        import_state(state);
+        pins = z80_prefetch(&cpu, cpu.pc);
+    }
+
+    // main loop
     do {
-        tape_hooks();
+
+        // tape_hooks();
 
         int accelerated = ZX_FAST ? boost_on || (mic_on && mic_has_tape) : 0;
         if( accelerated && active ) accelerated = 0;
@@ -1072,6 +1147,32 @@ int main() {
 
 #if !(FLAGS & RUNAHEAD)
         do_runahead = 0;
+#endif
+
+#if FLAGS & TESTS
+        static byte even = 0; ++even;
+        do_drawmode = even & 1; // be fast. 50% frames not drawn. the other 50% are drawn in the fastest mode
+#endif
+#if FLAGS & TESTS
+        // monitor test for completion
+        static byte check_tests = 0;
+        if( !check_tests++ )
+        {
+            static unsigned prev = 0;
+            static unsigned stalled = 0;
+
+            struct stat st;
+            if( fstat(fileno(printer), &st) == 0 ) {
+                if( prev == st.st_size ) ++stalled;
+                else prev = st.st_size, stalled = 0;
+            }
+
+            // finish test after being idle for 15,000,000 frames
+            if( stalled >= (50*300000/256) ) {
+                fprintf(printer, "Quitting test because of inactivity.\n");
+                exit(0);
+            }
+        }
 #endif
 
         input();
@@ -1180,8 +1281,9 @@ if( do_runahead == 0 ) {
 
             // tape progress
             float pct = (voc_pos/4) / (float)(voclen+!voclen);
-            if( mic_on && (pct < 1.00f) ) {
+            if( mic_on /* && (pct < 1.00f)*/ ) {
                 TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + (ZX_CRT ? 2 : 0) * _320];
+
                 // bars & progress
                 unsigned mark = pct * _320;
                 for( int x = 0; x < _320; ++x ) bar[x] = bar[x+2*_320] = white;
@@ -1236,6 +1338,21 @@ if( do_runahead == 0 ) {
         // flush
         window_update(app);
 
+        // parse drag 'n drops. reload if needed
+        for( char **list = tigrDropFiles(app); list; list = 0)
+        for( int i = 0; list[i]; ++i ) {
+            int do_clear = 1;
+            int do_rompatch = !!window_pressed(app,TK_CONTROL);
+
+            // if( do_clear ) clear(window_pressed(app,TK_SHIFT) ? 48 : 128);
+
+            if( !load(list[i], do_clear, do_rompatch) ) {
+                if( !load_shader( list[i] ) ) {
+                    warning(va("cannot open '%s' file\n", __argv[i]));
+                }
+            }
+        }
+
         // parse cmdline. reload if needed
         do_once
         for( int i = 1; i < __argc; ++i )
@@ -1245,14 +1362,31 @@ if( do_runahead == 0 ) {
 
             // if( do_clear ) clear(window_pressed(app,TK_SHIFT) ? 48 : 128);
 
+#if FLAGS & TESTS
+            config(48);
+            do_rompatch = 1;
+#endif
+
             if( !load(__argv[i], do_clear, do_rompatch) ) {
                 if( !load_shader( __argv[i] ) ) {
                     warning(va("cannot open '%s' file\n", __argv[i]));
                 }
             }
+        } else {
+            int total = numok+numwarn+numerr;
+
+            if( !(FLAGS & DEV) )
+            warning(va(SPECTRAL "\n%d games (%d%%)\n\n%s", numgames, 100 - (numerr * 100 / (total + !total)), static_options()));
         }
 
     } while( window_alive(app) );
 
+    // export state
+    while( !z80_opdone(&cpu) ) pins = z80_tick(&cpu, pins);
+    for( FILE *state = fopen("spectral.sav","wb"); state; fclose(state), state = 0) {
+        export_state(state);
+    }
+
     window_close(app);
+    return 0;
 }

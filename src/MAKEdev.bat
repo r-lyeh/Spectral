@@ -1,3 +1,3 @@
 cl zx.c sys_window.cc /Fe..\spectral.exe /Zi
-del *.pdb
-del *.obj
+del *.pdb 1> nul 2> nul
+del *.obj 1> nul 2> nul

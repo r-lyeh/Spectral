@@ -5,6 +5,8 @@
 #else
 #include <unistd.h>
 #endif
+#include <sys/stat.h>
+
 
 #ifdef _WIN32
 #define realpath(inpath,outpath) _fullpath(outpath, inpath, MAX_PATH - 1)

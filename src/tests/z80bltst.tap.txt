@@ -1,0 +1,25 @@
+
+Program: z80bltst  
+
+Bytes: z80bltst  
+v5.0 2022-01-11 Ped7g
+based on David Banks' research
+F of IM2 interrupted block inst
+Instr   @80xx @88xx @A0xx @A8xx
+LDIR F: 04=!2C 0C=!04 24=!04 2C=!24
+LDDR F: 04=!2C 0C=!04 24=!04 2C=!24
+CPIR F: 96=!B6 9E=!B6 B6=!96 BE=!96
+CPDR F: 96=!B6 9E=!B6 B6=!96 BE=!96
+OTIR F: 00=!08 08=08 20=!08 28=!08
+  .2 F: 03=!1F 0B=!1F 23=!1F 2B=!1F
+  .3 F: 05=!1D 0D=!1D 25=!1D 2D=!1D
+OTDR F: 00=!08 08=08 20=!08 28=!08
+  .2 F: 03=!1F 0B=!1F 23=!1F 2B=!1F
+  .3 F: 05=!1D 0D=!1D 25=!1D 2D=!1D
+INIR F: 00=!08 08=08 20=!08 28=!08
+  .2 F: 07=!1B 0F=!1B 27=!1B 2F=!1B
+  .3 F: 06=!0E 0E=0E 26=!0E 2E=!0E
+INDR F: 00=!08 08=08 20=!08 28=!08
+  .2 F: 03=!1F 0B=!1F 23=!1F 2B=!1F
+HF vs B, binary log at $8900
+OTIROTIROTDROTDRINIRINDR

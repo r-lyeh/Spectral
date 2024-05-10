@@ -310,6 +310,8 @@ void mic_render_pause(unsigned pause_ms) {
     // fix hijack (EDS) 128, italy 1990 winners, dogfight 2187
     pause_ms *= 1.03; // 70908 vs 69888
 
+    // @fixme: stretch longer pauses if turborom is enabled (x6?) see: 1942.tzx + turborom, or topo games
+
     // END PILOT
     if(pause_ms) {
     mic_queue[mic_queue_wr].debug = "pause1";
@@ -320,7 +322,7 @@ void mic_render_pause(unsigned pause_ms) {
     mic_queue[mic_queue_wr].debug = "pause";
     mic_queue[mic_queue_wr].block = RAW_blockinfo;
     mic_queue[mic_queue_wr].count = 1;
-    mic_queue[mic_queue_wr++].pulse = (pause_ms - 1) * DELAY_PER_MS;
+    mic_queue[mic_queue_wr++].pulse = pause_ms * DELAY_PER_MS;
     }
 }
 
@@ -460,7 +462,7 @@ repeat:;
         for( int j = 0; j < count; ++j ) {
             mic ^= 64;
             if( !strcmp(queue[i].debug, "pause") ) mic = mic_low;
-            int pulse = queue[i].pulse; // * (rom_turbo ? 1.0 : azimuth);
+            int pulse = queue[i].pulse; assert(pulse > 0); // * (rom_turbo ? 1.0 : azimuth);
 //if( !strcmp(queue[i].debug, "pilot") ) pulse *= 1.0250; // longer pilots: breaks: italy90, fixes: untouchables (hitsquad), dogfight 2187, lightforce, ATF, TT Racer
 //if( !strcmp(queue[i].debug, "sync") ) pulse -= 2; // shorter syncs: fix italy 1990 (winners), hijack (1986)(electric dreams software)
             voc_push( mic<<1 | queue[i].debug[2], (pulse / 4) + !!(pulse % 4));
@@ -550,11 +552,6 @@ void mic_reset() {
     mic_datalen = 0;
 
     memset(mic_preview, 0, sizeof(mic_preview));
-
-#if OLDCORE // only Lord knows why this crap is required now
-    mic_render_pilot(DELAY_HEADER/2, PILOT);
-    mic_render_sync(SYNC2);
-#endif
 }
 
 int tap_load(void *fp, int siz) {
@@ -584,12 +581,12 @@ int tap_load(void *fp, int siz) {
     return 1;
 }
 
-void tap_prev() {
+void tap_prev() { // @fixme: needs to render voc section again
     while(mic_queue_rd &&  strcmp(mic_queue[mic_queue_rd].debug,"pause")) mic_queue_rd--;
     while(mic_queue_rd && !strcmp(mic_queue[mic_queue_rd].debug,"pause")) mic_queue_rd--;
     while(mic_queue_rd &&  strcmp(mic_queue[mic_queue_rd].debug,"pause")) mic_queue_rd--;
 }
-void tap_next() {
+void tap_next() { // @fixme: needs to render voc section again
 #if 1
     while(mic_queue_rd && !strcmp(mic_queue[mic_queue_rd+1].debug,mic_queue[mic_queue_rd].debug)) mic_queue_rd++;
 #else

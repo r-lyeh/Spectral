@@ -30,7 +30,14 @@ void window_override_icons() {
 }
 
 void warning(const char *msg) {
-    MessageBoxA(0,msg,"Warning",MB_OK);    
+    MessageBoxA(0,msg,"Warning",MB_OK);
+}
+
+void die(const char *msg) {
+    fprintf(stderr, "%s\n", msg);
+    warning(msg);
+    exit(-1);
 }
 
 char* prompt( void *hwndParentWindow, const char *title, const char *caption, const char *defaults );
+

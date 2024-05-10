@@ -1,0 +1,236 @@
+
+Program: z80ccf    
+
+Bytes: z80ccf    
+Z80 CCF test        2012 RAXOFT
+
+000 SELF TEST             FAILED
+CRC:67725B10   Expected:97BB028F
+001 SCF                       OK
+002 CCF                       OK
+003 SCF (NEC)                 OK
+004 CCF (NEC)                 OK
+005 SCF (ST)                  OK
+006 CCF (ST)                  OK
+007 SCF+CCF                   OK
+008 CCF+SCF                   OK
+009 DAA                       OK
+010 CPL                       OK
+011 NEG                       OK
+012 NEG'                      OK
+013 ADD A,N                   OK
+014 ADC A,N                   OK
+015 SUB A,N                   OK
+016 SBC A,N                   OK
+017 AND N                     OK
+018 XOR N                     OK
+019 OR N                      OK
+020 CP N                      OK
+021 ALO A,A                   OK
+022 ALO A,[B,C]               OK
+023 ALO A,[D,E]               OK
+024 ALO A,[H,L]               OK
+025 ALO A,(HL)                OK
+026 ALO A,[HX,LX]             OK
+027 ALO A,[HY,LY]             OK
+028 ALO A,(XY)                OK
+029 RLCA                      OK
+030 RRCA                      OK
+031 RLA                       OK
+032 RRA                       OK
+033 RLD                       OK
+034 RRD                       OK
+035 RLC A                     OK
+036 RRC A                     OK
+037 RL A                      OK
+038 RR A                      OK
+039 SLA A                     OK
+040 SRA A                     OK
+041 SLIA A                    OK
+042 SRL A                     OK
+043 RLC [R,(HL)]              OK
+044 RRC [R,(HL)]              OK
+045 RL [R,(HL)]               OK
+046 RR [R,(HL)]               OK
+047 SLA [R,(HL)]              OK
+048 SRA [R,(HL)]              OK
+049 SLIA [R,(HL)]             OK
+050 SRL [R,(HL)]              OK
+051 SRO (XY)                  OK
+052 SRO (XY),R                OK
+053 INC A                     OK
+054 DEC A                     OK
+055 INC [R,(HL)]              OK
+056 DEC [R,(HL)]              OK
+057 INC X                     OK
+058 DEC X                     OK
+059 INC (XY)                  OK
+060 DEC (XY)                  OK
+061 INC RR                FAILED
+CRC:E17E0585   Expected:0CEDC91D
+062 DEC RR                FAILED
+CRC:E17E0585   Expected:0CEDC91D
+063 INC XY                FAILED
+CRC:0D3044FE   Expected:C6E8494F
+064 DEC XY                FAILED
+CRC:0D3044FE   Expected:C6E8494F
+065 ADD HL,RR                 OK
+066 ADD IX,RR                 OK
+067 ADD IY,RR                 OK
+068 ADC HL,RR                 OK
+069 SBC HL,RR                 OK
+070 BIT N,A                   OK
+071 BIT N,(HL)                OK
+072 BIT N,[R,(HL)]            OK
+073 BIT N,(XY)                OK
+074 BIT N,(XY),-              OK
+075 SET N,A               FAILED
+CRC:23BDC9A3   Expected:56779CFD
+076 SET N,(HL)            FAILED
+CRC:1D78CAC0   Expected:A20C0CAF
+077 SET N,[R,(HL)]        FAILED
+CRC:A6192B3C   Expected:112577DD
+078 SET N,(XY)            FAILED
+CRC:0E9A6608   Expected:C90FADAD
+079 SET N,(XY),R          FAILED
+CRC:8428E47B   Expected:246FB380
+080 RES N,A               FAILED
+CRC:DA23E0E3   Expected:7675BFCF
+081 RES N,(HL)            FAILED
+CRC:1D78CAC0   Expected:A20C0CAF
+082 RES N,[R,(HL)]        FAILED
+CRC:42990E78   Expected:86080FA1
+083 RES N,(XY)            FAILED
+CRC:0E9A6608   Expected:C90FADAD
+084 RES N,(XY),R          FAILED
+CRC:C2A06C50   Expected:43588B31
+085 LDI                       OK
+086 LDD                       OK
+087 LDIR                      OK
+088 LDDR                      OK
+089 LDIR->NOP'                OK
+090 LDDR->NOP'                OK
+091 CPI                       OK
+092 CPD                       OK
+093 CPIR                      OK
+094 CPDR                      OK
+095 IN A,(N)                  OK
+096 IN R,(C)                  OK
+097 IN (C)                    OK
+098 INI                       OK
+099 IND                       OK
+100 INIR                      OK
+101 INDR                      OK
+102 INIR->NOP'            FAILED
+CRC:7799D1AA   Expected:EEE49E3B
+103 INDR->NOP'            FAILED
+CRC:4BA7D4BE   Expected:D2DA9B2F
+104 OUT (N),A             FAILED
+CRC:14DA6ED9   Expected:04270B9E
+105 OUT (C),R             FAILED
+CRC:05D38510   Expected:36547C3C
+106 OUT (C),0             FAILED
+CRC:FEF7095A   Expected:226855E0
+107 OUTI                      OK
+108 OUTD                      OK
+109 OTIR                      OK
+110 OTDR                      OK
+111 JP NN                 FAILED
+CRC:3041ECCB   Expected:C3F6460B
+112 JP CC,NN              FAILED
+CRC:02D4726D   Expected:05E705E5
+113 JP (HL)               FAILED
+CRC:2184B559   Expected:BA13C043
+114 JP (XY)               FAILED
+CRC:A03D8D52   Expected:865AF2B2
+115 JR N                  FAILED
+CRC:0CD6C1D7   Expected:699BBCEA
+116 JR CC,N               FAILED
+CRC:02D4726D   Expected:05E705E5
+117 DJNZ N                FAILED
+CRC:234DB930   Expected:44BE1574
+118 CALL NN               FAILED
+CRC:3041ECCB   Expected:C3F6460B
+119 CALL CC,NN            FAILED
+CRC:02D4726D   Expected:05E705E5
+120 RET                   FAILED
+CRC:3041ECCB   Expected:C3F6460B
+121 RET CC                FAILED
+CRC:02D4726D   Expected:05E705E5
+122 RETN                  FAILED
+CRC:3041ECCB   Expected:C3F6460B
+123 RETI                  FAILED
+CRC:3041ECCB   Expected:C3F6460B
+124 RETI/RETN             FAILED
+CRC:02D4726D   Expected:05E705E5
+125 PUSH+POP RR           FAILED
+CRC:CF250892   Expected:15C4C121
+126 POP+PUSH AF           FAILED
+CRC:D12FA4DB   Expected:4D06617F
+127 PUSH+POP XY           FAILED
+CRC:C148DE62   Expected:C0D02259
+128 EX DE,HL              FAILED
+CRC:B2633D06   Expected:9FF1906F
+129 EX AF,AF'             FAILED
+CRC:3E5C2221   Expected:4CFA32A0
+130 EXX                   FAILED
+CRC:6AB5A14C   Expected:B0D477CD
+131 EX (SP),HL            FAILED
+CRC:B2633D06   Expected:9FF1906F
+132 EX (SP),XY            FAILED
+CRC:DC362FD5   Expected:1EB64F30
+133 LD [R,(HL)],[R,(HL)]  FAILED
+CRC:BCDECF2E   Expected:BC21EB04
+134 LD [X,(XY)],[X,(XY)]  FAILED
+CRC:BE1F10BA   Expected:889A70F6
+135 LD R,(XY)             FAILED
+CRC:914AAAAF   Expected:A29318C8
+136 LD (XY),R             FAILED
+CRC:8C8E17C6   Expected:A81CAD03
+137 LD [R,(HL)],N         FAILED
+CRC:5ACB352B   Expected:8BD6D3CD
+138 LD X,N                FAILED
+CRC:65734029   Expected:6FCF31E3
+139 LD (XY),N             FAILED
+CRC:30949C4F   Expected:16F3E3AF
+140 LD A,([BC,DE])        FAILED
+CRC:7C288469   Expected:5195291D
+141 LD ([BC,DE]),A        FAILED
+CRC:10EE0101   Expected:FB8C6D82
+142 LD A,(NN)             FAILED
+CRC:E9E3F867   Expected:4F9C7261
+143 LD (NN),A             FAILED
+CRC:26AB3A55   Expected:2C174B9F
+144 LD RR,NN              FAILED
+CRC:9B183532   Expected:91A444F8
+145 LD XY,NN              FAILED
+CRC:F33CA354   Expected:9671DE69
+146 LD HL,(NN)            FAILED
+CRC:8DB08011   Expected:7049EE1E
+147 LD XY,(NN)            FAILED
+CRC:895660C8   Expected:AF311F28
+148 LD RR,(NN)            FAILED
+CRC:B46D3A8C   Expected:32AC7143
+149 LD (NN),HL            FAILED
+CRC:8DB08011   Expected:7049EE1E
+150 LD (NN),XY            FAILED
+CRC:FFC7FFB2   Expected:8EA4E97A
+151 LD (NN),RR            FAILED
+CRC:EB490FCE   Expected:46AAF65E
+152 LD SP,HL              FAILED
+CRC:8DB08011   Expected:7049EE1E
+153 LD SP,XY              FAILED
+CRC:FFC7FFB2   Expected:8EA4E97A
+154 LD I,A                FAILED
+CRC:14DA6ED9   Expected:04270B9E
+155 LD R,A                FAILED
+CRC:14DA6ED9   Expected:04270B9E
+156 LD A,I                    OK
+157 LD A,R                    OK
+158 EI+DI                 FAILED
+CRC:3041ECCB   Expected:C3F6460B
+159 IM N                  FAILED
+CRC:02D4726D   Expected:05E705E5
+
+Result: 067 of 160 tests failed.
+Quitting test because of inactivity.

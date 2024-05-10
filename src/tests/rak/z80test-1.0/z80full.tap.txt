@@ -1,0 +1,163 @@
+
+Program: z80full   
+
+Bytes: z80full   
+Z80 full test       2012 RAXOFT
+
+000 SELF TEST                 OK
+001 SCF                   FAILED
+CRC:45FC79B5   Expected:D841BD8A
+002 CCF                   FAILED
+CRC:A206B5E3   Expected:3FBB71DC
+003 SCF+CCF                   OK
+004 CCF+SCF                   OK
+005 DAA                       OK
+006 CPL                       OK
+007 NEG                       OK
+008 NEG'                      OK
+009 ADD A,N                   OK
+010 ADC A,N                   OK
+011 SUB A,N                   OK
+012 SBC A,N                   OK
+013 AND N                     OK
+014 XOR N                     OK
+015 OR N                      OK
+016 CP N                      OK
+017 ALO A,A                   OK
+018 ALO A,[B,C]               OK
+019 ALO A,[D,E]               OK
+020 ALO A,[H,L]               OK
+021 ALO A,(HL)                OK
+022 ALO A,[HX,LX]             OK
+023 ALO A,[HY,LY]             OK
+024 ALO A,(XY)                OK
+025 RLCA                      OK
+026 RRCA                      OK
+027 RLA                       OK
+028 RRA                       OK
+029 RLD                       OK
+030 RRD                       OK
+031 RLC A                     OK
+032 RRC A                     OK
+033 RL A                      OK
+034 RR A                      OK
+035 SLA A                     OK
+036 SRA A                     OK
+037 SLIA A                    OK
+038 SRL A                     OK
+039 RLC [R,(HL)]              OK
+040 RRC [R,(HL)]              OK
+041 RL [R,(HL)]               OK
+042 RR [R,(HL)]               OK
+043 SLA [R,(HL)]              OK
+044 SRA [R,(HL)]              OK
+045 SLIA [R,(HL)]             OK
+046 SRL [R,(HL)]              OK
+047 SRO (XY)                  OK
+048 SRO (XY),R                OK
+049 INC A                     OK
+050 DEC A                     OK
+051 INC [R,(HL)]              OK
+052 DEC [R,(HL)]              OK
+053 INC X                     OK
+054 DEC X                     OK
+055 INC (XY)                  OK
+056 DEC (XY)                  OK
+057 INC RR                    OK
+058 DEC RR                    OK
+059 INC XY                    OK
+060 DEC XY                    OK
+061 ADD HL,RR                 OK
+062 ADD IX,RR                 OK
+063 ADD IY,RR                 OK
+064 ADC HL,RR                 OK
+065 SBC HL,RR                 OK
+066 BIT N,A                   OK
+067 BIT N,(HL)                OK
+068 BIT N,[R,(HL)]            OK
+069 BIT N,(XY)                OK
+070 BIT N,(XY),-              OK
+071 SET N,A                   OK
+072 SET N,(HL)                OK
+073 SET N,[R,(HL)]            OK
+074 SET N,(XY)                OK
+075 SET N,(XY),R              OK
+076 RES N,A                   OK
+077 RES N,(HL)                OK
+078 RES N,[R,(HL)]            OK
+079 RES N,(XY)                OK
+080 RES N,(XY),R              OK
+081 LDI                       OK
+082 LDD                       OK
+083 LDIR                      OK
+084 LDDR                      OK
+085 CPI                       OK
+086 CPD                       OK
+087 CPIR                      OK
+088 CPDR                      OK
+089 IN A,(N)                  OK
+090 IN R,(C)                  OK
+091 IN (C)                    OK
+092 INI                       OK
+093 IND                       OK
+094 INIR                      OK
+095 INDR                      OK
+096 OUT (N),A                 OK
+097 OUT (C),R                 OK
+098 OUT (C),0                 OK
+099 OUTI                      OK
+100 OUTD                      OK
+101 OTIR                      OK
+102 OTDR                      OK
+103 JP NN                     OK
+104 JP CC,NN                  OK
+105 JP (HL)                   OK
+106 JP (XY)                   OK
+107 JR N                      OK
+108 JR CC,N                   OK
+109 DJNZ N                    OK
+110 CALL NN                   OK
+111 CALL CC,NN                OK
+112 RET                       OK
+113 RET CC                    OK
+114 RETN                      OK
+115 RETI                      OK
+116 RETI/RETN                 OK
+117 PUSH+POP RR               OK
+118 POP+PUSH AF               OK
+119 PUSH+POP XY               OK
+120 EX DE,HL                  OK
+121 EX AF,AF'                 OK
+122 EXX                       OK
+123 EX (SP),HL                OK
+124 EX (SP),XY                OK
+125 LD [R,(HL)],[R,(HL)]      OK
+126 LD [X,(XY)],[X,(XY)]      OK
+127 LD R,(XY)                 OK
+128 LD (XY),R                 OK
+129 LD [R,(HL)],N             OK
+130 LD X,N                    OK
+131 LD (XY),N                 OK
+132 LD A,([BC,DE])            OK
+133 LD ([BC,DE]),A            OK
+134 LD A,(NN)                 OK
+135 LD (NN),A                 OK
+136 LD RR,NN                  OK
+137 LD XY,NN                  OK
+138 LD HL,(NN)                OK
+139 LD XY,(NN)                OK
+140 LD RR,(NN)                OK
+141 LD (NN),HL                OK
+142 LD (NN),XY                OK
+143 LD (NN),RR                OK
+144 LD SP,HL                  OK
+145 LD SP,XY                  OK
+146 LD I,A                    OK
+147 LD R,A                    OK
+148 LD A,I                    OK
+149 LD A,R                    OK
+150 EI+DI                     OK
+151 IM N                      OK
+
+Result: 002 of 152 tests failed.
+Quitting test because of inactivity.

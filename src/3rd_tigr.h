@@ -2524,6 +2524,8 @@ static BOOL UnadjustWindowRectEx(LPRECT prc, DWORD dwStyle, BOOL fMenu, DWORD dw
     return fRc;
 }
 
+#include "3rd_tigrdragndrop.h" // @r-lyeh
+
 LRESULT CALLBACK tigrWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     Tigr* bmp;
     TigrInternal* win = NULL;
@@ -2539,6 +2541,8 @@ LRESULT CALLBACK tigrWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         win = tigrInternal(bmp);
 
     switch (message) {
+        TIGR_DROP_MESSAGE(hWnd, wParam) // @r-lyeh
+
         case WM_PAINT:
             if (!tigrGAPIBegin(bmp)) {
                 tigrGAPIPresent(bmp, dw, dh);

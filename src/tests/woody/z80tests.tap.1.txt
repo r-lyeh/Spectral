@@ -1,0 +1,65 @@
+
+Program: loader    
+
+Bytes: code      
+Z80 Test Suite
+
+1: Run Z80 Flags test
+2: Run Z80 MEMPTR test
+3: Exit to BASICAll results are compared against
+   a real NEC D780C-1 Z80 CPU      
+
+   Testing Z80 flags...
+
+SCF                : 0EBF passed
+CCF                : 3CED passed
+DAA                : 20FD passed
+CPL                : B0D6 passed
+NEG                : EE36 passed
+AND                : CB8E passed
+OR                 : C57C passed
+XOR                : 26F4 passed
+CP                 : 1676 passed
+INC8               : 48CF passed
+ADD8               : 9C3C passed
+ADC8               : 6E2A passed
+DEC8               : E0D5 passed
+SUB8               : 1EF5 passed
+SBC8               : F6DD passed
+ADD16              : E268 passed
+ADC16              : 715F passed
+SBC16              : 0E1C passed
+RLA/RRA            : 13C1 passed
+RLCA/RRCA          : 13C1 passed
+RLC/RRC            : 10AB passed
+RL/RR              : E221 passed
+SLA/SRA            : DEFA passed
+SLL/SRL            : 5FDD passed
+RLD/RRD            : 7DAF failed
+                 - expected 7997
+LD A,I/R           : 220C passed
+BIT n,(HL)         : 6208 passed
+BIT n,(IX+d)       : 4AD9 passed
+BIT n,(IY+d)       : 3A82 passed
+LDI                : 4487 passed
+LDD                : 1037 failed
+                 - expected 7F0E
+LDIR               : 9ACC passed
+LDDR               : CE51 passed
+CPI                : 55DB passed
+CPD                : FB75 failed
+                 - expected AC82
+INI                : F25D passed
+IND                : 4A02 passed
+OUTI               : 8B66 passed
+OUTD               : 1156 passed
+DD CB (00-FF)  ROM : D9EB passed
+DD CB (00-FF)  RAM : 90C0 passed
+FD CB (00-FF)  ROM : D9EB passed
+FD CB (00-FF)  RAM : 90C0 passed
+CB (00-FF)     ROM : 4731 passed
+CB (00-FF)     RAM : 15AE passed
+CB (00-FF) 5+3 ROM : 4D19 passed
+CB (00-FF) 5+3 RAM : 1B66 passed
+
+All tests finished - press a key

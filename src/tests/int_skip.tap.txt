@@ -1,0 +1,21 @@
+
+Program: int_skip  
+
+Bytes: int_skip  
+v4.1 2023-05-21 Ped7g, count
+interrupts while executing
+long block of DD/FD prefixes
+
+<== BORDER by ED71 OUT (C),0 ==>ISR entries per /INT signal:  2
+LD A,I IFF2 reading: correct 
+LD A,R IFF2 reading: correct 
+
+block of|count|verdict
+--------+-----+----------------
+NOP     |  51 |   |benchmark
+DD      |   0 |OK |inhibits ISR
+FD      |   0 |OK |inhibits ISR
+DDFD    |   0 |OK |inhibits ISR
+SCF+CCF |  51 |OK |allows ISR  
+EI      |   0 |OK |inhibits ISR
+DI      |   0 |OK |inhibits ISR

@@ -11,18 +11,22 @@
 #define RUNAHEAD  (1<<10) // @fixme: Tai-Pan(1986).tzx crashes; break drums in TargetRenegade+AYUMI
 #define TURBOROM  (1<<11) // @fixme: x4,x6 not working anymore. half bits either.
 #define ALTROMS   (1<<12) // note: will use plus2c+lg roms where possible
+#define PRINTER   (1<<13) // traps rom print routine. useful for automation tests
+#define TESTS     (1<<14) // scans src/tests/ folder + creates log per test + 48k + exits automatically + 50% frames not drawn + 50% drawn in fastest mode
 
 #ifndef FLAGS_DEV
-#define FLAGS_DEV (0|DEV|RF|FDC|AYUMI|FULLER|KMOUSE|ULAPLUS|FLOATING|TURBOROM|ALTROMS) 
+#define FLAGS_DEV (0|DEV|FDC|AYUMI|FULLER|KMOUSE|ULAPLUS|FLOATING|TURBOROM|ALTROMS)
 #endif
 
 #ifndef FLAGS_REL
-#define FLAGS_REL ((FLAGS_DEV & ~(DEV|AYUMI|GUNSTICK)) | CRT | RUNAHEAD)
+#define FLAGS_REL ((FLAGS_DEV & ~(DEV|AYUMI|GUNSTICK|TESTS|PRINTER)) | CRT|RF | RUNAHEAD)
 #endif
 
 #ifndef FLAGS
 #define FLAGS FLAGS_DEV
 #endif
+
+FILE *printer;
 
 const char* static_options() {
     return 
@@ -68,6 +72,12 @@ const char* static_options() {
     #if FLAGS & ALTROMS
     "+ ALTROMS\n"
     #endif
+    #if FLAGS & PRINTER
+    "+ PRINTER\n"
+    #endif
+    #if FLAGS & TESTS
+    "+ TESTS\n"
+    #endif
 #endif
     ;
 }
@@ -107,42 +117,10 @@ int do_audio = 1;
 
 int ZX_TS;
 int ZX_FREQ;
-#if FLAGS & DEV
-int ZX_RF = 0;
-int ZX_CRT = 0;
-#else
-int ZX_RF = 1;
-int ZX_CRT = 1;
-#endif
+int ZX_RF = !!(FLAGS & RF);
+int ZX_CRT = !!(FLAGS & CRT);
 int ZX = 128; // 48, 128, 200 (+2), 210 (+2A), 300 (+3)
 int ZX_FAST = 1;
-
-    byte *MEMr[4]; //solid block of 16*4 = 64kb for reading
-    byte *MEMw[4]; //solid block of 16*4 = 64kb for writing
-    #define RAM_BANK(n)   (mem + (n) * 0x4000)
-    #define ROM_BANK(n)   (rom + (n) * 0x4000)
-    #define DUMMY_BANK(n) (dum + (0) * 0x4000)
-    #define VRAM /*(MEMr[1])*/ (page128 & 8 ? RAM_BANK(7) : RAM_BANK(5))
-
-    int vram_contended;
-    int vram_accesses;
-    //byte contended[70908];
-    unsigned short floating_bus[70908];
-
-    byte *mem = 0; // 48k
-    byte *rom = 0;
-    byte *dum = 0;
-
-    z80_t cpu;
-
-    #define READ8(a)     (/*vram_accesses += vram_contended && ((a)>>14==1),*/ *(byte *)&MEMr[(a)>>14][(a)&0x3FFF])
-    #define READ16(a)    (/*vram_accesses += vram_contended && ((a)>>14==1),*/ *(word *)&MEMr[(a)>>14][(a)&0x3FFF])
-    #define WRITE8(a,v)  (/*vram_accesses += vram_contended && ((a)>>14==1),*/ *(byte *)&MEMw[(a)>>14][(a)&0x3FFF]=(v))
-    #define WRITE16(a,v) (/*vram_accesses += vram_contended && ((a)>>14==1),*/ *(word *)&MEMw[(a)>>14][(a)&0x3FFF]=(v))
-
-
-byte page128;
-byte ZXBorderColor;
 
 void outport(word port, byte value);
 byte inport(word port);
@@ -153,17 +131,88 @@ void port_0xbffd(byte value);
 void port_0xfffd(byte value);
 void reset(int model);
 
-void regs();
+void regs(const char *banner);
+
+// z80
+z80_t cpu;
+uint64_t pins;
+int int_counter;
+
+// mem
+    byte *MEMr[4]; //solid block of 16*4 = 64kb for reading
+    byte *MEMw[4]; //solid block of 16*4 = 64kb for writing
+    #define RAM_BANK(n)   (mem + (n) * 0x4000)
+    #define ROM_BANK(n)   (rom + (n) * 0x4000)
+    #define DUMMY_BANK(n) (dum + (0) * 0x4000)
+    #define VRAM RAM_BANK(5 + ((page128 & 8) >> 2)) // branchless ram bank 5 or 7. equivalent to RAM_BANK(page128 & 8 ? 7 : 5)
+
+    int vram_contended;
+    int vram_accesses;
+    //byte contended[70908];
+    unsigned short floating_bus[70908];
+
+    byte *mem; // 48k
+    byte *rom;
+    byte *dum;
+
+    #define READ8(a)     (/*vram_accesses += vram_contended && ((a)>>14==1),*/ *(byte *)&MEMr[(a)>>14][(a)&0x3FFF])
+    #define READ16(a)    (/*vram_accesses += vram_contended && ((a)>>14==1),*/ *(word *)&MEMr[(a)>>14][(a)&0x3FFF])
+    #define WRITE8(a,v)  (/*vram_accesses += vram_contended && ((a)>>14==1),*/ *(byte *)&MEMw[(a)>>14][(a)&0x3FFF]=(v))
+    #define WRITE16(a,v) (/*vram_accesses += vram_contended && ((a)>>14==1),*/ *(word *)&MEMw[(a)>>14][(a)&0x3FFF]=(v))
+
+// ula
+int  ZXFlashFlag;
+rgba ZXPalette[64];
+byte ZXBorderColor;
+
+// 128
+byte page128;
+
+// plus3/2a
+byte page2a;
+
+// keyboard
+int keymap[5][5];
+
+// joysticks
+byte kempston,fuller;
+
+// mouse
+byte kempston_mouse;
+
+// beeper
+#define TAPE_VOLUME 0.15f // relative to buzz
+#define BUZZ_VOLUME 0.25f // relative to ay
+beeper_t buzz;
+byte last_fe;
+
+// ay
+ay38910_t ay;
+struct ayumi ayumi;
+byte ay_current_reg;
+int/*byte*/ ay_registers[ 16 ];
+
+// vsync
+byte zx_vsync;
+
+// ticks
+uint64_t ticks, TS;
+
+// boost
+byte boost_on;
+
+// tape
+uint64_t tape_ticks;
+
 
 #include "zx_rom.h"
 #include "zx_dsk.h"
 #include "zx_tap.h" // requires page128
 #include "zx_tzx.h"
 #include "zx_sna.h" // requires page128, ZXBorderColor
+#include "zx_sav.h"
 
-
-int  ZXFlashFlag;
-rgba ZXPalette[64], ZXPaletteDef[64] = { // 16 regular, 64 ulaplus
+rgba ZXPaletteDef[64] = { // 16 regular, 64 ulaplus
 #if 0 // check these against SHIFT-SPC during reset
     rgb(0x00,0x00,0x00),
     rgb(0x00,0x00,0xCD),
@@ -267,45 +316,75 @@ enum SpecKeys {
 #define ZXKeyUpdate() \
 keymap[1][1] = keymap[1][2] = keymap[2][2] = keymap[3][2] = keymap[4][2] = \
 keymap[4][1] = keymap[3][1] = keymap[2][1] = 0xFF;
-int keymap[5][5];
+
 const unsigned char keytbl[256][3] = {
     {1, 2, 0xFE}, {1, 1, 0xFE}, {1, 1, 0xFD}, /* 0|1|2 */
     {1, 1, 0xFB}, {1, 1, 0xF7}, {1, 1, 0xEF}, /* 3|4|5 */
     {1, 2, 0xEF}, {1, 2, 0xF7}, {1, 2, 0xFB}, /* 6|7|8 */
     {1, 2, 0xFD}, {3, 1, 0xFE}, {4, 2, 0xEF}, /* 9|a|b */
-    {4, 1, 0xF7}, {3, 1, 0xFB}, {2, 1, 0xFB}, /* c|d|e */ 
+    {4, 1, 0xF7}, {3, 1, 0xFB}, {2, 1, 0xFB}, /* c|d|e */
     {3, 1, 0xF7}, {3, 1, 0xEF}, {3, 2, 0xEF}, /* f|g|h */
-    {2, 2, 0xFB}, {3, 2, 0xF7}, {3, 2, 0xFB}, /* i|j|k */ 
-    {3, 2, 0xFD}, {4, 2, 0xFB}, {4, 2, 0xF7}, /* l|m|n */ 
+    {2, 2, 0xFB}, {3, 2, 0xF7}, {3, 2, 0xFB}, /* i|j|k */
+    {3, 2, 0xFD}, {4, 2, 0xFB}, {4, 2, 0xF7}, /* l|m|n */
     {2, 2, 0xFD}, {2, 2, 0xFE}, {2, 1, 0xFE}, /* o|p|q */
-    {2, 1, 0xF7}, {3, 1, 0xFD}, {2, 1, 0xEF}, /* r|s|t */ 
-    {2, 2, 0xF7}, {4, 1, 0xEF}, {2, 1, 0xFD}, /* u|v|w */ 
-    {4, 1, 0xFB}, {2, 2, 0xEF}, {4, 1, 0xFD}, /* x|y|z */ 
+    {2, 1, 0xF7}, {3, 1, 0xFD}, {2, 1, 0xEF}, /* r|s|t */
+    {2, 2, 0xF7}, {4, 1, 0xEF}, {2, 1, 0xFD}, /* u|v|w */
+    {4, 1, 0xFB}, {2, 2, 0xEF}, {4, 1, 0xFD}, /* x|y|z */
     {4, 2, 0xFE}, {3, 2, 0xFE}, {4, 1, 0xFE}, /* SPC|ENT|SHF */
     {4, 2, 0xFD}, {1, 2, 0xEF},               /* SYMB|CTRL */
 };
 
-// joysticks
-byte kempston,fuller;
+// 16/48
+void port_0x00fe(byte value) {
+    last_fe = value;
 
-// mouse
-byte kempston_mouse;
+    // border color
+    ZXBorderColor = (value & 0x07);
 
-// beeper
-beeper_t buzz;
-byte last_fe;
+    // speaker
+    //0x08 : tape when saving
+    //0x10 : speaker
+    //0x18 : both. works for 99% of games, some others wont (parapshock values: 0x18,0x08,0x18,...)
+    //mic  : tape when loading
 
-// vsync
-byte zx_vsync;
+#if 0
+    int is_saving = (page128&16) && (PC(cpu) >= 0x4ae && PC(cpu) <= 0x51a);
+    int mask = is_saving ? 0x08 : 0x10;
+    int spk = mic_on ? mic : 0;
 
-// ticks
-uint64_t ticks, TS;
+    beeper_set(&buzz, !!(spk || (value & mask)));
+#else
+    // ref: https://piters.tripod.com/cassport.htm
+    // ref: https://retrocomputing.stackexchange.com/a/27539
+    // The threshold voltage for reading the input state (at the pin) of the ULA is 0.7V (*)
+    // BIT4 EAR     BIT3 MIC     PIN 28 VOLTAGE  BIT6 IN READ
+    //        0            0               0.34             0
+    //        0            1               0.66             0 (borderline (*))
+    //        1            0               3.56             1
+    //        1            1               3.70             1
+    //
+    const float beeper_volumes[] = {
+        0.60f, // rest volume
+        0.60f, // tape volume (??%) see diagram above (*)
+        0.96f, // beeper volume (96%)
+        1.00f  // tape+beeper volume (100%)
+    };
 
-// boost
-byte boost_on;
+    int beeper = !!(value & 0x10);
+    int tape = !!(mic | (!(value & 0x8)));
+    int combined = beeper * 2 + tape;
 
-// plus3/2a
-byte page2a;
+    #if 1 // @fixme: adjust buzzer volume accordingly
+    beeper_set_volume(&buzz, beeper_volumes[combined]);
+    #endif
+
+    beeper_set(&buzz, combined);
+#endif
+
+#if 1 // stop tape when BEEPER activity is detected
+    if(value & 0x10) mic_on = 0;
+#endif
+}
 
 // zx128
 void port_0x7ffd(byte value) {
@@ -361,7 +440,7 @@ void ZXJoysticks(int up, int down, int left, int right, int fire) {
 void port_0x1ffd(byte value) {
     if(ZX < 210) return; //if not in +2a/+3 mode, return
 
-    page2a = value & 0x1f;    //save bits 0-4
+    page2a = value; // value & 0x1f;    //save bits 0-4
 
     // check bit 1: special RAM banking or not
 
@@ -560,20 +639,12 @@ struct mouse mouse() {
     return ( (struct mouse) {mx, my, lmb, mmb, rmb} );
 }
 
-// control of AY-3-8912 ports
-ay38910_t ay;
-struct ayumi ayumi;
-byte ay_current_reg;
-int/*byte*/ ay_registers[ 16 ];
+// ay
 void port_0xfffd(byte value) {
     ay_current_reg=(value&15);
 #if !(FLAGS & AYUMI)
     // select ay-3-8912 register
     ay38910_iorq(&ay, AY38910_BDIR|AY38910_BC1|ay_current_reg<<16);
-#endif
-
-#if 1 // stop the tape when AY activity is detected
-    // mic_on = 0;
 #endif
 }
 void port_0xbffd(byte value) {
@@ -627,9 +698,12 @@ void port_0xbffd(byte value) {
 #else
     ay38910_iorq(&ay, AY38910_BDIR|value<<16);
 #endif
+
+#if 1 // stop tape when AY activity is detected
+    if(value) mic_on = 0;
+#endif
 }
 byte inport_0xfffd(void) {
-//mic_on = 0;
 //  return ay38910_iorq(&ay, 0);
     unsigned char ay_registers_mask[ 16 ] = {
         0xff, 0x0f, 0xff, 0x0f, 0xff, 0x0f, 0x1f, 0xff,
@@ -675,25 +749,37 @@ byte inport_0xfffd(void) {
 uint64_t tick1(int num_ticks, uint64_t pins, void* user_data) {
 
 #if FLAGS & DEV
-    static FILE *logger = 0; logger = stdout; // if(!logger) fputs("---\n", logger = fopen("spectral.log", "a+t"));
-
     if( cpu.step == 0 ) {
         unsigned pc = Z80_GET_ADDR(pins);
 
+#if FLAGS & PRINTER
         // trap print routine
-        if( 0 )
-        if( pc == 0x28 ) { // 0x10 ) {
-            char ch = cpu.a;
-            if(ch >= 32 && ch < 0x80) printf("%c", ch);
-            if(ch == 0xD ) printf("%c", '\n');
+
+        // check no int pending, +2a/+3, or rom1
+        // if( !IFF1(cpu) && ZX <= 200 && !(page128 & 16) )
+
+        if (pc == 0x09F4 /*&& SP(cpu) < 0x4000*/) {
+            uint8_t channel_k = READ8( IY(cpu) + 0x30 ) & 16; // FLAGS2
+            uint8_t is_lower_screen = READ8( IY(cpu) + 2 ) & 1; // TV_FLAG
+            if (!channel_k /*&& !is_lower_screen*/ ) {
+                char ch = cpu.a; // & 0x7f;
+                // if(ch >= 0x7F ) printf(printer, "%c", "© ▝▘▀▗▐▚▜▖▞▌▛▄▟▙█"[ch - 0x7f]);
+                // else
+                if(ch == 0x0D || ch >= 32) {
+                    fprintf(printer, "%c", ch < 32 ? '\n' : ch);
+                    fflush(printer);
+                }
+            }
         }
+
+#endif
 
         // disasm
         void dis(unsigned, unsigned, FILE*);
 
         int do_disasm = pc >= 0x38 && pc < 0x45; // mouse().rb;
         if( 0 )
-        if( do_disasm ) dis(pc, 1, logger);
+        if( do_disasm ) dis(pc, 1, stdout);
     }
 #endif
 
@@ -746,9 +832,6 @@ uint64_t tick1(int num_ticks, uint64_t pins, void* user_data) {
     return pins | (zx_vsync ? zx_vsync = 0, Z80_INT : 0);
 }
 
-int int_counter = 0;
-uint64_t pins = 0;
-
 void init() {
     dum = (char*)realloc(dum, 16384);    // dummy page
     rom = (char*)realloc(rom, 16384*4);  // +3
@@ -764,7 +847,7 @@ void init() {
     beeper_desc_t bdesc = {0};
     bdesc.tick_hz = ZX_FREQ; // ZX_FREQ_48K
     bdesc.sound_hz = AUDIO_FREQUENCY;
-    bdesc.base_volume = 0.25f;
+    bdesc.base_volume = BUZZ_VOLUME;
     beeper_init(&buzz, &bdesc);
 
 #if FLAGS & AYUMI
@@ -780,7 +863,7 @@ void init() {
       {0.90, 0.50, 0.10}, // CBA
     };
 
-    if (!ayumi_configure(&ayumi, is_ym, 2000000 /*ZX_FREQ / 2*/, AUDIO_FREQUENCY)) {
+    if (!ayumi_configure(&ayumi, is_ym, 2000000 /*ZX_FREQ / 2*/, AUDIO_FREQUENCY)) { // ayumi is AtariST based, i guess. use 2mhz clock instead
         exit(-printf("ayumi_configure error (wrong sample rate?)\n"));
     }
     const double *pan = pan_modes[0]; // MONO
@@ -842,6 +925,8 @@ config(ZX);
 #endif
 
     ticks=0;
+
+    tape_ticks = 0;
 }
 
 // reset & clear all systems
@@ -871,16 +956,18 @@ void sim(unsigned TS) {
         // clear INT pin after 32 ticks
         if (int_counter > 0) {
             if(!--int_counter) z80_interrupt(&cpu, 0);
-        }            
+        }
 
         pins = z80_tick(&cpu, pins);
         ++ticks;
+        tape_ticks += !!mic_on;
 
         pins = tick1(1,pins,0);
     }
 #else
     z80_exec(&cpu, TS);
     ticks += TS;
+    tape_ticks += !!mic_on * TS;
 #endif
 }
 
@@ -1019,22 +1106,8 @@ void outport(word port, byte value) {
 
     // default
     if( !(port & (0xFF^0xFE))) {
-        last_fe = value;
-
-        // border color
-        ZXBorderColor = (value & 0x07); 
-
-        // speaker
-        //0x08 : tape when saving
-        //0x10 : speaker
-        //0x18 : both. works for 99% of games, some others wont (parapshock values: 0x18,0x08,0x18,...)
-        //mic  : tape when loading
-
-        int is_saving = (page128&16) && (PC(cpu) >= 0x4ae && PC(cpu) <= 0x51a);
-        int mask = is_saving ? 0x08 : 0x10;
-        int spk = mic_on ? mic : 0;
-
-        beeper_set(&buzz, !!(spk || (value & mask)));
+        port_0x00fe(value);
+        return;
     }
 }
 byte gunstick(byte code) { // out: FF(no), FE(fire), FB(lit)
@@ -1123,7 +1196,7 @@ trig:;
 byte inport(word port) {
     // unsigned PC = z80_pc(&cpu); if(PC >= 0x3D00 && PC <= 0x3DFF) printf(" in port[%04x]\n", port); // betadisk
 
-    // if(port != 0x1ffd && port != 0x2ffd && port != 0x3ffd && port != 0x7ffe) { regs(); printf(" in port[%04x]\n", port); }
+    // if(port != 0x1ffd && port != 0x2ffd && port != 0x3ffd && port != 0x7ffe) { regs("inport"); printf(" in port[%04x]\n", port); }
     //[0102] alien syndrome.dsk ??
     //[0002] alien syndrome.dsk ??
     //[fefe] alien syndrome.dsk
@@ -1245,37 +1318,13 @@ byte inport(word port) {
         //    code &= 0xBF; // issue3
 #endif
 
-        /*
-        I should implement this also:
-        where earon = bit 4 of the last OUT to the 0xFE port
-        and   micon = bit 3 of the last OUT to the 0xFE port
-        byte ear_on = last_fe & (1<<4);
-        byte mic_on_= last_fe & (1<<3);
-        if( !ear_on && mic_on_) code &= 0xbf;
-        */
+        if( 1 ) {
+            byte ear = ReadMIC(tape_ticks);
 
-        if( 1 ) { // mic_on
-#if 0
-            static int counter = 0;
-            static int last_out = 0;
-            if( last_fe == last_out ) {
-                if( last_fe == 0 && ++counter > 25600 ) {
-                    mic_on = 0;
-                    counter = 0;
-                }
-            } else {
-                counter = 0;
-                last_out = last_fe;
-            }
-            if( !mic_on ) {
-                return code;
-            }
-#endif
-
-            byte ear = ReadMIC(ticks);
-
+#if 1 // output sound if tape is being read
             if(mic_on)
             beeper_set(&buzz, !!((last_fe & 0x10) | !!ear));
+#endif
 
             code = code ^ ear;
         }
@@ -1306,7 +1355,7 @@ byte inport(word port) {
 }
 
 
-#define FULL_CHECKPOINTS 1
+#define FULL_CHECKPOINTS 0
 
 struct checkpoint {
     int version;
@@ -1356,6 +1405,8 @@ struct checkpoint {
     byte last_fe;
     // vsync
     byte zx_vsync;
+    // tape
+    uint64_t tape_ticks;
     // ticks
     uint64_t ticks, TS;
     // boost
@@ -1464,6 +1515,8 @@ void* checkpoint_save(unsigned slot) {
     c->last_fe = last_fe;
     // vsync
     c->zx_vsync = zx_vsync;
+    // tape
+    c->tape_ticks = tape_ticks;
     // ticks
     c->ticks = ticks;
     c->TS = TS;
@@ -1573,6 +1626,8 @@ port_0x7ffd(c->page128);
     last_fe = c->last_fe;
     // vsync
     zx_vsync = c->zx_vsync;
+    // tape
+    tape_ticks = c->tape_ticks;
     // ticks
     ticks = c->ticks;
     TS = c->TS;
@@ -1629,3 +1684,4 @@ port_0x7ffd(c->page128);
 
     return c;
 }
+

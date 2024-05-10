@@ -29,10 +29,10 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - [x] POK support.  <!-- @todo: cheats finder --> 
 - [x] Gunstick, Lightgun. <!-- Cheetah Defender Lightgun, Magnum Light Phaser, Stack Light Rifle -->
 - [x] External shaders support.
+- [x] Internal savestates.
 - [ ] Cycle accurate (border, multicolor, etc).
 - [ ] Extra accurate Z80 backend. <!-- @todo: contended mem, contended ports, memptr, snow, Q, floating bus (+2a/+3) -->
 - [ ] Pentagon 128K + beta disk. SCL/TRD.
-- [ ] Internal savestates. <!-- @todo: savefile spec -->
 - [ ] RZX support. <!-- @todo: rzx loadsave http://ramsoft.bbk.org.omegahg.com/rzxform.html -->
 - [ ] ZXDB integration.
 - [ ] Graphical User Interface. <!-- mouse driven -->

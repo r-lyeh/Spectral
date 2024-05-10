@@ -1,0 +1,5 @@
+65ee4e756d62657220746f6f206269e752455
+Program: z80ccfscr 
+
+Bytes: z80ccfscr 
+Quitting test because of inactivity.
