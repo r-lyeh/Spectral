@@ -1,5 +1,6 @@
-cmake_minimum_required(VERSION 3.12...${CMAKE_VERSION})
+cmake_minimum_required(VERSION 3.13...${CMAKE_VERSION})
 project(Spectral LANGUAGES C CXX)
 add_executable(Spectral src/zx.c src/sys_window.cc)
-target_compile_options(Spectral PRIVATE /MT /DNDEBUG /GL /GF /arch:AVX2 -Dmain=WinMain -DFLAGS=FLAGS_REL)
+target_compile_options(Spectral PRIVATE /MT /GL /GF /arch:AVX2)
+target_compile_definitions(Spectral PRIVATE main=WinMain $<$<CONFIG:Release>:FLAGS=FLAGS_REL>)
 target_link_options(Spectral PRIVATE /SUBSYSTEM:WINDOWS)
