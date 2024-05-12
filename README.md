@@ -1,4 +1,6 @@
 # Spectral <img src="src/res/img/noto_1f47b.png" width="5%" height="5%" />
+[![](https://github.com/r-lyeh/Spectral/actions/workflows/build.yml/badge.svg)](https://github.com/r-lyeh/Spectral/actions/workflows/build.yml)
+
 Sinclair ZX Spectrum emulator from the 80s.
 
 ![image](https://github.com/r-lyeh/spectral/assets/35402248/8ae5f8d4-0a7c-41ee-9112-2e86bacdb262)

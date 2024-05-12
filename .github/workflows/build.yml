@@ -1,0 +1,37 @@
+name: Build
+
+on:
+  push:
+    paths:
+    - '.github/workflows/build.yml'
+    - 'src/**'
+  pull_request:
+    paths:
+    - '.github/workflows/build.yml'
+    - 'src/**'
+
+env:
+  CMAKE_BUILD_TYPE: Release
+  CMAKE_GENERATOR_PLATFORM: x64
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Configure CMake
+      run: >-
+        cmake
+        -S "${{github.workspace}}"
+        -B "${{github.workspace}}/build"
+        -DCMAKE_BUILD_TYPE=${{env.CMAKE_BUILD_TYPE}}
+        -DCMAKE_GENERATOR_PLATFORM=${{env.CMAKE_GENERATOR_PLATFORM}}
+
+    - name: Build
+      run: >-
+        cmake
+        --build "${{github.workspace}}/build"
+        --config ${{env.CMAKE_BUILD_TYPE}}
+        --verbose
