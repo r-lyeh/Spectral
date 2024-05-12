@@ -4,6 +4,7 @@
 #define TIGR_C
 #define TIGR_DO_NOT_PRESERVE_WINDOW_POSITION
 #include "3rd_tigr.h"
+#include "3rd_tigrmousecursor.h"
 
 #if 0
 #define LUA_IMPL                              // lua544

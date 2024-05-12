@@ -1,5 +1,13 @@
 // [ref] https://www.alessandrogrussu.it/tapir/tzxform120.html
 // [ref] https://www.alessandrogrussu.it/loading/schemes/Schemes.html
+//
+// @todo
+// tzx(csw) starbike1, starbike2
+// tzx(gdb) basil great mouse, bc quest for tires, book of the dead part 1 (crl), dan dare 2 mekon, world cup carnival
+// tzx(flow) hollywood poker, bubble bobble (the hit squad)
+// tzx(noise) leaderboard par 3, tai-pan, wizball
+// tzx(voc) catacombs of balachor
+// tzx(???) bathyscape
 
 #include <stdbool.h>
 
@@ -30,8 +38,6 @@ int tzx_load(byte *fp, int len) {
 
         unsigned bytes = 0;
         const char *blockname = "", *debug = "";
-
-        mic_block_info(processed);
 
         switch (id) {
             default:
@@ -100,16 +106,16 @@ mic_queue_has_turbo = 1;
                 debug = va("bytes:%5u pause:%3ums 0:%3u 1:%4u bits:%u", bytes, pause, zero, one, bits);
                 src += bytes;
 
-            break; case 0x15: // TODO: no such block?
+            break; case 0x15: // @todo: Terrahawks(48K), DreddOverEels, Thanatos(Erbe)
                 blockname = "Voc";
                 src += 5;
                 bytes  = (*src++); bytes  |= (*src++)*0x100; bytes |= (*src++)*0x10000;
                 src += bytes;
-            break; case 0x18: // TODO: no such block?
+            break; case 0x18: // @todo: OlimpoEnGuerra(Part2), CaseOfMurderA
                 blockname = "Csw";
                 bytes  = (*src++); bytes  |= (*src++)*0x100; bytes |= (*src++)*0x10000; bytes |= (*src++)*0x1000000;
                 src += bytes;
-            break; case 0x19: // TODO
+            break; case 0x19: // @todo: BountyBobStrikesBack(Americana), NowotnikPuzzleThe, Twister-MotherOfCharlotte, AYankeeInIraqv132(TurboLoader)
                 blockname = "generalizedData";
                 bytes  = (*src++); bytes  |= (*src++)*0x100; bytes |= (*src++)*0x10000; bytes |= (*src++)*0x1000000;
                 pause  = (*src++); pause  |= (*src++)*0x100;
@@ -147,13 +153,13 @@ mic_queue_has_turbo = 1;
                     }
                 }
 
-            break; case 0x20: // OK(0) // TheMunsters.tzx
+            break; case 0x20: // OK(0) // TheMunsters
                 blockname = "pauseOrStop";
                 pause  = (*src++); pause  |= (*src++)*0x100; 
                 debug = va("%ums", pause);
 #if 0
-                if(ZX < 128) mic_render_stop();      // added ZX<128 for munsters.tzx
-                else mic_render_pause(pause+!pause); // added for Untouchables(HitSquad).tzx ??? // tzx 1.13 says: if(pause==0)pause=1;
+                if(ZX < 128) mic_render_stop();      // added ZX<128 for munsters
+                else mic_render_pause(pause+!pause); // added for Untouchables(HitSquad) ??? // tzx 1.13 says: if(pause==0)pause=1;
 #else
                 if(!pause) mic_render_stop();
                 else mic_render_pause(pause);
@@ -172,12 +178,12 @@ mic_queue_has_turbo = 1;
 
                 group_level--;
 
-            break; case 0x23: // IGNORED
+            break; case 0x23: // IGNORED: 1942.tzx, HollywoodPoker, PanamaJoe, MagicJohnson'sBasketball(Spanish)-SideA
                 blockname = "jumpTo";
                 bytes  = (*src++); bytes  |= (*src++)*0x100;
                 src += 0;
 
-            break; case 0x24: // OK
+            break; case 0x24: // OK?: HollywoodPoker, MarioBros
                 blockname = "loopStart";
                 count  = (*src++); count  |= (*src++)*0x100;
                 src += 0;
@@ -185,22 +191,22 @@ mic_queue_has_turbo = 1;
                 loop_counter = count;
                 loop_pointer = (unsigned)(src - (byte*)fp);
 
-            break; case 0x25: // OK
+            break; case 0x25: // OK?: HollywoodPoker
                 blockname = loop_counter == 1 ? "loopEnd" : 0;
                 src += 0;
 
                 if( --loop_counter ) src = (byte*)fp + loop_pointer;
 
-            break; case 0x26: // IGNORED
+            break; case 0x26: // IGNORED: HollywoodPoker
                 blockname = "callSeq";
                 count  = (*src++); count  |= (*src++)*0x100;
                 src += count * 2;
 
-            break; case 0x27: // IGNORED
+            break; case 0x27: // IGNORED: HollywoodPoker
                 blockname = "return";
                 src += 0;
 
-            break; case 0x28: // IGNORED
+            break; case 0x28: // IGNORED: LoneWolf3-TheMirrorOfDeath
                 blockname = "select";
                 count  = (*src++); count  |= (*src++)*0x100;
                 src += count;
@@ -211,12 +217,12 @@ mic_queue_has_turbo = 1;
                 // src += count; // batman the movie has count(0), oddi the viking has count(4). i rather ignore the count value
                 if(ZX < 128) mic_render_stop(); // @fixme: || page128 & 16
 
-            break; case 0x2b: // REV
+            break; case 0x2b: // REV: Cybermania, CASIO-DIGIT-INVADERS-v3
                 blockname = "signalLevel";
                 count  = (*src++); count  |= (*src++)*0x100;
                 byte level = (*src++);
                 src += 0;
-                //exit(puts("signalLevel block tape found! please check"));
+                warning("signalLevel block tape found! please check (0x2b)");
 
             break; case 0x30: // OK(0)
                 blockname = "Text";
@@ -246,6 +252,7 @@ mic_queue_has_turbo = 1;
                 src += 9;
                 // if(ZX < 128) mic_render_stop(); // note: custom modification to handle consecutive glued tapes
                 mic_render_pause(1000);
+                mic_render_stop(); //< probably a good idea
 
             break; case 0x16: // DEPRECATED
                 blockname = "c64Data (deprecated)";
@@ -278,12 +285,6 @@ mic_queue_has_turbo = 1;
         if(blockname) {
         *brief++ = blockname[0];
         printf("tzx.block %03d ($%02X) %6d bytes [%-13s] %s\n",processed,id,bytes,blockname,debug);
-        }
-
-        if((id >= 0x10 && id <= 0x12 && group_level == 0) || (id == 0x21)) {
-        // create tape preview
-        unsigned pct = (320.f * (unsigned)(src - (byte*)fp)) / ((unsigned)(end - (byte*)fp));
-        mic_preview[pct] |= 1;
         }
     }
 

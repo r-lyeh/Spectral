@@ -2,7 +2,6 @@ typedef unsigned char  byte;
 typedef unsigned short word;
 typedef unsigned int   dword;
 typedef unsigned int   rgba;
-typedef uint8_t        byte;
 
 #define joint(a,b) a##b
 #define join(a,b)  joint(a,b)
@@ -18,6 +17,7 @@ typedef uint8_t        byte;
 #include "sys_audio.h"
 #include "sys_window.h"
 #include "sys_db.h"
+#include "sys_ui.h"
 
 #ifndef _WIN32
 #define min(a,b) ((a)<(b)?(a):(b))

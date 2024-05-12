@@ -455,7 +455,7 @@ void update_ayumi_state(struct ayumi* ay, int* r) {
   }
 }
 
-float ayumi_render(struct ayumi* ay, int *regs, double isr_step, int dc_filter_on) {
+float ayumi_render(struct ayumi* ay, int *regs, int dc_filter_on) {
 #if 0
   static double isr_counter = 1;
 

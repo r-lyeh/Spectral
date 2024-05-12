@@ -5,7 +5,7 @@
 
 #include "res/roms/plus2c"
 #include "res/roms/lg18v07"
-//#include "res/roms/gw03v33"
+#include "res/roms/gw03v33"
 
 #include "res/snaps/ld48bas"
 #include "res/snaps/ld48bin"
@@ -43,23 +43,27 @@ void rom_patch(int on) {
     if( ZX == 200) memcpy(rom, romplus2,  0x4000*2);
     if( ZX >= 210) memcpy(rom, romplus3,  0x4000*4);
 
-#if FLAGS & ALTROMS
+    if(ZX_ALTROMS)
+    {
     // install plus2c on 128/+2 models
-    if( ZX <= 200) memcpy(rom+0x0000, romplus2c, 0x4000);
+    if( ZX <= 200) memcpy(rom+0x0000, romplus2c, 0x4000), memcpy(rom+0x4000, rom48, 0x4000);
     if( ZX <= 200) rom[0x0566] = '6';  // 198(6) Sinclair
     if( ZX <= 200) rom[0x37F6] = 0x00; // black menu titles
     if( ZX <= 200) rom[0x3864] = 0x40; // black banners
-    if( ZX <= 200) rom[0x387a] = 0x1b; // move zx strips +1 right on banners 
+    if( ZX <= 200) rom[0x387a] = 0x1b; // shift banner strips +1 right
+    if( ZX <= 200) memcpy(rom+0x26F1, rom128+0x26F1, 8); // restore classic keyclick bug sound
+    if( ZX <= 200) memcpy(rom+0x2744+11, rom128+0x2744+11, 2); // restore classic rom1 locked in 48 mode
+    if( ZX <= 200) rom[0x1B2B+13] = 0x03; // fix error msg on plus2c+gw03/lg18+SPECTRUM command combo; (BORDER q#PI instead of 0 OK) ; $0013 -> $0003 Address of a $FF byte within ROM 1, used to generate error report "0 OK".
 
-    // also gw03 on 16/48/128/+2 models.
-    if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48), romlg18v07/*romgw03v33*//*rom48*/, 0x4000);
-#endif
+    // install gw03 on 16/48/128/+2 models.
+    if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48), romgw03v33/*romlg18v07,rom48*/, 0x4000);
+    }
 
 #if FLAGS & TESTS
     if( ZX <= 200) memset(rom+0x4000 * (ZX > 48)+0x0C93, 0, 0xCD2-0xC93); // supress "Scroll?" message: JP #0CD2
 #endif
 
-    patched_rom = on && ZX <= 128;
+    patched_rom = on && ZX <= 200;
 if( patched_rom ) {
 
     byte *rombank = ROM_BANK(ZX >= 128 ? 1 : 0);

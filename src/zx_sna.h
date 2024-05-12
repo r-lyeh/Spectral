@@ -1,5 +1,3 @@
-char *prompt(void *wndHandle, const char *title, const char *body, const char *value);
-
 static void *p = 0;
 #define mread8()  (*src++)
 #define mread16() (p = realloc(p, 2), 0[(byte*)p]=*src++, 1[(byte*)p]=*src++, *((unsigned short*)p))
@@ -7,58 +5,6 @@ static void *p = 0;
 //#define fread8()  (v = fgetc(fp), v)
 //#define fread16() (v = fgetc(fp), v |= fgetc(fp) << 8, v)
 //#define freadnum(n) (fread(p = realloc(p, (n)), 1, (n), fp), p)
-
-int pok_load(const byte *src, int len) {
-/*
-NInfinite lives
-M  8 41047   0  53
-Z  8 41046 195  91
-NSet number of lives
-Z  8 23343 256   0
-Y
-
-lbbb aaaaa vvv ooo
-Where l determines the content, bbb is the bank, aaaaa is the address to be poked with value vvv and ooo is the original 
-value of aaaaa. All values are decimal, and separated by one or more spaces, apart from between l and bbb; however, 
-the bank value is never larger than 8, so you will always see 2 spaces in front of the bank. The field bank field is
-built from;
-
-bit 0-2 : bank value
-bit 3 : ignore bank (1=yes, always set for 48K games)
-
-If the field [value] is in range 0-255, this is the value to be POKEd. If it is 256, a requester should pop up where
-the user can enter a value.
-*/
-    if( *src != 'N' ) return 0; // not a .pok file
-
-    char trainer[256] = {0};
-    char line[256] = {0};
-    while( strchr("NMZY", *src) && sscanf(src, "%[^\r\n]", line) > 0 ) {
-        src += strlen(line);
-        while( strchr("\r\n", *src) ) ++src;
-
-        if( line[0] == 'N' ) { if(trainer[0]) warning(trainer); strcpy(trainer, line+1); continue; }
-        if( line[0] == 'Y' ) { if(trainer[0]) warning(trainer); return 1; }
-
-        int bank, addr, val, defaults;
-        if( 4 != sscanf(line+1, "%d %d %d %d", &bank, &addr, &val, &defaults) ) break;
-
-        // int current = bank & 8 ? READ8(addr) : RAM_BANK(bank&7)[addr & 0x3FFF];
-        // if( current != defaults ) { warning("poke mismatch"); continue; }
-
-        extern Tigr *app;
-        if( val == 256 ) val = (byte)atoi(prompt(app->handle, trainer, "", va("%d",defaults))), printf("prompt: %d\n", val), trainer[0] = '\0';
-
-        if( bank & 8 )
-        WRITE8(addr, val);
-        else
-        RAM_BANK(bank&7)[addr & 0x3FFF] = val; 
-    }
-
-    puts(".pok error");
-    return 0;
-}
-
 
 int rom_load(const byte *src, int len) { // interface2 cartridge
     if( src && len == 16384 ) {
@@ -128,7 +74,7 @@ reset(size == 49179 ? 48 : 128);
     IX(cpu) = mread16();
 
     int iff2 = mread8();
-    IFF1(cpu) = 
+    IFF1(cpu) =
     IFF2(cpu) = !!(iff2 & 0x04);
 
     R(cpu) = mread8();
@@ -171,6 +117,11 @@ reset(size == 49179 ? 48 : 128);
 
 #if !NEWCORE
     EI(cpu) = IFF1(cpu);
+#endif
+
+#if 0 // def NEWCORE
+    AF(cpu) = _byteswap_ushort(AF(cpu));
+    AF2(cpu) = _byteswap_ushort(AF2(cpu));
 #endif
 
     outport(0xFE, ZXBorderColor);
@@ -238,7 +189,7 @@ int z80_load(const byte *source_, int len) {
             default:   warning(va(".z80 unknown version: %d\n", buffer[30])); // ?
             case 54: 
             case 55:   ver = 3; break;
-        }        
+        }
     }
 
     // Reset + Config pages
@@ -259,7 +210,7 @@ int z80_load(const byte *source_, int len) {
         // common extended values (v2+v3)
         /**/ if(buffer[34]== 7) reset(buffer[37]&0x80 ? 210 : 300); //OK!
         else if(buffer[34]== 8) reset(buffer[37]&0x80 ? 210 : 300); //OK!
-        else if(buffer[34]== 9) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // Pentagon 128k
+        else if(buffer[34]== 9) warning(va(".z80 submodel not supported: %d (Pentagon 128K)", buffer[34])), reset(128); // Pentagon 128k
         else if(buffer[34]==10) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // Scorpion 256k
         else if(buffer[34]==11) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // Didaktik-Kompakt
         else if(buffer[34]==12) reset(200); //OK!
@@ -375,4 +326,55 @@ if (tam==65535) sig-=49151;
 #endif
 
     return 1;
+}
+
+int pok_load(const byte *src, int len) {
+    /*
+    NInfinite lives
+    M  8 41047   0  53
+    Z  8 41046 195  91
+    NSet number of lives
+    Z  8 23343 256   0
+    Y
+
+    lbbb aaaaa vvv ooo
+    Where l determines the content, bbb is the bank, aaaaa is the address to be poked with value vvv and ooo is the original 
+    value of aaaaa. All values are decimal, and separated by one or more spaces, apart from between l and bbb; however, 
+    the bank value is never larger than 8, so you will always see 2 spaces in front of the bank. The field bank field is
+    built from;
+
+    bit 0-2 : bank value
+    bit 3 : ignore bank (1=yes, always set for 48K games)
+
+    If the field [value] is in range 0-255, this is the value to be POKEd. If it is 256, a requester should pop up where
+    the user can enter a value.
+    */
+    if( *src != 'N' ) return 0; // not a .pok file
+
+    char trainer[256] = {0};
+    char line[256] = {0};
+    while( strchr("NMZY", *src) && sscanf(src, "%[^\r\n]", line) > 0 ) {
+        src += strlen(line);
+        while( strchr("\r\n", *src) ) ++src;
+
+        if( line[0] == 'N' ) { if(trainer[0]) warning(trainer); strcpy(trainer, line+1); continue; }
+        if( line[0] == 'Y' ) { if(trainer[0]) warning(trainer); return 1; }
+
+        int bank, addr, val, defaults;
+        if( 4 != sscanf(line+1, "%d %d %d %d", &bank, &addr, &val, &defaults) ) break;
+
+        // int current = bank & 8 ? READ8(addr) : RAM_BANK(bank&7)[addr & 0x3FFF];
+        // if( current != defaults ) { warning("poke mismatch"); continue; }
+
+        extern Tigr *app;
+        if( val == 256 ) val = (byte)atoi(prompt(app->handle, trainer, "", va("%d",defaults))), printf("prompt: %d\n", val), trainer[0] = '\0';
+
+        if( bank & 8 )
+        WRITE8(addr, val);
+        else
+        RAM_BANK(bank&7)[addr & 0x3FFF] = val; 
+    }
+
+    puts(".pok error");
+    return 0;
 }

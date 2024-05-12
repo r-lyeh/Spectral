@@ -1,12 +1,13 @@
-// snapshot file spec
+// ## snapshot spec
+// [optional .png screenshot, variable size]
 // header [16] + version [16]
-// z80 regs in alphabetical order [16 each]
+// z80 regs (in alphabetical order) [16 each]
 //  AF AF2 BC BC2 DE DE2 HL HL2 IFF12 IM IR IX IY PC SP
 // num ports (in ascending order) [16]
 //  addr [16], data [16]
 // num sequential pages (in ascending order) [16]
 //  size [16], blob [N] (z80rle if size < 16k; not paged in if size == 0, thus blob is skipped)
-// num devices (tap, tzx, dsk, ...) [16]
+// num attached medias (tap, tzx, dsk, ...) [16]
 //  size [16], blob [N]
 
 const uint16_t STATE_HEADER = 'Xp';

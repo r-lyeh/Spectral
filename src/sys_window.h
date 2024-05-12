@@ -40,4 +40,3 @@ void die(const char *msg) {
 }
 
 char* prompt( void *hwndParentWindow, const char *title, const char *caption, const char *defaults );
-

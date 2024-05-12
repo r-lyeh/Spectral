@@ -1,25 +1,54 @@
+// known issues:
+// p-47 in-game click sound (ayumi?)
+// custardthekid + turborom
+// taipan + quickload
+// gunstick + kempston || kmouse
+// altroms:
+// - donkey kong (AY 128, wrong ROM checksum)
+// - blood brothers (AY 128, wrong ROM checksum)
+// - MASK
+// crash (vsync/int line?):
+// - cauldron2(silverbird)
+// - hostages(erbe) +2, +3 versions. 48 is ok.
+// beeper:
+// - indiana jones last crusade
+// tape ticks:
+// - 1942.tzx
+// - nosferatu(alternativeltd)
+// - darkstar, wizball.tap
+// timing:
+// - border: sentinel, defenders of earth, dark star, super wonder boy
+// - border: aquaplane, olympic games, vectron, mask3
+// - multicolor: mask3, shock megademo, MDA, action force 2, old tower, hardy
+// - contended: exolon main tune requires contended memory, otherwise it's too fast +15% tempo
+// - floating: arkanoid (original), cobra (original), sidewize, short circuit
+// faulty reset:
+// - z80 or fdc not being reset sometimes: load mercs.dsk, then wrestlingSuperstars.dsk
+//   also dynasty wars, then e-motion
+
 #define DEV       (1<< 0) // status bar, z80 disasm
 #define RF        (1<< 1)
 #define CRT       (1<< 2)
 #define FDC       (1<< 3) // @fixme: afterburner(1988).dsk, mercs.dsk, ghouls n ghosts.dsk
-#define AYUMI     (1<< 4) // note: not compatible with vc22 and /O1 or /O2. use /Ox instead. See: AfterBurner(1988).dsk
+
 #define FULLER    (1<< 5)
-#define KMOUSE    (1<< 6) // @fixme: restore mouse clipping when model is reset
+#define KMOUSE    (1<< 6)
 #define ULAPLUS   (1<< 7)
 #define GUNSTICK  (1<< 8) // @fixme: conflicts with kempston & kmouse
 #define FLOATING  (1<< 9) // @fixme: not working yet
-#define RUNAHEAD  (1<<10) // @fixme: Tai-Pan(1986).tzx crashes; break drums in TargetRenegade+AYUMI
-#define TURBOROM  (1<<11) // @fixme: x4,x6 not working anymore. half bits either.
-#define ALTROMS   (1<<12) // note: will use plus2c+lg roms where possible
+#define RUNAHEAD  (1<<10) // @fixme: +3 not compatible. break drums in TargetRenegade+AYUMI. Tai-Pan(1986).tzx crashes (bc of quickload)
+#define TURBOROM  (1<<11) // @fixme: x4,x6 not working anymore. half bits either. @fixme: not compatible with lg18v07 rom (see: r-type128-km-nocheats.tap)
+//#define ALTROMS   (1<<12) // @fixme: DonkeyKong128, BloodBrothers128; note: will use plus2c+lg roms where possible
 #define PRINTER   (1<<13) // traps rom print routine. useful for automation tests
 #define TESTS     (1<<14) // scans src/tests/ folder + creates log per test + 48k + exits automatically + 50% frames not drawn + 50% drawn in fastest mode
+#define AUTOTAPE  (1<<15) // auto plays/stops tapes based on #FE port reads
 
 #ifndef FLAGS_DEV
-#define FLAGS_DEV (0|DEV|FDC|AYUMI|FULLER|KMOUSE|ULAPLUS|FLOATING|TURBOROM|ALTROMS)
+#define FLAGS_DEV (0|DEV|FDC|FULLER|KMOUSE|ULAPLUS|FLOATING|TURBOROM|AUTOTAPE|RUNAHEAD|0)
 #endif
 
 #ifndef FLAGS_REL
-#define FLAGS_REL ((FLAGS_DEV & ~(DEV|AYUMI|GUNSTICK|TESTS|PRINTER)) | CRT|RF | RUNAHEAD)
+#define FLAGS_REL ((FLAGS_DEV & ~(DEV|GUNSTICK|TESTS|PRINTER)) | CRT|RF )
 #endif
 
 #ifndef FLAGS
@@ -45,9 +74,6 @@ const char* static_options() {
     #if FLAGS & FDC
     "+ FDC\n"
     #endif
-    #if FLAGS & AYUMI
-    "+ AYUMI\n"
-    #endif
     #if FLAGS & FULLER
     "+ FULLER\n"
     #endif
@@ -69,44 +95,20 @@ const char* static_options() {
     #if FLAGS & TURBOROM
     "+ TURBOROM\n"
     #endif
-    #if FLAGS & ALTROMS
-    "+ ALTROMS\n"
-    #endif
     #if FLAGS & PRINTER
     "+ PRINTER\n"
     #endif
     #if FLAGS & TESTS
     "+ TESTS\n"
     #endif
+    #if FLAGS & AUTOTAPE
+    "+ AUTOTAPE\n"
+    #endif
 #endif
     ;
 }
 
 int do_audio = 1;
-
-// todo (trap)
-// [ ] trap rom loading, edge detection
-// [ ] disable boost if tape == tape_prev for +1s
-// [ ] tzx block scanner
-//
-// todo (tapes)
-// [ ] overlay ETA
-// [ ] auto-stop tape, auto-rewind at end of tape if multiload found (auto-stop detected), auto-insert next tape at end of tape (merge both during tzx_load! argv[1] argv[2])
-//
-// test
-// [ ] border: sentinel,
-// [ ] timing: shock megademo, MDA
-// [ ] test db [y/n/why]
-//
-// [ ] loaders: black arrow, black tiger, blood brothers, bobby bearing, joe blade 2, fairlight,
-// [ ] loaders: fighting warrior, moonstrike, rigel's revenge, trap door, travel trashman,
-// [ ] loaders: return of bart bear, ballbreaker, cobra, critical, deflektor, bubble bobble/flying shark/soldier of fortune,
-// [ ] loaders: freddy hardest, gunrunner, joe 128, indy last crusade, locomotion, amc, atlantis,
-// [ ] loaders: lode runner, podraz 32, saboteur, wizball.tap, manic miner, scooby doo, splat,
-// [ ] loaders: star wars, technician ted, three weeks in paradise, uridium/firelord, xeno, ik+,
-// [ ] loaders:
-// [ ] loaders: spirits, song in 3 lines,
-
 
 // ZX
 
@@ -121,6 +123,8 @@ int ZX_RF = !!(FLAGS & RF);
 int ZX_CRT = !!(FLAGS & CRT);
 int ZX = 128; // 48, 128, 200 (+2), 210 (+2A), 300 (+3)
 int ZX_FAST = 1;
+int ZX_AY = 1; // mask: 0 (no ay), 1 (ayumi), 2 (flooh's), 3 (both)
+int ZX_ALTROMS = 0; // 0:(no, original), 1:(yes, custom)
 
 void outport(word port, byte value);
 byte inport(word port);
@@ -155,6 +159,11 @@ int int_counter;
     byte *rom;
     byte *dum;
 
+    // 16/48/128/+2: pages 1,3,5,7 are contended (1), 0,2,4,6 not contended (0) -> so mask is 0001 (1)
+    // +2A/+3:       pages 4,5,6,7 are contended (1), 0,1,2,3 not contended (0) -> so mask is 0100 (4)
+    //#define IS_CONTENDED_PAGE(addr) !!((addr >> 14) & (ZX >= 210 ? 4 : 1))
+
+    #define ADDR(a)      ((byte *)&MEMr[(a)>>14][(a)&0x3FFF])
     #define READ8(a)     (/*vram_accesses += vram_contended && ((a)>>14==1),*/ *(byte *)&MEMr[(a)>>14][(a)&0x3FFF])
     #define READ16(a)    (/*vram_accesses += vram_contended && ((a)>>14==1),*/ *(word *)&MEMr[(a)>>14][(a)&0x3FFF])
     #define WRITE8(a,v)  (/*vram_accesses += vram_contended && ((a)>>14==1),*/ *(byte *)&MEMw[(a)>>14][(a)&0x3FFF]=(v))
@@ -181,7 +190,7 @@ byte kempston,fuller;
 byte kempston_mouse;
 
 // beeper
-#define TAPE_VOLUME 0.15f // relative to buzz
+#define TAPE_VOLUME 0.15f // relative to ~~buzz~~ ay
 #define BUZZ_VOLUME 0.25f // relative to ay
 beeper_t buzz;
 byte last_fe;
@@ -202,6 +211,7 @@ uint64_t ticks, TS;
 byte boost_on;
 
 // tape
+int tape_hz; // for vis
 uint64_t tape_ticks;
 
 
@@ -364,8 +374,8 @@ void port_0x00fe(byte value) {
     //        1            1               3.70             1
     //
     const float beeper_volumes[] = {
-        0.60f, // rest volume
-        0.60f, // tape volume (??%) see diagram above (*)
+        TAPE_VOLUME, // rest volume
+        TAPE_VOLUME, // tape volume (??%) see diagram above (*)
         0.96f, // beeper volume (96%)
         1.00f  // tape+beeper volume (100%)
     };
@@ -379,10 +389,6 @@ void port_0x00fe(byte value) {
     #endif
 
     beeper_set(&buzz, combined);
-#endif
-
-#if 1 // stop tape when BEEPER activity is detected
-    if(value & 0x10) mic_on = 0;
 #endif
 }
 
@@ -519,9 +525,8 @@ void port_0x3ffd(byte value) {
 }
 
 
-unsigned checkpoint_size();
-void*    checkpoint_save(unsigned slot);
-void*    checkpoint_load(unsigned slot);
+void*    quicksave(unsigned slot);
+void*    quickload(unsigned slot);
 
 
 void config(int ZX) {
@@ -638,19 +643,71 @@ struct mouse mouse() {
     tigrMouse(app, &mx, &my, &mb); lmb = mb & 1; mmb = !!(mb & 2); rmb = !!(mb & 4);
     return ( (struct mouse) {mx, my, lmb, mmb, rmb} );
 }
+void mouse_clip(int clip) {
+    static RECT restore; do_once GetClipCursor(&restore);
+
+    extern Tigr *app;
+    HWND hWnd = (HWND)app->handle;
+
+    extern int active; // ui
+
+    // get client area (0,0,w,h)
+    RECT dims;
+    GetClientRect(hWnd, &dims);
+
+    // convert area to desktop coordinates
+    RECT win = dims;
+    ClientToScreen(hWnd, (POINT*)&win.left); // convert top-left
+    ClientToScreen(hWnd, (POINT*)&win.right); // convert bottom-right
+
+    // wrap mouse over the edges
+    if( clip && !active ) {
+        int w = dims.right, h = dims.bottom;
+        int x = win.left, y = win.top;
+
+        // mouse coords relative to top-left (0,0) client area
+        struct mouse m = mouse();
+        // convert to desktop coords
+        int mx = win.left + m.x;
+        int my = win.top + m.y;
+
+        // difference between Tigr's and Windows' mouse desktop coords
+        POINT p;
+        GetCursorPos(&p);
+        int diffx = mx - p.x, diffy = my - p.y;
+
+        if(mx<x) while(mx<x) mx += w;
+        else while(mx>(x+w/2)) mx -= w;
+
+        if(my<y) while(my<y) my += h;
+        else while(my>(y+h/2)) my -= h;
+
+        SetCursorPos(mx - diffx,my - diffy);
+    }
+
+    // Clip or restore the cursor to its previous area.
+    // ClipCursor(clip && !active ? &win : &restore);
+
+    // Hide or show cursor
+    ShowCursor(clip && !active ? FALSE : TRUE);
+}
+
+
+
 
 // ay
 void port_0xfffd(byte value) {
+    // select ay register
     ay_current_reg=(value&15);
-#if !(FLAGS & AYUMI)
-    // select ay-3-8912 register
+    // floooh's
     ay38910_iorq(&ay, AY38910_BDIR|AY38910_BC1|ay_current_reg<<16);
-#endif
 }
 void port_0xbffd(byte value) {
-//mic_on = 0;
+    // update ay register
     ay_registers[ay_current_reg]=value;
-#if FLAGS & AYUMI
+    // floooh's
+    ay38910_iorq(&ay, AY38910_BDIR|value<<16);
+    // ayumi
     int *r = ay_registers;
     switch (ay_current_reg)
     {
@@ -695,13 +752,6 @@ void port_0xbffd(byte value) {
         ayumi_set_envelope_shape(&ayumi, r[13]);
         break;
     }
-#else
-    ay38910_iorq(&ay, AY38910_BDIR|value<<16);
-#endif
-
-#if 1 // stop tape when AY activity is detected
-    if(value) mic_on = 0;
-#endif
 }
 byte inport_0xfffd(void) {
 //  return ay38910_iorq(&ay, 0);
@@ -850,7 +900,19 @@ void init() {
     bdesc.base_volume = BUZZ_VOLUME;
     beeper_init(&buzz, &bdesc);
 
-#if FLAGS & AYUMI
+    // ay
+    memset(ay_registers,0,16);
+    ay_current_reg=0;
+
+    // floooh's
+    ay38910_desc_t ay_desc = {0};
+    ay_desc.type = AY38910_TYPE_8912;
+    ay_desc.tick_hz = ZX_FREQ / 2;
+    ay_desc.sound_hz = AUDIO_FREQUENCY; // * 0.75; // fix: -25% speed
+    ay_desc.magnitude = 1.0f;
+    ay38910_init(&ay, &ay_desc);
+
+    // ayumi
     const int is_ym = 1; // should be 0, but 1 sounds more Speccy to me somehow (?)
     const int eqp_stereo_on = 0;
     const double pan_modes[7][3] = { // pan modes, 7 stereo types
@@ -864,23 +926,12 @@ void init() {
     };
 
     if (!ayumi_configure(&ayumi, is_ym, 2000000 /*ZX_FREQ / 2*/, AUDIO_FREQUENCY)) { // ayumi is AtariST based, i guess. use 2mhz clock instead
-        exit(-printf("ayumi_configure error (wrong sample rate?)\n"));
+        die("ayumi_configure error (wrong sample rate?)");
     }
     const double *pan = pan_modes[0]; // MONO
     ayumi_set_pan(&ayumi, 0, pan[0], eqp_stereo_on);
     ayumi_set_pan(&ayumi, 1, pan[1], eqp_stereo_on);
     ayumi_set_pan(&ayumi, 2, pan[2], eqp_stereo_on);
-#else
-    ay38910_desc_t ay_desc = {0};
-    ay_desc.type = AY38910_TYPE_8912;
-    ay_desc.tick_hz = ZX_FREQ / 2;
-    ay_desc.sound_hz = AUDIO_FREQUENCY; // * 0.75; // fix: -25% speed
-    ay_desc.magnitude = 1.0f;
-    ay38910_init(&ay, &ay_desc);
-#endif
-
-    memset(ay_registers,0,16);
-    ay_current_reg=0;
 }
 
 // reset most systems. preserve mic
@@ -901,11 +952,13 @@ void reset(int model) {
 
     beeper_reset(&buzz);
 
-    ayumi_reset(&ayumi);
     ay38910_reset(&ay);
+    ayumi_reset(&ayumi);
 
     void ula_reset();
     ula_reset();
+
+    mouse_clip(0);
 
     kempston_mouse = 0;
 
@@ -926,6 +979,7 @@ config(ZX);
 
     ticks=0;
 
+    tape_hz = 0;
     tape_ticks = 0;
 }
 
@@ -976,20 +1030,18 @@ void sys_audio() {
     bool sample_ready = beeper_tick(&buzz);
 
     // tick the AY (half frequency)
-    static float ay_sample = 0;
-#if FLAGS & AYUMI
-    static byte even = 0; if( even == 0 || even == 0x80 ) {
-        // update_ayumi_state(&ayumi, ay_registers);
-        ay_sample = ayumi_render(&ayumi, ay_registers, 50.00 / AUDIO_FREQUENCY, 1); // frame_rate / audio_rate
-    } ++even;
-#else
-    static byte even = 0; if( ++even & 1 ) {
-        ay38910_tick(&ay); ay_sample = ay.sample;
-    }
-#endif
+    static float ay_sample1 = 0, ay_sample2 = 0;
+    static byte even = ~0u; ++even;
+    if( ZX_AY & 1 ) if(!(even & 0x7F)) ay_sample1 = ayumi_render(&ayumi, ay_registers, 1) * 2; // 2/256 freq. even == 0 || even == 0x80
+    if( ZX_AY & 2 ) if( even & 1 ) ay38910_tick(&ay), ay_sample2 = ay.sample; // half frequency
+
+    if( ZX_AY == 0 ) ay_sample1 = ay_sample2 = 0; // no ay
+    if( ZX_AY == 1 ) ay_sample2 = ay_sample1;     // ayumi only
+    if( ZX_AY == 2 ) ay_sample1 = ay_sample2;     // floooh's only
+    float ay_sample = (ay_sample1 + ay_sample2) * 0.5f; // both
 
     if( do_audio && sample_ready ) {
-        float master = 0.95f * ( (mic_on && mic_has_tape) ? 0.05 : 1 );
+        float master = 0.98f;
         float sample = (buzz.sample * 0.75f + ay_sample * 0.25f) * master;
 
         audio_queue(sample);
@@ -1040,7 +1092,7 @@ void ula_reset() {
                     s = 0;
                     v = v*0.98;
                     ZXPalette[i] = as_rgb(h,s,v);
-    }    
+    }
 }
 
 
@@ -1215,13 +1267,10 @@ byte inport(word port) {
 
     // kempston mouse
     if( kempston_mouse == 7 ) {
-//mic_on = 0;
-        extern Tigr *app;
         struct mouse m = mouse();
-        RECT rect; GetWindowRect((HWND)app->handle, &rect); //int hw = (rect.right - rect.left)/2, hh = (rect.bottom - rect.top)/2; rect.left+=hw; rect.right-=hw; rect.top+=hh; rect.bottom-=hh;
-        if(!(port & (0xFFFF^0xFADF))) return ShowCursor(FALSE), ClipCursor(&rect), /*SetCursorPos((rect.right-rect.left)/2,(rect.bottom-rect.top)/2),*/ 0xFF&~(1*m.rb+2*m.lb+4*m.mb); // ----.--10.--0-.----  =  Buttons: D0 = RMB, D1 = LMB, D2 = MMB
-        if(!(port & (0xFFFF^0xFBDF))) return ShowCursor(FALSE), ClipCursor(&rect), /*SetCursorPos((rect.right-rect.left)/2,(rect.bottom-rect.top)/2),*/  m.x;                         // ----.-011.--0-.----  =  X-axis:  $00 … $FF
-        if(!(port & (0xFFFF^0xFFDF))) return ShowCursor(FALSE), ClipCursor(&rect), /*SetCursorPos((rect.right-rect.left)/2,(rect.bottom-rect.top)/2),*/ -m.y;                         // ----.-111.--0-.----  =  Y-axis:  $00 … $FF
+        if(!(port & (0xFFFF^0xFADF))) return mouse_clip(1), 0xFF&~(1*m.rb+2*m.lb+4*m.mb); // ----.--10.--0-.----  =  Buttons: D0 = RMB, D1 = LMB, D2 = MMB
+        if(!(port & (0xFFFF^0xFBDF))) return mouse_clip(1),  m.x;                         // ----.-011.--0-.----  =  X-axis:  $00 … $FF
+        if(!(port & (0xFFFF^0xFFDF))) return mouse_clip(1), -m.y;                         // ----.-111.--0-.----  =  Y-axis:  $00 … $FF
     }
 #endif
 
@@ -1329,6 +1378,132 @@ byte inport(word port) {
             code = code ^ ear;
         }
 
+
+
+#if FLAGS & AUTOTAPE
+
+        // auto-tape tests [* issue]
+        // [x] rom: pilot loader, acid killer.tzx
+        // [x] full suite: gauntlet, *p-47 thunderbolt, munsters 48k, myth,
+        // [x] glued: batman caped crusader
+        // [x] ay stopper: madmix2 (symb), mortadelo y filemon 2 (spc), wizard warz,
+        // [x] press-any-key: the egg, cauldron2.tap
+        // [x] loading pauses: diver, doctum, coliseum.tap, barbarian(melbourne), indiana jones last crusade
+        // [ ] *viaje al centro de la tierra, tuareg, desperado
+        // [ ] *cauldron (silverbird),
+        // [ ] *turrican, turrican2, un squadron,
+        // [x] tusker, predator,
+        // [x] last ninja 2, karnov,
+        // [x] gryzor 48k, rainbow islands 48k
+        // [?] twilight, wild streets, 
+        // [?] time scanner, tmnt coin op, super wonder boy, strider 2, street hassle,
+        // [?] st dragon, spherical, real ghostbusters, spherical, perico delgado,
+        // [?] pang, outrun, laser squad, koronis rift,
+        // [?] gauntlet 2, line of fire, mandragore, the deep, 
+        // [?] galaxy force, flash gordon, dragons lair, dragons lair 2, dragon breed,
+        // [?] double dragons, desolator, final assault, forgotten worlds, crack down,
+        // [?] alien syndrome, altered beast,
+
+        // stable tape heuristics I used for a long time:
+        // - hint play if loading from rom && mic has tape
+        // newer heuristics that worked ok-ish:
+        // - hint stop if strchr("uo",voc[voc_pos/4] & 0x7f) ; pa(u)se st(o)p
+        // - hints based on IN FE port activity
+        //   - 70908 ts/s / 8 ts/portread = 8863 portreads/s. theory limit of 8863 Hz.
+        //     very high frequency polling are press-any-key pollings (>1700 Hz)
+        //     high frequency polling are data or pilot loaders (~500..1200 Hz)
+        //     low frequency polling are keyboard handlers (0..8 Hz)
+        //   - hint stop if keyboard is being read (<300hz); else hint loader. myth will work; madmix2 (shift) wont.
+        //   - hint stop if press-any-key tight loops (>1700hz); else hint loader. madmix2 will work; myth wont.
+        // newer heuristics that I tried and didnt fully work:
+        // - hint stop if num_written_ports(ay||spk) is significant, then we are playing; else hint loader. madmix2 will work; gauntlet wont.
+        // - hint stop if hash of AY regs[0..13] changes every second. 
+        // - hint stop if black/blue borders; else hint loader. gauntlet will work; p47 wont.
+        // - hint stop if IN FE from slow page; else hint loader. firelord wont work.
+        // @todo: more hints I didnt try
+        // - hint stop if reading mouse port (~playing)
+        // - hint stop if reading kempston(s) ports (~playing)
+        // - hint stop if reading keyboard matrix other than SPACE or BREAK (~playing)
+        // - hint stop if long pause (>=5s) found after tape progress is >30% (see: myth)
+        // - hint stop if long pause (>=5s) found between turbo blocks (see: myth or gauntlet)
+
+        // what I'm using now:
+        // inspect how the game processes the IN FE byte. if byte is RRA or checked against 0x20 then byte is a loading one.
+        // count the amount of loading bytes within a second: hint stop if count == 0; hint play if count > 200.
+
+        if( mic_has_tape )
+        {
+            unsigned pc = PC(cpu) - 2;
+            byte *addr = ADDR(pc);
+
+            static unsigned numreads = 0;
+            if( 0
+                || !memcmp(addr,  "\xDB\xFE\x1F", 3) // Common
+                || !memcmp(addr,  "\xDB\xFE\xA9\xE6\x40", 5) // P-47, BloodBrothers
+                || !memcmp(addr,  "\xDB\xFE\xA0\xC2\x88\xFD", 6) // lonewolf3 v1
+                || !memcmp(addr,  "\xDB\xFE\xA0\xCA\x48\xFD", 6) // lonewolf3 v2
+                || !memcmp(addr,  "\xED\x78\xA8\xE6\x40", 5) // trivial pursuits' questions
+                || !memcmp(addr-1,"\x2C\xDB\xFE\xA4\xC2", 5) // gremlin2: Basil the Mouse Detective (10 Great Games 2),  Mask,  Mask (10 Great Games 2)
+                || !memcmp(addr-1,"\x2C\xDB\xFE\xA4\xCA", 5) // gremlin2: Basil the Mouse Detective (10 Great Games 2),  Mask,  Mask (10 Great Games 2)
+            )
+            numreads++;
+
+            static int freq = 0;
+            static uint64_t last = 0;
+
+            enum { SLICE = 1 };
+
+            ++freq;
+
+            if( (ticks - last) > 69888/SLICE ) {
+                tape_hz = freq*SLICE;
+                last = ticks, freq = 0;
+
+#if 0
+                // auto-tape issues:
+                // - not working well: turrican1
+                // - wont stop tape: *viaje al centro de la tierra, p47 thunderbolt, *dynamite dux, *outrun europa
+
+                if( mic_on ) {
+                    if( !numreads ) {
+                        printf("auto-stop tape (%u Hz, %u reads)\n", tape_hz, numreads);
+                        mic_on = 0;
+                    }
+                } else {
+                    if( numreads > 200 ) { // 273Hz turrican
+                        printf("auto-start tape (%u Hz, %u reads)\n", tape_hz, numreads);
+                        mic_on = 1;
+                    }
+                }
+#else
+                // fixes: turrican, p47,
+                // pending: wont stop tape: *viaje al centro de la tierra, *dynamite dux, *outrun europa (stop:228Hz)
+
+                if( numreads <= 9 ) { // 9Hz turrican, 228Hz outrun europa
+                    if(mic_on) printf("auto-stop tape (%u Hz, %u reads)\n", tape_hz, numreads);
+                    mic_on = 0;
+                }
+                if( numreads > 200 ) { // 273Hz turrican
+                    if(!mic_on) printf("auto-start tape (%u Hz, %u reads)\n", tape_hz, numreads);
+                    mic_on = 1;
+                }
+#endif
+                numreads = 0;
+            }
+        }
+#else
+        // initial auto-start tape based on rom trap. user needs to pause/resume tape manually (via F2 key).
+        if(!mic_on) {
+            unsigned pc = PC(cpu);
+            bool rom1 = ZX<=48 || (ZX <= 200 && (page128 & 16));
+            bool loading_from_rom = rom1 && (pc >= 0x04C2 && pc < 0x09F4); // (pc == 0x562 || pc == 0x5f1);
+            if( loading_from_rom ) {
+                puts("auto-start tape (rom)");
+                mic_on = 1;
+            }
+        }
+#endif
+
         return code;
     }
 
@@ -1355,11 +1530,9 @@ byte inport(word port) {
 }
 
 
-#define FULL_CHECKPOINTS 0
+#define FULL_QUICKSAVES 1 // 0 breaks run-a-head
 
-struct checkpoint {
-    int version;
-
+struct quicksave {
     // cpu
     z80_t cpu;
     uint64_t pins;
@@ -1383,7 +1556,7 @@ struct checkpoint {
     int vram_contended;
     int vram_accesses;
 
-#if FULL_CHECKPOINTS
+#if FULL_QUICKSAVES
     // byte contended[70908];
     byte floating_bus[70908];
 
@@ -1406,6 +1579,7 @@ struct checkpoint {
     // vsync
     byte zx_vsync;
     // tape
+    int tape_hz;
     uint64_t tape_ticks;
     // ticks
     uint64_t ticks, TS;
@@ -1416,7 +1590,7 @@ struct checkpoint {
     // zx128
     byte page128;
     // audio
-#if FULL_CHECKPOINTS
+#if FULL_QUICKSAVES
     beeper_t buzz;
     struct ayumi ayumi;
     ay38910_t ay;
@@ -1433,7 +1607,7 @@ struct checkpoint {
 
     // @todo: pointers needed?
     //#include "dsk.c"
-#if FULL_CHECKPOINTS
+#if FULL_QUICKSAVES
     t_FDC fdc;
     struct t_drive driveA;
     struct t_drive driveB;
@@ -1445,32 +1619,25 @@ struct checkpoint {
 
     // @todo: complete all missing
     //#include "tap.c"
-    byte        mic,mic_on,mic_has_tape;
-    int         mic_last_block;
-    const char *mic_last_type;
+    byte        mic,mic_on;
     int         mic_invert_polarity;
     int         mic_low;
-    int         RAW_repeat, RAW_pulse;
-    int         RAW_tstate_prev, RAW_tstate_curr, RAW_tstate_goal;
-    int         RAW_blockinfo;
+    int         RAW_tstate_prev;
     uint64_t    RAW_fsm;
-    int         mic_queue_rd, mic_queue_wr;
+    int         mic_queue_wr;
     bool        mic_queue_has_turbo;
 
-} checkpoints[10+1] = {0}; // user[0..9], sys/run-ahead reserved[10]
+} quicksaves[10+1] = {0}; // user[0..9], sys/run-ahead reserved[10]
 
-unsigned checkpoint_size() {
-    return sizeof(struct checkpoint);
-}
+enum { quicksave_len = sizeof(struct quicksave) };
 
-void* checkpoint_save(unsigned slot) {
+void* quicksave(unsigned slot) {
     if( slot >= 11) return 0;
 
-    struct checkpoint *c = &checkpoints[slot];
-    c->version = 0x100;
+    struct quicksave *c = &quicksaves[slot];
 
     #define $(member) \
-        printf("%x..%x %s;\n", (int)offsetof(struct checkpoint, member), (int)offsetof(struct checkpoint, member) + (int)(sizeof( ((struct checkpoint *)0)->member )), #member);
+        printf("%x..%x %s;\n", (int)offsetof(struct quicksave, member), (int)offsetof(struct quicksave, member) + (int)(sizeof( ((struct quicksave *)0)->member )), #member);
 
     // cpu
     c->cpu = cpu;
@@ -1493,7 +1660,7 @@ void* checkpoint_save(unsigned slot) {
 //  byte *MEMw[4]; //solid block of 16*4 = 64kb for writing
     c->vram_contended = vram_contended;
     c->vram_accesses = vram_accesses;
-#if FULL_CHECKPOINTS
+#if FULL_QUICKSAVES
 //  byte contended[70908];
 //  byte floating_bus[70908];
     memcpy(c->dum, dum, 16384);
@@ -1516,6 +1683,7 @@ void* checkpoint_save(unsigned slot) {
     // vsync
     c->zx_vsync = zx_vsync;
     // tape
+    c->tape_hz = tape_hz;
     c->tape_ticks = tape_ticks;
     // ticks
     c->ticks = ticks;
@@ -1527,7 +1695,7 @@ void* checkpoint_save(unsigned slot) {
     // zx128
     c->page128 = page128;
     // audio
-#if FULL_CHECKPOINTS
+#if FULL_QUICKSAVES
     c->buzz = buzz;
     c->ay = ay;
 #endif
@@ -1542,7 +1710,7 @@ void* checkpoint_save(unsigned slot) {
     memcpy(c->ulaplus_registers, ulaplus_registers, sizeof(ulaplus_registers[0])*(64+1));
     // @todo
     //#include "dsk.c"
-#if FULL_CHECKPOINTS
+#if FULL_QUICKSAVES
     c->fdc = fdc;
     c->driveA = driveA;
     c->driveB = driveB;
@@ -1555,29 +1723,19 @@ void* checkpoint_save(unsigned slot) {
     //#include "tap.c"
     c->mic = mic;
     c->mic_on = mic_on;
-    c->mic_has_tape = mic_has_tape;
-    c->mic_last_block = mic_last_block;
-    c->mic_last_type = mic_last_type;
     c->mic_invert_polarity = mic_invert_polarity;
     c->mic_low = mic_low;
-    c->RAW_repeat = RAW_repeat;
-    c->RAW_pulse = RAW_pulse;
     c->RAW_tstate_prev = RAW_tstate_prev;
-    c->RAW_tstate_curr = RAW_tstate_curr;
-    c->RAW_tstate_goal = RAW_tstate_goal;
-    c->RAW_blockinfo = RAW_blockinfo;
     c->RAW_fsm = RAW_fsm;
-    c->mic_queue_rd = mic_queue_rd;
     c->mic_queue_wr = mic_queue_wr;
     c->mic_queue_has_turbo = mic_queue_has_turbo;
 
     return c;
 }
-void* checkpoint_load(unsigned slot) {
+void* quickload(unsigned slot) {
     if( slot >= 11) return 0;
 
-    struct checkpoint *c = &checkpoints[slot];
-    if(c->version != 0x100) return 0;
+    struct quicksave *c = &quicksaves[slot];
 
 config(c->ZX);
 port_0x7ffd(c->page128);
@@ -1604,7 +1762,7 @@ port_0x7ffd(c->page128);
 //  byte *MEMw[4]; //solid block of 16*4 = 64kb for writing
     vram_contended = c->vram_contended;
     vram_accesses = c->vram_accesses;
-#if FULL_CHECKPOINTS
+#if FULL_QUICKSAVES
 //  byte contended[70908];
 //  byte floating_bus[70908];
     memcpy(dum, c->dum, 16384);
@@ -1627,6 +1785,7 @@ port_0x7ffd(c->page128);
     // vsync
     zx_vsync = c->zx_vsync;
     // tape
+    tape_hz = c->tape_hz;
     tape_ticks = c->tape_ticks;
     // ticks
     ticks = c->ticks;
@@ -1638,7 +1797,7 @@ port_0x7ffd(c->page128);
     // zx128
     page128 = c->page128;
     // audio
-#if FULL_CHECKPOINTS
+#if FULL_QUICKSAVES
     buzz = c->buzz;
     ay = c->ay;
 #endif
@@ -1653,7 +1812,7 @@ port_0x7ffd(c->page128);
     memcpy(ulaplus_registers, c->ulaplus_registers, sizeof(ulaplus_registers[0])*(64+1));
     // @todo
     //#include "dsk.c"
-#if FULL_CHECKPOINTS
+#if FULL_QUICKSAVES
     fdc = c->fdc;
     driveA = c->driveA;
     driveB = c->driveB;
@@ -1666,22 +1825,12 @@ port_0x7ffd(c->page128);
     //#include "tap.c"
     mic = c->mic;
     mic_on = c->mic_on;
-    mic_has_tape = c->mic_has_tape;
-    mic_last_block = c->mic_last_block;
-    mic_last_type = c->mic_last_type;
     mic_invert_polarity = c->mic_invert_polarity;
     mic_low = c->mic_low;
-    RAW_repeat = c->RAW_repeat;
-    RAW_pulse = c->RAW_pulse;
     RAW_tstate_prev = c->RAW_tstate_prev;
-    RAW_tstate_curr = c->RAW_tstate_curr;
-    RAW_tstate_goal = c->RAW_tstate_goal;
-    RAW_blockinfo = c->RAW_blockinfo;
     RAW_fsm = c->RAW_fsm;
-    mic_queue_rd = c->mic_queue_rd;
     mic_queue_wr = c->mic_queue_wr;
     mic_queue_has_turbo = c->mic_queue_has_turbo;
 
     return c;
 }
-

@@ -16,8 +16,9 @@
 // - f6: toggle input latency (runahead)
 // - f7: toggle tape polarity
 // - f8: toggle tape speed
-// - f9: toggle rf/crt
-// - f11/f12: quick save/load 
+// - f9: toggle rf/crt (4 modes)
+// - f9+shift: toggle ay core (2 modes)
+// - f11/f12: quick save/load
 // - alt+enter: fullscreen
 // - tab+cursors: joysticks
 //
@@ -32,30 +33,36 @@
 //
 // done
 // cpu, ula, mem, rom, 48/128, key, joy, ula+, tap, ay, beep, sna/128, fps, tzx, if2, zip, rf, menu, kms, z80, scr,
-// key2/3, +2a/+3, fdc, dsk,
+// key2/3, +2a/+3, fdc, dsk, autotape,
 
 // fix
 // tzx(flow,gdb)
-// kms windowed (clip), window focus @ MMB+tigr
-// z80 or fdc not being reset sometimes: load mercs.dsk, then wrestlingSuperstars.dsk
+// kms window focus @ MMB+tigr, kms wrap win borders, kms fullscreen, kms coord wrap (inertia, r-type128-km)
 //
-// fixme: exolon main tune requires contended memory, otherwise it's too fast +15% tempo
-// fixme: mouse clip when resizing app while mouse is hidden
+// fixme: sav files are corrupting after many save/loads (see: jacknipper2)
 
 // @todo:
-// auto rewind
-// disable mic_on if...
-// input keyboard != space
-// [ ] stop tape if next block is PROGRAM (side 2)
-// [ ] stop tape if pause && key/joy pressed
 // animated states
+//
+// db interface:
+// [hearts] NUM. Title(F2 to rename)   [load*][run*][play*][snd*] [*:white,red,yellow,green]
+// on hover: show animated state if exists. show loading screen otherwise.
+// 
+// todo (tapes)
+// [ ] overlay ETA
+// [ ] auto rewind
+// [ ] auto-rewind at end of tape if multiload found (auto-stop detected)
+// [ ] auto-insert next tape at end of tape (merge both during tzx_load! argv[1] argv[2])
+//
+// todo (trap)
+// [ ] trap rom loading, edge detection
+// [ ] test db [y/n/why]
+// [ ] when first stop-the-tape block is reached, trim everything to the left, so first next block will be located at 0% progress bar
 
 // @todo: tests
 // - send keys via cmdline: "--keys 1,wait,wait,2"
 // - send termination time "--maxidle 300"
 
-// fixme: edos tapes: streecreedfootball(edos).tzx,
-//      beyondtheicepalace(edos).tzx,elvenwarrior(edos).tzx, uses additional non-standard padding bytes in headers (19->29), making the EAR routine to loop pretty badly
 // [x] LOAD "" CODE if 1st block is code
 // [x] glue consecutive tzx/taps in zips (side A) -> side 1 etc)
 // [ ] glue consecutive tzx/taps in disk
@@ -88,9 +95,12 @@
 #include <stdbool.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdio.h>
 
 enum { _320 = 352, _319 = _320-1, _32 = (_320-256)/2 };
 enum { _240 = 288, _239 = _240-1, _24 = (_240-192)/2 };
+
+void dis(unsigned pc, unsigned lines, FILE *fp);
 
 #include "3rd.h"
 #include "emu.h"
@@ -111,41 +121,17 @@ int file_is_supported(const char *filename) {
 }
 
 void regs(const char *title) {
+    unsigned F = AF(cpu);
+    char *flags = va("%d %d %d %d %d %d %d %d", !!(F & 0x80), !!(F & 0x40), !!(F & 0x20), !!(F & 0x10), !!(F & 0x8), !!(F & 0x4), !!(F & 0x2), !!(F & 0x1));
     printf("\n--- %s ---\n", title);
-    printf("af:%04x,af'%04x,bc:%04x,bc':%04x\n", AF(cpu), AF2(cpu), BC(cpu), BC2(cpu));
-    printf("de:%04x,de'%04x,hl:%04x,hl':%04x\n", DE(cpu), DE2(cpu), HL(cpu), HL2(cpu));
+    printf("af:%04x,af'%04x,bc:%04x,bc':%04x,pc:%04x,S Z Y H X P N C\n", AF(cpu), AF2(cpu), BC(cpu), BC2(cpu), PC(cpu));
+    printf("de:%04x,de'%04x,hl:%04x,hl':%04x,sp:%04x,%s\n", DE(cpu), DE2(cpu), HL(cpu), HL2(cpu), SP(cpu), flags);
     printf("iff%04x,im:%04x,ir:%02x%02x,ix :%04x,iy:%04x\n", IFF1(cpu) << 8 | IFF2(cpu), IM(cpu), I(cpu),R(cpu), IX(cpu), IY(cpu));
-    printf("pc:%04x,sp:%04x\n", PC(cpu),SP(cpu));
     printf("out254(%02x) page128(%02x) page2a(%02x)\n", ZXBorderColor, page128, page2a);
-    for( int i = 0; i < 16; ++i ) printf("%s%s%04x", i == 0 ? "ay " : " ", i == ay_current_reg ? "*":"", ay_registers[i]); puts("");
+    for( int i = 0; i < 16; ++i ) printf("%s%04x%s", i == 0 ? "psg" : "", ay_registers[i], i == ay_current_reg ? "<":" "); puts("");
     printf("mem%d%d%d%d%s ", !!(page128&16), (page128&8?7:5), 2, page128&7, page128&32?"!":"");
     for( int i = 0; i < 16; ++i ) printf("%s%04x", i == 0 ? "" : " ", (crc32(0,RAM_BANK(i), 0x4000) & 0xffff) ^ 0xd286); puts("");
 }
-
-int trapped;
-void tape_hooks() {
-    return;
-
-    if( IFF1(cpu) ) return; // int pending
-
-    if( ZX > 128 ) return;
-    if( ZX == 128 ) if( !(page128 & 16) ) return;
-
-    unsigned pc = PC(cpu);
-
-    if (pc == 0x0556) {
-        puts("trap on!");
-//        trapped = 1;
-        mic_on = 1;
-    }
-
-    if (/*trapped &&*/ (pc < 0x0556 || pc >= 0x0605)) {
-        trapped = 0;
-        mic_on = 0;
-        puts("trap off!");
-    }
-}
-
 
 static int flick_frame = 0;
 static int flick_hz = 0;
@@ -170,8 +156,10 @@ void draw(window *win, int y /*0..311 tv scanline*/) {
         byte *pixels=VRAM+SCANLINE(y);
         byte *attribs=VRAM+6144+((y&0xF8)<<2);
 
+// RF: misalignment
 *texture = ZXPalette[ZXBorderColor];
-int shift0 = ZX_RF ? (rand()<(RAND_MAX/256)) : 0; // flick_frame * -(!!((y+0)&0x18))
+enum { BAD = 8, POOR = 32, DECENT = 256 };
+int shift0 = ZX_RF ? (rand()<(RAND_MAX/POOR)) : 0; // flick_frame * -(!!((y+0)&0x18))
 texture += shift0;
 
         for(int x = 0; x < 32; ++x) {
@@ -234,6 +222,7 @@ void blur(window *win) {
         int shift = (++jj)&1;
         texture += shift;
 
+                // RF: hue shift
                 for(int i = 8-1; i >= 0; --i) {
                     unsigned pix0 = texture[i-0];
                     unsigned pix1 = texture[i-1];
@@ -248,8 +237,8 @@ void blur(window *win) {
                     //else
                     //texture[i] = rgb((r0+r1+r1+r1)/4,(g0+g1+g1+g1)/4,(b0+b1+b1)/3);
 
-if(ZX_RF) {
                     continue;
+if(ZX_RF) {
                     // saturate aberrations (very slow)
                     pix0 = texture[i];
                     rgb_split(pix0,r0,g0,b0);
@@ -259,8 +248,8 @@ if(ZX_RF) {
                     texture[i] = as_rgb(h0,s0,v0);
 }
                 }
-            // interesting tv effects (j): 13, 19, 23, 27, 29, 33
 
+                // RF: jailbars
                 if(x%2)
                 for(int i = 0; i < 8; ++i) {
                     unsigned pix0 = texture[i-0];
@@ -269,7 +258,14 @@ if(ZX_RF) {
                     texture[i] = as_rgb(h0,s0,v0*0.99);
                 }
 
-                for(int i = 0; i < 8; ++i) { ++j; j%=33;
+                // RF: interferences
+                // interesting tv effects (j): 13, 19, 23, 27, 29, 33
+                // note: since CRT shader was introduced this RF effect became less
+                // aparent (because of the bilinear smoothing). and that's why we're
+                // using 13 now, since the screen stripes it creates are way more visible.
+                // used to be 33 all the time before.
+                // @fixme: apply this effect to the upper and bottom border as well
+                for(int i = 0; i < 8; ++i) { ++j; j%=13; // was 33 before
                     unsigned pix0 = texture[i-0];
                     byte r0,g0,b0; rgb_split(pix0,r0,g0,b0);
                     byte h0,s0,v0; rgb2hsv(r0,g0,b0,&h0,&s0,&v0);
@@ -395,6 +391,13 @@ int screenshot(const char *filename) {
 }
 
 
+// command keys: sent either physically (user) or virtually (ui)
+int cmdkey;
+
+// modes when reloading machine: reload48, reload128, reload48+turbo, reload128+turbo
+const int reloads[] = { '48','128','!48','!128' };
+
+
 
 static byte* merge = 0;
 static size_t merge_len;
@@ -493,7 +496,6 @@ pins = z80_reset(&cpu);
 
         // soft reset
         mic_reset();
-        trapped = 0;
 rom_patch(do_rompatch);
         /*page128 = 0;*/
         if(ZX>=128) port_0x7ffd(0); // 128
@@ -570,7 +572,7 @@ pins = z80_prefetch(&cpu, cpu.pc);
     }
     if( sna_load(ptr, size) ) {
 pins = z80_prefetch(&cpu, cpu.pc);
-        return /*regs("load"),*/ 1;
+        return regs("load .sna"), 1;
     }
 
     // headerless variable-size formats now
@@ -579,7 +581,7 @@ pins = z80_prefetch(&cpu, cpu.pc);
     }
     if( z80_load(ptr, size) ) {
 pins = z80_prefetch(&cpu, cpu.pc);
-        return /*regs("load"),*/ 1;
+        return regs("load .z80"), 1;
     }
 
     puts("unknown file format");
@@ -609,13 +611,14 @@ void input() {
     int fire = window_pressed(app, TK_TAB);
     ZXJoysticks(up,down,left,right,fire);
 
+    // keyboard
     #define KEYS(X) \
         X(0)X(1)X(2)X(3)X(4)X(5)X(6)X(7)X(8)X(9)\
         X(A)X(B)X(C)X(D)X(E)X(F)X(G)X(H)X(I)X(J)\
         X(K)X(L)X(M)X(N)X(O)X(P)X(Q)X(R)X(S)X(T)\
         X(U)X(V)X(W)X(X)X(Y)X(Z)
-    #define X(x) if(window_pressed(app, 0[#x])) ZXKey(ZX_##x);
-    KEYS(X);
+    #define K(x) if(window_pressed(app, 0[#x])) ZXKey(ZX_##x);
+    KEYS(K);
     if(window_pressed(app, TK_SPACE))      {ZXKey(ZX_SPACE); /*if(mic_on) mic_on = 0, tap_prev();*/ }
     if(window_pressed(app, TK_BACKSPACE))  {ZXKey(ZX_SHIFT); ZXKey(ZX_0);}
     if(window_pressed(app, TK_RETURN))      ZXKey(ZX_ENTER);
@@ -623,32 +626,23 @@ void input() {
     if(window_pressed(app, TK_CONTROL))     ZXKey(ZX_SYMB);
     if(window_pressed(app, TK_ALT))         ZXKey(ZX_CTRL);
 
-#if FLAGS & DEV
-    if(window_trigger(app, TK_F1))        boost_on ^= 1;
-#else
-    if(window_pressed(app, TK_F1))        boost_on = 1; else boost_on = 0;
-#endif
-    if(window_trigger(app, TK_F2))        mic_on ^= 1;
-    if(window_trigger(app, TK_F3))        tap_prev();
-    if(window_trigger(app, TK_F4))        tap_next();
-    if(window_trigger(app, TK_F5))        { clear(window_pressed(app,TK_SHIFT) ? 48 : 128); load(last_load, 1, window_pressed(app,TK_CONTROL) ? 1:0); }
-#if FLAGS & RUNAHEAD
-    if(window_trigger(app, TK_F6))        ZX_RUNAHEAD ^= 1;
-#endif
-    if(window_trigger(app, TK_F7))        mic_invert_polarity ^= 1;
-    if(window_trigger(app, TK_F8))        ZX_FAST ^= 1;
-    if(window_trigger(app, TK_F9))        { static int mode = 0; do_once mode = ZX_CRT << 1 | ZX_RF; mode = (mode + 1) & 3; ZX_RF = mode & 1; crt( ZX_CRT = !!(mode & 2) ); }
-    if(window_trigger(app, TK_F11))       checkpoint_save(0);
-    if(window_trigger(app, TK_F12))       checkpoint_load(0);
+    // prepare command keys
+    if( window_trigger(app, TK_ESCAPE) ) cmdkey = 'ESC';
+    if( window_pressed(app, TK_F1) )     cmdkey = 'F1';
+    if( window_trigger(app, TK_F2) )     cmdkey = 'F2';
+    if( window_trigger(app, TK_F3) )     cmdkey = 'F3';
+    if( window_trigger(app, TK_F4) )     cmdkey = 'F4';
+    if( window_trigger(app, TK_F5) )     cmdkey = reloads[ !!window_pressed(app,TK_SHIFT) * 2 + !!window_pressed(app,TK_CONTROL) ];
+    if( window_trigger(app, TK_F6) )     cmdkey = 'F6';
+    if( window_trigger(app, TK_F7) )     cmdkey = 'F7';
+    if( window_trigger(app, TK_F8) )     cmdkey = 'F8';
+    if( window_trigger(app, TK_F9) )     cmdkey = window_pressed(app, TK_SHIFT) ? 'AY' : 'F9';
+    if( window_trigger(app, TK_F11) )    cmdkey = 'F11';
+    if( window_trigger(app, TK_F12) )    cmdkey = 'F12';
 
-    // screenshots
     static int prev = 0;
     int key = !!(GetAsyncKeyState(VK_SNAPSHOT) & 0x8000);
-    if( key ^ prev ) {
-        char buffer[128];
-        GetWindowTextA((HWND)((app)->handle), buffer, 128);
-        screenshot( buffer );
-    }
+    if( key ^ prev ) cmdkey = 'SCR';
     prev = key;
 }
 
@@ -838,7 +832,7 @@ void rescan() {
                     dbgames = realloc(dbgames, numgames * sizeof(char*) );
                     dbgames[numgames-1] = db_get(fname);
                 }
-            }    
+            }
         }
     }
 
@@ -851,9 +845,10 @@ int game_browser() { // returns true if loaded
 
     if( !numgames ) return 0;
 
-    if( window_trigger(app, TK_ESCAPE) )         active ^= 1;
-    if( window_trigger(app, TK_F2) && !mic_last_type[0] ) active ^= 1; // open browser if start_tape is requested but no tape has been ever inserted
     if( !active ) return 0;
+
+    // restore mouse interaction in case it is being clipped (see: kempston mouse)
+    mouse_clip(0);
 
 //  tigrBlitTint(app, app, 0,0, 0,0, _320,_240, tigrRGB(128,128,128));
 
@@ -864,7 +859,7 @@ int game_browser() { // returns true if loaded
     for( int i = scroll; i < numgames && i < scroll+ENTRIES; ++i ) {
         const char starred = dbgames[i] >> 8 ? (char)(dbgames[i] >> 8) : ' ';
         sprintf(buffer, "%c %3d.%s%s\n", starred, i+1, i == selected ? " > ":" ", 1+strrchr(games[i], DIR_SEP) );
-        window_printxycol(ui, buffer, 1, 4+(i-scroll-1),
+        window_printxycol(ui, buffer, 1, 3+(i-scroll-1),
             (dbgames[i] & 0x7F) == 0 ? tigrRGB(255,255,255) : // untested
             (dbgames[i] & 0x7F) == 1 ? tigrRGB(64,255,64) :   // ok
             (dbgames[i] & 0x7F) == 2 ? tigrRGB(255,64,64) : tigrRGB(255,192,64) ); // bug:warn
@@ -935,7 +930,7 @@ int game_browser() { // returns true if loaded
             p = tigrEncodeUTF8(p, chars[n]);
         *p = 0;
         char tmp2[16+16*6] = "Find:"; strcat(tmp2, tmp);
-        window_printxycol(ui, tmp2, 1,2, tigrRGB(0,192,255));
+        window_printxycol(ui, tmp2, 3,1, tigrRGB(0,192,255));
         if( any ) {
             static char lowercase[1024];
             for(int i = 0; tmp[i]; ++i) tmp[i] |= 32;
@@ -1070,6 +1065,154 @@ void dis(unsigned pc, unsigned lines, FILE *fp) {
 }
 
 
+
+void draw_ui(const char *status) {
+
+    // ui
+    {
+        // compatibility stats
+        int total = numok+numwarn+numerr;
+        if(total && active) {
+        TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + _239 * _320];
+        int num1 = (numok * (float)_319) / total;
+        int num2 = (numwarn * (float)_319) / total;
+        int num3 = (numerr * (float)_319) / total; if((num1+num2+num3)<_319) num1 += _319 - (num1+num2+num3);
+        for( int x = 0; x <= num1; ++x ) bar[x-320]=bar[x] = tigrRGB(64,255,64);
+        for( int x = 0; x <= num2; ++x ) bar[x+num1-320]=bar[x+num1] = tigrRGB(255,192,64);
+        for( int x = 0; x <= num3; ++x ) bar[x+num1+num2-320]=bar[x+num1+num2] = tigrRGB(255,64,64);
+        static char compat[64];
+        snprintf(compat, 64, "  OK:%04.1f%%     ENTER:128, +SHIFT:48, +CTRL:Try turbo", (total-numerr) * 100.f / (total+!total));
+        window_printxy(ui, compat, 0,(_240-12.0)/11);
+        }
+
+#if FLAGS & DEV
+        if(1)
+#else
+        if( window_pressed(app, TK_SHIFT) || active )
+#endif
+        {
+            int w = tigrTextWidth(tfont, status); tigrPrint(ui, tfont, (_320-w)/2,(_240-12.0*2), ui_ff, "%s", status);
+            // int w = strlen(status) * 8; ui_print(ui, (_320-w)/2,(_240-12.0*2), ui_colors, "%s", status);
+        }
+
+        // ui
+        int UI_LINE1 = (ZX_CRT ? 2 : 0); // first visible line
+
+        // tape ui
+        int hovering_border = mouse().x > _320 * 5/6;
+        int chrx_target = hovering_border ? 29 : 33;              // enabled/disabled positions
+        int chry_target = hovering_border ? !!(FLAGS & DEV) : !!(FLAGS & DEV) * 4; // enabled/disabled positions
+        // smoothing
+        static float chrx_smooth, chry_smooth; do_once chrx_smooth = chrx_target, chry_smooth = chry_target;
+        chrx_smooth = chrx_smooth * 0.75 + chrx_target * 0.25;
+        chry_smooth = chry_smooth * 0.75 + chry_target * 0.25;
+        if( 1 )
+        {
+            {
+                // draw black panels
+                TPixel transp = { 0,0,0, 192 * ((33-chrx_smooth) / (float)(33-29)) };
+                tigrFillRect(ui, chrx_smooth * 11 - (_320/20), 0, _320/2, _240, transp);
+            }
+
+            int chr_x = chrx_smooth * 11, chr_y = 16 + chry_smooth * 11;
+
+            ui_at(chr_x, chr_y);
+            tigrMouseCursor(app,0);
+
+            // if( ui_button(ui, mic_has_tape && !mic_on ? "||" : "◣\r\n◤") && ui_click ) cmdkey = 'F2'; // send f2
+            // if( ui_button(ui, "")); // 3 hearts
+
+            ui_at(chr_x,chr_y);
+            if( ui_button(ui,va("128%s",ZX_ALTROMS ? "+":"")) && ui_click ) cmdkey = 'ROM'; // toggle rom
+
+            ui_at(chr_x,chr_y+=11);
+            if( ui_button(ui,va("▒%d",1 + (ZX_CRT << 1 | ZX_RF))) && ui_click ) cmdkey = 'F9'; // toggle tv
+
+            ui_at(chr_x,chr_y+=11);
+            if( ui_button(ui,va("♬%d",ZX_AY)) && ui_click ) cmdkey = 'AY'; // send AY command
+
+            ui_at(chr_x,chr_y+=11);
+            if( ui_button(ui,"●") && ui_click ) cmdkey = 'SCR'; // send screenshot command
+
+            //if( ui_button(ui,"") && ui_click ) cmdkey = 'dis'; // send disassemble command
+        }
+
+        // tape progress
+        float pct = (voc_pos/4) / (float)(voclen+!voclen);
+        if( mic_on /* && (pct < 1.00f)*/ ) {
+            TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + UI_LINE1 * _320];
+
+            // bars & progress
+            unsigned mark = pct * _320;
+            for( int x = 0; x < _320; ++x ) bar[x] = bar[x+2*_320] = white;
+            for( int x = 0; x<=mark; ++x ) bar[x+_320] = white; bar[_320-1+_320] = white;
+            for( int x = 0; x < _320; ++x ) if(mic_preview[x]) bar[x+1*_320] = white;
+            // triangle marker (top)
+            bar[mark+4*_320] = white;
+            for(int i = -1; i <= +1; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+5*_320] = white;
+            for(int i = -2; i <= +2; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+6*_320] = white;
+            // mouse seeking
+            int mx, my, mbuttons;
+            tigrMouse(app, &mx, &my, &mbuttons);
+            if( my > 0 && my <= 15 ) {
+                tigrMouseCursor(app, 1);
+                if( mbuttons ) {
+                    mx = mx < 0 ? 0 : mx > _320 ? _320 : mx;
+                    float target = (mx / (float)_320) * (float)(voclen+!voclen);
+#if 0
+                    // animate seeking
+                    voc_pos = (voc_pos/4) * 0.50f + target * 0.50f ;
+#else
+                    voc_pos = target;
+#endif
+                    voc_pos *= 4;
+
+                }
+            }
+        }
+
+        #define CLAMP(v, minv, maxv) ((v) < (minv) ? (minv) : (v) > (maxv) ? (maxv) : (v))
+        #define REMAP(var, src_min, src_max, dst_min, dst_max) \
+            (dst_min + ((CLAMP(var, src_min, src_max) - src_min) / (float)(src_max - src_min)) * (dst_max - dst_min))
+
+#if FLAGS & DEV
+        // azimuth slider
+        if( !active ) {
+            TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + (_240-7) * _320];
+            unsigned mark = REMAP(azimuth, 0.98,1.2, 0,1) * _320;
+            // triangle marker (bottom)
+            for(int i = -2; i <= +2; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+0*_320] = white;
+            for(int i = -1; i <= +1; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+1*_320] = white;
+            bar[mark+2*_320] = white;
+            bar += _320 * 4;
+            // bars & progress
+            for( int x = 0; x < _320; ++x ) bar[x] = bar[x+2*_320] = white;
+            for( int x = 0; x<=mark; ++x ) bar[x+_320] = white; bar[_320-1+_320] = white;
+            // mouse seeking
+            int mx, my, mbuttons;
+            tigrMouse(app, &mx, &my, &mbuttons);
+            if( my >= (_240-10) && my < _240 ) {
+                tigrMouseCursor(app, 1);
+                if(mbuttons/*&4*/) {
+                    mx = mx < 0 ? 0 : mx > _320 ? _320 : mx;
+                    float target = REMAP(mx, 0,_320, 0.98,1.2);
+                    azimuth = azimuth * 0.50f + target * 0.50f ; // animate seeking
+                    // print azimuth value
+                    char text[32]; sprintf(text, "%.4f", azimuth);
+                    window_printxy(ui, text, (mark+5)/11.f,(_240-12.0)/11);
+                }
+            }
+        }
+#endif
+    }
+}
+
+
+void help() {
+    int total = numok+numwarn+numerr;
+    warning(va(SPECTRAL "\n%d games (%d%%)\n\n%s", numgames, 100 - (numerr * 100 / (total + !total)), static_options()));
+}
+
 int main() {
     // install icon hooks for any upcoming window or modal creation
     window_override_icons();
@@ -1133,10 +1276,10 @@ int main() {
 
     // main loop
     do {
+        ui_frame();
+        input();
 
-        // tape_hooks();
-
-        int accelerated = ZX_FAST ? boost_on || (mic_on && mic_has_tape) : 0;
+        int accelerated = ZX_FAST ? boost_on || (mic_on && voclen) : 0;
         if( accelerated && active ) accelerated = 0;
 
         // z80, ula, audio, etc
@@ -1175,8 +1318,6 @@ int main() {
         }
 #endif
 
-        input();
-
         static byte counter = 0; // flip flash every 16 frames @ 50hz
         if( !((++counter) & 15) ) if(do_flashbit) ZXFlashFlag ^= 1;
 
@@ -1187,13 +1328,21 @@ if( do_runahead == 0 ) {
         do_audio = 0;
         frame(-1);
 
-        checkpoint_save(10);
+        quicksave(10);
 
         do_audio = 1;
         frame(do_drawmode);
 
-        checkpoint_load(10);
+        quickload(10);
 }
+
+        // screenshots: after drawn frame, before UI
+        if( cmdkey == 'SCR2' )
+        {
+            char buffer[128];
+            GetWindowTextA((HWND)((app)->handle), buffer, 128);
+            screenshot( buffer );
+        }
 
         // game browser
         int game_loaded = game_browser();
@@ -1236,101 +1385,18 @@ if( do_runahead == 0 ) {
         static double time_now = 0; time_now += dt;
         if( time_now >= 1 ) { fps = frames / time_now; time_now = frames = 0; }
 
-        // app timer
+        // tape timer
         static double accum = 0;
-        if(mic_on && mic_has_tape) accum += dt;
+        if(mic_on && voclen) accum += dt;
 
-        // ui
-        {
-            // compatibility stats
-            int total = numok+numwarn+numerr;
-            if(total && active) {
-            TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + _239 * _320];
-            int num1 = (numok * (float)_319) / total;
-            int num2 = (numwarn * (float)_319) / total;
-            int num3 = (numerr * (float)_319) / total; if((num1+num2+num3)<_319) num1 += _319 - (num1+num2+num3);
-            for( int x = 0; x <= num1; ++x ) bar[x-320]=bar[x] = tigrRGB(64,255,64);
-            for( int x = 0; x <= num2; ++x ) bar[x+num1-320]=bar[x+num1] = tigrRGB(255,192,64);
-            for( int x = 0; x <= num3; ++x ) bar[x+num1+num2-320]=bar[x+num1+num2] = tigrRGB(255,64,64);
-            static char compat[64];
-            snprintf(compat, 64, "  OK:%04.1f%%     ENTER:128, +SHIFT:48, +CTRL:Try turbo", (total-numerr) * 100.f / (total+!total));
-            window_printxy(ui, compat, 0,(_240-12.0)/11);
-            }
-
-            // stats & debug
-            static char info[64] = "";
-            char *ptr = info;
-            ptr += sprintf(ptr, "%dm%02ds ", (unsigned)(accum) / 60, (unsigned)(accum) % 60);
-            ptr += sprintf(ptr, "%5.2ffps%s %d mem%d%d%d%d%s ", fps, do_runahead ? "!":"", ZX, !!(page128&16), (page128&8?7:5), 2, page128&7, page128&32?"!":"");
-            ptr += sprintf(ptr, "%02x %02x %04x ", page128, page2a, PC(cpu));
-
-            ptr += sprintf(ptr, "x%.4f ", azimuth);
-//          ptr += sprintf(ptr, "%03d %05x", autotape_counter, autotape_indicators);
-#if 0
-            ptr += 1/*mic_on*/ ? sprintf(ptr, "%03d/%s(%c) ", mic_last_block, mic_last_type, mic_invert_polarity?'-':'+') : 0;
-#else
-            ptr += mic_on ? sprintf(ptr, "%c%c ", mic_invert_polarity?'-':'+', voc ? voc[voc_pos/4] & 0x7f & ~32 : 'S') : 0;
-#endif
-
-#if FLAGS & DEV
-            if(1)
-#else
-            if( window_pressed(app, TK_SHIFT) || active )
-#endif
-	            window_print(ui, info);
-
-            // tape progress
-            float pct = (voc_pos/4) / (float)(voclen+!voclen);
-            if( mic_on /* && (pct < 1.00f)*/ ) {
-                TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + (ZX_CRT ? 2 : 0) * _320];
-
-                // bars & progress
-                unsigned mark = pct * _320;
-                for( int x = 0; x < _320; ++x ) bar[x] = bar[x+2*_320] = white;
-                for( int x = 0; x<=mark; ++x ) bar[x+_320] = white; bar[_320-1+_320] = white;
-                for( int x = 0; x < _320; ++x ) if(mic_preview[x]) bar[x+1*_320] = white;
-                // triangle marker (top)
-                bar[mark+4*_320] = white;
-                for(int i = -1; i <= +1; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+5*_320] = white;
-                for(int i = -2; i <= +2; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+6*_320] = white;
-                // mouse seeking
-                int mx, my, mbuttons;
-                tigrMouse(app, &mx, &my, &mbuttons);
-                if( mbuttons && my > 0 && my <= 15 ) {
-                    mx = mx < 0 ? 0 : mx > _320 ? _320 : mx;
-                    float target = (mx / (float)_320) * (float)(voclen+!voclen);
-                    voc_pos = (voc_pos/4) * 0.95f + target * 0.05f ; // animate seeking
-                    voc_pos *= 4;
-                }
-            }
-
-            #define CLAMP(v, minv, maxv) ((v) < (minv) ? (minv) : (v) > (maxv) ? (maxv) : (v))
-            #define REMAP(var, src_min, src_max, dst_min, dst_max) \
-                (dst_min + ((CLAMP(var, src_min, src_max) - src_min) / (float)(src_max - src_min)) * (dst_max - dst_min))
-
-#if FLAGS & DEV
-            // azimuth slider
-            if( !active ) {
-                TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + (_240-7) * _320];
-                unsigned mark = REMAP(azimuth, 1.0,1.2, 0,1) * _320;
-                // triangle marker (bottom)
-                for(int i = -2; i <= +2; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+0*_320] = white;
-                for(int i = -1; i <= +1; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+1*_320] = white;
-                bar[mark+2*_320] = white;
-                bar += _320 * 4;
-                // bars & progress
-                for( int x = 0; x < _320; ++x ) bar[x] = bar[x+2*_320] = white;
-                for( int x = 0; x<=mark; ++x ) bar[x+_320] = white; bar[_320-1+_320] = white;
-                // mouse seeking
-                int mx, my, mbuttons;
-                tigrMouse(app, &mx, &my, &mbuttons);
-                if( (mbuttons/*&4*/) && my >= (_240-10) && my < _240 ) {
-                    float target = REMAP(mx, 0,_320, 0.98,1.2);
-                    azimuth = azimuth * 0.95f + target * 0.05f ; // animate seeking
-                }
-            }
-#endif
-        }
+        // stats & debug
+        static char status[128] = "";
+        char *ptr = status;
+        ptr += sprintf(ptr, "%dm%02ds ", (unsigned)(accum) / 60, (unsigned)(accum) % 60);
+        ptr += sprintf(ptr, "%5.2ffps%s %d mem%d%d%d%d%s ", fps, do_runahead ? "!":"", ZX, !!(page128&16), (page128&8?7:5), 2, page128&7, page128&32?"!":"");
+        ptr += sprintf(ptr, "%02X %02X %04X ", page128, page2a, PC(cpu));
+        ptr += sprintf(ptr, "%c%c %4dHz ", "  +-"[mic_has_tape*2+mic_invert_polarity], voc && voc_pos/4 < voclen ? voc[voc_pos/4] & 0x7f & ~32 : ' ', tape_hz);
+        draw_ui(status);
 
         // draw ui on top
         tigrBlitAlpha(app, ui, 0,0, 0,0, _320,_240, 1.0f);
@@ -1356,7 +1422,9 @@ if( do_runahead == 0 ) {
         // parse cmdline. reload if needed
         do_once
         for( int i = 1; i < __argc; ++i )
-        if( __argv[i][0] != '-' ) {
+        if( __argv[i][0] == '-' ) {
+            if( __argv[i][1] == 'h' ) help();
+        } else {
             int do_clear = 1;
             int do_rompatch = !!window_pressed(app,TK_CONTROL);
 
@@ -1372,17 +1440,53 @@ if( do_runahead == 0 ) {
                     warning(va("cannot open '%s' file\n", __argv[i]));
                 }
             }
-        } else {
-            int total = numok+numwarn+numerr;
+        }
 
+        do_once
+        if( !game_loaded )
             if( !(FLAGS & DEV) )
-            warning(va(SPECTRAL "\n%d games (%d%%)\n\n%s", numgames, 100 - (numerr * 100 / (total + !total)), static_options()));
+                help();
+
+
+        // clear command
+        int cmd = cmdkey;
+        cmdkey = 0;
+
+        // parse commands
+        boost_on = 0;
+        switch(cmd) { default:
+            break; case 'ESC':   active ^= 1;
+            break; case  'F1':   boost_on = 1;
+            break; case  'F2':   { if( !voclen ) active ^= 1; else mic_on ^= 1; } // open browser if start_tape is requested but no tape has been ever inserted
+            break; case  'F3':   tap_prev();
+            break; case  'F4':   tap_next();
+    #if FLAGS & RUNAHEAD
+            break; case  'F6':   ZX_RUNAHEAD ^= 1;
+    #endif
+            break; case  'F7':   mic_invert_polarity ^= 1;
+            break; case  'F8':   ZX_FAST ^= 1;
+            break; case  'F9':   { static int mode = 0; do_once mode = ZX_CRT << 1 | ZX_RF; mode = (mode + 1) & 3; ZX_RF = mode & 1; crt( ZX_CRT = !!(mode & 2) ); }
+            break; case 'F11':   quicksave(0);
+            break; case 'F12':   quickload(0);
+
+            break; case  'AY':   { const int table[] = { 0,2,1,0 }; ZX_AY = table[ZX_AY]; }
+
+            break; case  '48':   clear(48),  load(last_load, 1, 0);
+            break; case '!48':   clear(48),  load(last_load, 1, 1);
+            break; case '128':   clear(128), load(last_load, 1, 0);
+            break; case'!128':   clear(128), load(last_load, 1, 1);
+
+            break; case 'dis':   regs("z80"), dis(PC(cpu), 6, stdout);
+            break; case 'ROM':   ZX_ALTROMS ^= 1; cmdkey = ZX_ALTROMS ? '!128' : '128';
+            break; case 'SCR':   cmdkey = 'SCR2'; // resend screenshot cmd
         }
 
     } while( window_alive(app) );
 
     // export state
+#if NEWCORE
     while( !z80_opdone(&cpu) ) pins = z80_tick(&cpu, pins);
+#endif
     for( FILE *state = fopen("spectral.sav","wb"); state; fclose(state), state = 0) {
         export_state(state);
     }

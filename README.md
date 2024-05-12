@@ -21,7 +21,7 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - [x] RF/CRT experience (not physically accurate though).
 - [x] TAP/TZX/DSK/Z80/SNA/ROM/IF2/SCR/ZIP support. <!-- @todo: tzx info on window title -->
 - [x] SCR/PNG screenshots.
-- [x] Load games easily. Turbo loads.
+- [x] Load games easily. Turbo loads. Auto play/stop tape.
 - [x] Game browser. <!-- @todo: rewrite this -->
 - [x] Graphical tape browser.
 - [x] 50Hz fps lock.
@@ -30,13 +30,13 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - [x] Gunstick, Lightgun. <!-- Cheetah Defender Lightgun, Magnum Light Phaser, Stack Light Rifle -->
 - [x] External shaders support.
 - [x] Internal savestates.
-- [ ] Cycle accurate (border, multicolor, etc).
-- [ ] Extra accurate Z80 backend. <!-- @todo: contended mem, contended ports, memptr, snow, Q, floating bus (+2a/+3) -->
 - [ ] Pentagon 128K + beta disk. SCL/TRD.
-- [ ] RZX support. <!-- @todo: rzx loadsave http://ramsoft.bbk.org.omegahg.com/rzxform.html -->
 - [ ] ZXDB integration.
-- [ ] Graphical User Interface. <!-- mouse driven -->
 - [ ] Gallery marquee. <!-- Flex. Tape cases. ZX catalog on demand. -->
+- [ ] Graphical User Interface. <!-- mouse driven -->
+- [ ] Extra accurate Z80 backend. <!-- @todo: contended mem, contended ports, memptr, snow, Q, floating bus (+2a/+3) -->
+- [ ] Cycle accurate (border, multicolor, etc).
+- [ ] RZX support. <!-- @todo: rzx loadsave http://ramsoft.bbk.org.omegahg.com/rzxform.html -->
 - [ ] Gamepad support. <!-- Invert joystick/mouse axes/buttons -->
 - [ ] MP3s.
 - [ ] Netplay.
@@ -53,8 +53,9 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - f6: toggle input latency (runahead)
 - f7: toggle tape polarity
 - f8: toggle tape speed
-- f9: toggle tv/rf
-- f11/f12: quick save/load 
+- f9: toggle tv/rf (4 modes)
+- f9+shift: toggle ay core (2 modes)
+- f11/f12: quick save/load
 - alt+enter: fullscreen
 - tab+cursors: joysticks
 
@@ -71,3 +72,5 @@ This software is released into the [public domain](https://unlicense.org/). Also
 - [Crash](https://archive.org/details/crash-magazine), [YourSinclair](https://archive.org/details/your-sinclair-magazine), [SinclairUser](https://archive.org/details/sinclair-user-magazine) and [MicroHobby(ES)](https://archive.org/details/microhobby-magazine) are great old paper magazines.
 - [ZX database](https://github.com/zxdb/ZXDB), [game maps](https://maps.speccy.cz/), [game cheats](https://www.the-tipshop.co.uk/) and [game longplays](https://www.youtube.com/@rzxarchive).
 - [Daily ZX videos](https://www.youtube.com/results?search_query=zx+spectrum&sp=CAI%253D), on YouTube.
+
+[![](https://github.com/r-lyeh/Spectral/actions/workflows/build.yml/badge.svg)](https://github.com/r-lyeh/Spectral/actions/workflows/build.yml)
