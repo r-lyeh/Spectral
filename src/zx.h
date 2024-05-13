@@ -1,8 +1,16 @@
 /* Project configuration macros */
-#define SPECTRAL_AY38910_AYUMI 0
-#define SPECTRAL_AY38910_FLOH  1
-#define SPECTRAL_Z80_FLOH      0
-#define SPECTRAL_Z80_REDCODE   1
+#define SPECTRAL_AY_AYUMI    0
+#define SPECTRAL_AY_FLOH     1
+#define SPECTRAL_Z80_FLOH    0
+#define SPECTRAL_Z80_REDCODE 1
+
+#ifndef SPECTRAL_AY
+    #define SPECTRAL_AY SPECTRAL_AY_FLOH
+#endif
+
+#ifndef SPECTRAL_Z80
+    #define SPECTRAL_Z80 SPECTRAL_Z80_FLOH
+#endif
 
 #define DEV       (1<< 0) // status bar, z80 disasm
 #define RF        (1<< 1)
@@ -51,7 +59,7 @@ const char* static_options() {
     #if FLAGS & FDC
     "+ FDC\n"
     #endif
-    #if SPECTRAL_AY38910 == SPECTRAL_AY38910_AYUMI
+    #if SPECTRAL_AY == SPECTRAL_AY_AYUMI
     "+ AYUMI\n"
     #endif
     #if FLAGS & FULLER
@@ -648,7 +656,7 @@ struct mouse mouse() {
 // ay
 void port_0xfffd(byte value) {
     ay_current_reg=(value&15);
-#if SPECTRAL_AY38910 != SPECTRAL_AY38910_AYUMI
+#if SPECTRAL_AY != SPECTRAL_AY_AYUMI
     // select ay-3-8912 register
     ay38910_iorq(&ay, AY38910_BDIR|AY38910_BC1|ay_current_reg<<16);
 #endif
@@ -656,7 +664,7 @@ void port_0xfffd(byte value) {
 void port_0xbffd(byte value) {
 //mic_on = 0;
     ay_registers[ay_current_reg]=value;
-#if SPECTRAL_AY38910 == SPECTRAL_AY38910_AYUMI
+#if SPECTRAL_AY == SPECTRAL_AY_AYUMI
     int *r = ay_registers;
     switch (ay_current_reg)
     {
@@ -856,7 +864,7 @@ void init() {
     bdesc.base_volume = BUZZ_VOLUME;
     beeper_init(&buzz, &bdesc);
 
-#if SPECTRAL_AY38910 == SPECTRAL_AY38910_AYUMI
+#if SPECTRAL_AY == SPECTRAL_AY_AYUMI
     const int is_ym = 1; // should be 0, but 1 sounds more Speccy to me somehow (?)
     const int eqp_stereo_on = 0;
     const double pan_modes[7][3] = { // pan modes, 7 stereo types
@@ -983,7 +991,7 @@ void sys_audio() {
 
     // tick the AY (half frequency)
     static float ay_sample = 0;
-#if SPECTRAL_AY38910 == SPECTRAL_AY38910_AYUMI
+#if SPECTRAL_AY == SPECTRAL_AY_AYUMI
     static byte even = 0; if( even == 0 || even == 0x80 ) {
         // update_ayumi_state(&ayumi, ay_registers);
         ay_sample = ayumi_render(&ayumi, ay_registers, 50.00 / AUDIO_FREQUENCY, 1); // frame_rate / audio_rate
