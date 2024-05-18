@@ -612,11 +612,11 @@ void input() {
     ZXJoysticks(up,down,left,right,fire);
 
     // keyboard
-    #define KEYS(X) \
-        X(0)X(1)X(2)X(3)X(4)X(5)X(6)X(7)X(8)X(9)\
-        X(A)X(B)X(C)X(D)X(E)X(F)X(G)X(H)X(I)X(J)\
-        X(K)X(L)X(M)X(N)X(O)X(P)X(Q)X(R)X(S)X(T)\
-        X(U)X(V)X(W)X(X)X(Y)X(Z)
+    #define KEYS(k) \
+        k(0)k(1)k(2)k(3)k(4)k(5)k(6)k(7)k(8)k(9)\
+        k(A)k(B)k(C)k(D)k(E)k(F)k(G)k(H)k(I)k(J)\
+        k(K)k(L)k(M)k(N)k(O)k(P)k(Q)k(R)k(S)k(T)\
+        k(U)k(V)k(W)k(X)k(Y)k(Z)
     #define K(x) if(window_pressed(app, 0[#x])) ZXKey(ZX_##x);
     KEYS(K);
     if(window_pressed(app, TK_SPACE))      {ZXKey(ZX_SPACE); /*if(mic_on) mic_on = 0, tap_prev();*/ }
