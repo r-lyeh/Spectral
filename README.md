@@ -20,7 +20,7 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - [x] Kempston/Fuller/Cursor joysticks.
 - [x] RF/CRT experience (not physically accurate though).
 - [x] TAP/TZX/DSK/Z80/SNA/ROM/IF2/SCR/ZIP support. <!-- @todo: tzx info on window title -->
-- [x] SCR/PNG screenshots.
+- [x] SCR/PNG screenshots. <!-- ulaplus screenshots. video recording -->
 - [x] Load games easily. Turbo loads. Auto play/stop tape.
 - [x] Game browser. <!-- @todo: rewrite this -->
 - [x] Graphical tape browser.
@@ -30,10 +30,10 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - [x] Gunstick, Lightgun. <!-- Cheetah Defender Lightgun, Magnum Light Phaser, Stack Light Rifle -->
 - [x] External shaders support.
 - [x] Internal savestates.
+- [x] Graphical User Interface.
 - [ ] Pentagon 128K + beta disk. SCL/TRD.
 - [ ] ZXDB integration.
 - [ ] Gallery marquee. <!-- Flex. Tape cases. ZX catalog on demand. -->
-- [ ] Graphical User Interface. <!-- mouse driven -->
 - [ ] Extra accurate Z80 backend. <!-- @todo: contended mem, contended ports, memptr, snow, Q, floating bus (+2a/+3) -->
 - [ ] Cycle accurate (border, multicolor, etc).
 - [ ] RZX support. <!-- @todo: rzx loadsave http://ramsoft.bbk.org.omegahg.com/rzxform.html -->
@@ -60,7 +60,7 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - tab+cursors: joysticks
 
 ## Credits
-Andre Weissflog, for their many single-header libraries! (Zlib licensed). Peter Sovietov, for their accurate AY chip emulator (MIT licensed). Ulrich Doewich and Colin Pitrat, for their uPD765A floppy disk controller (GPL licensed). lalaoopybee, for their lovely tube shader. Andrew Owen and Geoff Wearmouth for their custom ROMs. Santiago Romero, Philip Kendall, James McKay for their FOSS emulators. All the ZX community!
+Andre Weissflog, for their many single-header libraries! (Zlib licensed). Peter Sovietov, for their accurate AY chip emulator (MIT licensed). Ulrich Doewich and Colin Pitrat, for their uPD765A floppy disk controller (GPL licensed). lalaoopybee, for their lovely tube shader. Damian Vila for their BESCII truetype font (CC-1.0). Andrew Owen and Geoff Wearmouth for their custom ROMs. Santiago Romero, Philip Kendall, James McKay for their FOSS emulators. The ZX Spectrum Discord folks. All the ZX community!
 
 ## Unlicense
 This software is released into the [public domain](https://unlicense.org/). Also dual-licensed as [0-BSD](https://opensource.org/licenses/0BSD) or [MIT (No Attribution)](https://github.com/aws/mit-0) for those countries where public domain is a concern (sigh). Any contribution to this repository is implicitly subjected to the same release conditions aforementioned.

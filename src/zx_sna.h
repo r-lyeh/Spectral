@@ -22,7 +22,7 @@ int rom_load(const byte *src, int len) { // interface2 cartridge
 }
 
 int scr_load(const byte *src, int len) { // screenshot
-    if(len != 6912) return 0;
+    if(len != 6912) return 0; // @fixme: 6912+64 for ulaplus+ screen$
 #if 0
     reset(48);
 #else
@@ -126,7 +126,7 @@ reset(size == 49179 ? 48 : 128);
 
     outport(0xFE, ZXBorderColor);
 
-#if FLAGS & DEV
+#if DEV
 //    regs("sna_load");
 #endif
 
@@ -321,7 +321,7 @@ if (tam==65535) sig-=49151;
 
     printf("z80 v%d (rle:%d) (machine:%d)\n", ver, ver_rle, buffer[34]);
 
-#if FLAGS & DEV
+#if DEV
 //    regs("z80_load");
 #endif
 

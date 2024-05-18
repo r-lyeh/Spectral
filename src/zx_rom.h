@@ -17,17 +17,10 @@
 //#include "res/snaps/ldusr0bin"
 
 #define ROMHACK_TURBO 2.6 // x2 ok; x4,x6,x8 modes not working anymore :(
-#if FLAGS & TURBOROM
 #define IF_ROMHACK_FASTER_EDGES(...)             __VA_ARGS__ // can be enabled
 #define IF_ROMHACK_FASTER_PILOTS_AND_PAUSES(...) __VA_ARGS__ // can be enabled
 #define IF_ROMHACK_HALF_BITS(...)              //__VA_ARGS__ // not working anymore :(
 #define IF_ROMHACK_TURBO(...)                    __VA_ARGS__ // can be enabled
-#else
-#define IF_ROMHACK_FASTER_EDGES(...)             // __VA_ARGS__ // can be enabled
-#define IF_ROMHACK_FASTER_PILOTS_AND_PAUSES(...) // __VA_ARGS__ // can be enabled
-#define IF_ROMHACK_HALF_BITS(...)                // __VA_ARGS__ // not working anymore :(
-#define IF_ROMHACK_TURBO(...)                    // __VA_ARGS__ // can be enabled
-#endif
 
 // romturbo stats
 // parapshock: 232s (normal)
@@ -59,7 +52,7 @@ void rom_patch(int on) {
     if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48), romgw03v33/*romlg18v07,rom48*/, 0x4000);
     }
 
-#if FLAGS & TESTS
+#if TESTS
     if( ZX <= 200) memset(rom+0x4000 * (ZX > 48)+0x0C93, 0, 0xCD2-0xC93); // supress "Scroll?" message: JP #0CD2
 #endif
 

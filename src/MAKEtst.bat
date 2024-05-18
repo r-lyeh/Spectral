@@ -1,4 +1,4 @@
-call makeopt -DFLAGS=^(TESTS+PRINTER+TURBOROM+DEV^)
+call makeopt -DPRINTER -DTESTS
 pause
 
 rem Z80------------------------------------------

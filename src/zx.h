@@ -1,8 +1,7 @@
 // known issues:
-// p-47 in-game click sound (ayumi?)
-// custardthekid + turborom
+// p-47 in-game click sound (ayumi? beeper?). double check against zx spectrum
 // taipan + quickload
-// gunstick + kempston || kmouse
+// gunstick + (kempston || kmouse) conflicts
 // altroms:
 // - donkey kong (AY 128, wrong ROM checksum)
 // - blood brothers (AY 128, wrong ROM checksum)
@@ -10,103 +9,49 @@
 // crash (vsync/int line?):
 // - cauldron2(silverbird)
 // - hostages(erbe) +2, +3 versions. 48 is ok.
+// runahead:
+// - +3 not compatible
+// - breaks drums in TargetRenegade128(1988)+AYUMI
+// - Tai-Pan(1986) crashes (bc of quickload)
+// - https://near.sh/articles/input/run-ahead https://www.youtube.com/watch?v=_qys9sdzJKI // https://docs.libretro.com/guides/runahead/
 // beeper:
 // - indiana jones last crusade
 // tape ticks:
 // - 1942.tzx
 // - nosferatu(alternativeltd)
 // - darkstar, wizball.tap
+// floating:
+// - not working yet
 // timing:
 // - border: sentinel, defenders of earth, dark star, super wonder boy
 // - border: aquaplane, olympic games, vectron, mask3
 // - multicolor: mask3, shock megademo, MDA, action force 2, old tower, hardy
 // - contended: exolon main tune requires contended memory, otherwise it's too fast +15% tempo
 // - floating: arkanoid (original), cobra (original), sidewize, short circuit
-// faulty reset:
+// fdc:
+// - afterburner(1988).dsk
 // - z80 or fdc not being reset sometimes: load mercs.dsk, then wrestlingSuperstars.dsk
-//   also dynasty wars, then e-motion
+//   also dynasty wars, then e-motion. also ghouls n ghosts.dsk
+// turborom:
+// - x4,x6 not working anymore. half bits either. 
+// - not compatible with lg18v07 rom (see: r-type128-km-nocheats.tap)
+// - custardthekid + turborom
 
-#define DEV       (1<< 0) // status bar, z80 disasm
-#define RF        (1<< 1)
-#define CRT       (1<< 2)
-#define FDC       (1<< 3) // @fixme: afterburner(1988).dsk, mercs.dsk, ghouls n ghosts.dsk
+// note about TESTS mode:
+// - scans src/tests/ folder
+// - creates log per test
+// - 48k
+// - exits automatically
+// - 50% frames not drawn
+// - 50% drawn in fastest mode
 
-#define FULLER    (1<< 5)
-#define KMOUSE    (1<< 6)
-#define ULAPLUS   (1<< 7)
-#define GUNSTICK  (1<< 8) // @fixme: conflicts with kempston & kmouse
-#define FLOATING  (1<< 9) // @fixme: not working yet
-#define RUNAHEAD  (1<<10) // @fixme: +3 not compatible. break drums in TargetRenegade+AYUMI. Tai-Pan(1986).tzx crashes (bc of quickload)
-#define TURBOROM  (1<<11) // @fixme: x4,x6 not working anymore. half bits either. @fixme: not compatible with lg18v07 rom (see: r-type128-km-nocheats.tap)
-//#define ALTROMS   (1<<12) // @fixme: DonkeyKong128, BloodBrothers128; note: will use plus2c+lg roms where possible
-#define PRINTER   (1<<13) // traps rom print routine. useful for automation tests
-#define TESTS     (1<<14) // scans src/tests/ folder + creates log per test + 48k + exits automatically + 50% frames not drawn + 50% drawn in fastest mode
-#define AUTOTAPE  (1<<15) // auto plays/stops tapes based on #FE port reads
-
-#ifndef FLAGS_DEV
-#define FLAGS_DEV (0|DEV|FDC|FULLER|KMOUSE|ULAPLUS|FLOATING|TURBOROM|AUTOTAPE|RUNAHEAD|0)
-#endif
-
-#ifndef FLAGS_REL
-#define FLAGS_REL ((FLAGS_DEV & ~(DEV|GUNSTICK|TESTS|PRINTER)) | CRT|RF )
-#endif
-
-#ifndef FLAGS
-#define FLAGS FLAGS_DEV
+#ifdef NDEBUG
+#define DEV 0
+#else
+#define DEV 1
 #endif
 
 FILE *printer;
-
-const char* static_options() {
-    return 
-#if !FLAGS
-    "+ (no options)\n"
-#else
-    #if FLAGS & DEV
-    "+ DEV\n"
-    #endif
-    #if FLAGS & RF
-    "+ RF\n"
-    #endif
-    #if FLAGS & CRT
-    "+ CRT\n"
-    #endif
-    #if FLAGS & FDC
-    "+ FDC\n"
-    #endif
-    #if FLAGS & FULLER
-    "+ FULLER\n"
-    #endif
-    #if FLAGS & KMOUSE
-    "+ KMOUSE\n"
-    #endif
-    #if FLAGS & ULAPLUS
-    "+ ULAPLUS\n"
-    #endif
-    #if FLAGS & GUNSTICK
-    "+ GUNSTICK\n"
-    #endif
-    #if FLAGS & FLOATING
-    "+ FLOATING\n"
-    #endif
-    #if FLAGS & RUNAHEAD
-    "+ RUNAHEAD\n"
-    #endif
-    #if FLAGS & TURBOROM
-    "+ TURBOROM\n"
-    #endif
-    #if FLAGS & PRINTER
-    "+ PRINTER\n"
-    #endif
-    #if FLAGS & TESTS
-    "+ TESTS\n"
-    #endif
-    #if FLAGS & AUTOTAPE
-    "+ AUTOTAPE\n"
-    #endif
-#endif
-    ;
-}
 
 int do_audio = 1;
 
@@ -119,12 +64,20 @@ int do_audio = 1;
 
 int ZX_TS;
 int ZX_FREQ;
-int ZX_RF = !!(FLAGS & RF);
-int ZX_CRT = !!(FLAGS & CRT);
+int ZX_RF = !DEV;
+int ZX_CRT = !DEV;
 int ZX = 128; // 48, 128, 200 (+2), 210 (+2A), 300 (+3)
 int ZX_FAST = 1;
-int ZX_AY = 1; // mask: 0 (no ay), 1 (ayumi), 2 (flooh's), 3 (both)
+int ZX_AY = 2; // mask: 0 (no ay), 1 (ayumi), 2 (flooh's), 3 (both)
 int ZX_ALTROMS = 0; // 0:(no, original), 1:(yes, custom)
+int ZX_TURBOROM = 0; // 0:(no) 1: patch rom so loading standard tape blocks is faster (see: .tap files)
+int ZX_JOYSTICK = 3; // 0:(no), 1: sinclair1, 2: sinclair2, 3: cursor/fuller/kempston/protek
+int ZX_AUTOPLAY = 1; // yes/no: auto plays/stops tapes based on #FE port reads
+int ZX_RUNAHEAD = 0; // yes/no: improves input latency
+int ZX_MOUSE = 1; // yes/no: kempston mouse
+int ZX_ULAPLUS = 1; // yes/no: ulaplus 64color mode
+int ZX_GUNSTICK = 0; // yes/no: gunstick/lightgun @fixme: conflicts with kempston & kmouse
+int ZX_DEBUG = 0; // status bar, z80 disasm
 
 void outport(word port, byte value);
 byte inport(word port);
@@ -220,7 +173,6 @@ uint64_t tape_ticks;
 #include "zx_tap.h" // requires page128
 #include "zx_tzx.h"
 #include "zx_sna.h" // requires page128, ZXBorderColor
-#include "zx_sav.h"
 
 rgba ZXPaletteDef[64] = { // 16 regular, 64 ulaplus
 #if 0 // check these against SHIFT-SPC during reset
@@ -429,14 +381,17 @@ void ZXJoysticks(int up, int down, int left, int right, int fire) {
         } ;
     #endif
 
-    // kempston/i2l + cursor/protek/agf + fuller
-    // @todo: map interface II sinclair1(67890) sinclair2(12345)
+    // kempston/i2l + fuller, then either sinclair1 or sinclair2 or cursor/protek/agf
+    int joysticks[][5] = {{ZX_5,ZX_4,ZX_3,ZX_2,ZX_1},{ZX_0,ZX_9,ZX_8,ZX_7,ZX_6},{ZX_0,ZX_7,ZX_6,ZX_8,ZX_5},};
     kempston=0; fuller=0xff;
-    if(fire)  { kempston|=16; fuller&=0xFF-128; ZXKey(ZX_0);                 /*ZXKey(ZX_5); ZXKey(ZX_0);*/ }
-    if(up)    { kempston|=8;  fuller&=0xFF-1;   ZXKey(ZX_7),ZXKey(ZX_SHIFT); /*ZXKey(ZX_4); ZXKey(ZX_9);*/ }
-    if(down)  { kempston|=4;  fuller&=0xFF-2;   ZXKey(ZX_6),ZXKey(ZX_SHIFT); /*ZXKey(ZX_3); ZXKey(ZX_8);*/ }
-    if(right) { kempston|=1;  fuller&=0xFF-8;   ZXKey(ZX_8),ZXKey(ZX_SHIFT); /*ZXKey(ZX_2); ZXKey(ZX_7);*/ }
-    if(left)  { kempston|=2;  fuller&=0xFF-4;   ZXKey(ZX_5),ZXKey(ZX_SHIFT); /*ZXKey(ZX_1); ZXKey(ZX_6);*/ }
+    if( ZX_JOYSTICK ) {
+    if(fire)  { kempston|=16; fuller&=0xFF-128; ZXKey(joysticks[ZX_JOYSTICK-1][0]); }
+    if(up)    { kempston|=8;  fuller&=0xFF-1;   ZXKey(joysticks[ZX_JOYSTICK-1][1]); }
+    if(down)  { kempston|=4;  fuller&=0xFF-2;   ZXKey(joysticks[ZX_JOYSTICK-1][2]); }
+    if(right) { kempston|=1;  fuller&=0xFF-8;   ZXKey(joysticks[ZX_JOYSTICK-1][3]); }
+    if(left)  { kempston|=2;  fuller&=0xFF-4;   ZXKey(joysticks[ZX_JOYSTICK-1][4]); }
+    if(ZX_JOYSTICK == 3 && (up | down | right | left)) ZXKey(ZX_SHIFT); // cursor requires shift
+    }
 }
 
 // fdc
@@ -491,10 +446,8 @@ void port_0x1ffd(byte value) {
         MEMw[0]=DUMMY_BANK(0);       //MEMc[0]=0;
     }
 
-#if FLAGS & FDC
     //bit 3: motor on/off
-    fdc_motor(value & 8);
-#endif
+    if(ZX == 300) fdc_motor(value & 8);
 
     //bit 4: printer strobe
 }
@@ -502,26 +455,16 @@ void port_0x1ffd(byte value) {
 
 // control of port 0x2ffd (fdc in)
 byte inport_0x2ffd(void) {
-    return 
-#if FLAGS & FDC
-        ZX == 300 ? fdc_read_status() : 
-#endif
-        0xFF;
+    return ZX == 300 ? fdc_read_status() : 0xFF;
 }
 
 // control of port 0x3ffd (fdc out & in)
 byte inport_0x3ffd(void) {
-    return 
-#if FLAGS & FDC
-        ZX == 300 ? fdc_read_data() : 
-#endif
-        0xFF;
+    return ZX == 300 ? fdc_read_data() : 0xFF;
 }
 
 void port_0x3ffd(byte value) {
-#if FLAGS & FDC
     if( ZX == 300 ) fdc_write_data(value);
-#endif
 }
 
 
@@ -760,7 +703,7 @@ byte inport_0xfffd(void) {
         0x1f, 0x1f, 0x1f, 0xff, 0xff, 0x0f, 0xff, 0xff,
     };
 
-#if FLAGS & GUNSTICK // magnum lightgun
+    if( ZX_GUNSTICK ) // magnum lightgun
     if( ay_current_reg == 14 ) {
 
         // Magnum Light Phaser / Defender Light Gun for Spectrum >= 128
@@ -777,7 +720,6 @@ byte inport_0xfffd(void) {
         //printf("\t\t\tmagnum (%02x vs %02x)\n", gunstick(0xFF), v);
         return v;
     }
-#endif
 
     /* The AY I/O ports return input directly from the port when in
     input mode; but in output mode, they return an AND between the
@@ -798,12 +740,12 @@ byte inport_0xfffd(void) {
 
 uint64_t tick1(int num_ticks, uint64_t pins, void* user_data) {
 
-#if FLAGS & DEV
+#if DEV
     if( cpu.step == 0 ) {
         unsigned pc = Z80_GET_ADDR(pins);
 
-#if FLAGS & PRINTER
-        // trap print routine
+#if PRINTER
+        // traps rom print routine. useful for automation tests
 
         // check no int pending, +2a/+3, or rom1
         // if( !IFF1(cpu) && ZX <= 200 && !(page128 & 16) )
@@ -821,7 +763,6 @@ uint64_t tick1(int num_ticks, uint64_t pins, void* user_data) {
                 }
             }
         }
-
 #endif
 
         // disasm
@@ -925,7 +866,7 @@ void init() {
       {0.90, 0.50, 0.10}, // CBA
     };
 
-    if (!ayumi_configure(&ayumi, is_ym, 2000000 /*ZX_FREQ / 2*/, AUDIO_FREQUENCY)) { // ayumi is AtariST based, i guess. use 2mhz clock instead
+    if (!ayumi_configure(&ayumi, is_ym, 2000000 * (2000000.0 / (ZX_FREQ / 2.0)), AUDIO_FREQUENCY)) { // ayumi is AtariST based, i guess. use 2mhz clock instead
         die("ayumi_configure error (wrong sample rate?)");
     }
     const double *pan = pan_modes[0]; // MONO
@@ -964,12 +905,12 @@ void reset(int model) {
 
 config(ZX);
 
-#if FLAGS & DEV
+if(DEV) {
     // keep developer's azimuth between sessions
-#else
+} else {
     // reset azimuth per session for end-users
     azimuth = AZIMUTH_DEFAULT;
-#endif
+}
 
 #if NEWCORE
     pins = z80_reset(&cpu);
@@ -1121,17 +1062,19 @@ void outport(word port, byte value) {
     // sorted ports
     if (ZX >= 128) if(!(port & (0xFFFF^0x7FFD))) { port_0x7ffd(value); return; }
 
-#if FLAGS & ULAPLUS
+
     // ula+ register port
+    if( ZX_ULAPLUS )
     if (!(port & (0xFFFF^0xBF3B))) {
         ulaplus_data = value & 0x3f;
         ulaplus_mode = value >> 6;
     }
-#endif
+
     // ay
     if (!(port & (0xFFFF^0xBFFD)))     { port_0xbffd(value); return; } // ay
-#if FLAGS & ULAPLUS
+
     // ula+ data port
+    if( ZX_ULAPLUS )
     if (!(port & (0xFFFF^0xFF3B))) {
         if( ulaplus_mode == 0 ) {
             ulaplus_registers[ulaplus_data] = value;
@@ -1146,15 +1089,13 @@ void outport(word port, byte value) {
             ulaplus_grayscale = !!(value & 2);
         }
     }
-#endif
+
     // ay
     if (!(port & (0xFFFF^0xFFFD)))     { port_0xfffd(value); return; } // ay
 
-#if FLAGS & FULLER
     // fuller audio box emulation
     if (!(port & (0xFF^0x3F)))         { port_0xfffd(value); return; } // ay
     if (!(port & (0xFF^0x5F)))         { port_0xbffd(value); return; } // ay
-#endif
 
     // default
     if( !(port & (0xFF^0xFE))) {
@@ -1259,27 +1200,28 @@ byte inport(word port) {
         if((port & 0xf002) == 0x2000) { return inport_0x2ffd(); } // 0010xxxx xxxxxx0x   fdc status
     }
 
-#if FLAGS & KMOUSE
-    // kempston mouse detection
-    if(port == 0xFADF) kempston_mouse |= 1;
-    if(port == 0xFBDF) kempston_mouse |= 2;
-    if(port == 0xFFDF) kempston_mouse |= 4;
+    if( ZX_MOUSE )
+    {
+        // kempston mouse detection
+        if(port == 0xFADF) kempston_mouse |= 1;
+        if(port == 0xFBDF) kempston_mouse |= 2;
+        if(port == 0xFFDF) kempston_mouse |= 4;
 
-    // kempston mouse
-    if( kempston_mouse == 7 ) {
-        struct mouse m = mouse();
-        if(!(port & (0xFFFF^0xFADF))) return mouse_clip(1), 0xFF&~(1*m.rb+2*m.lb+4*m.mb); // ----.--10.--0-.----  =  Buttons: D0 = RMB, D1 = LMB, D2 = MMB
-        if(!(port & (0xFFFF^0xFBDF))) return mouse_clip(1),  m.x;                         // ----.-011.--0-.----  =  X-axis:  $00 … $FF
-        if(!(port & (0xFFFF^0xFFDF))) return mouse_clip(1), -m.y;                         // ----.-111.--0-.----  =  Y-axis:  $00 … $FF
+        // kempston mouse
+        if( kempston_mouse == 7 ) {
+            struct mouse m = mouse();
+            if(!(port & (0xFFFF^0xFADF))) return mouse_clip(1), 0xFF&~(1*m.rb+2*m.lb+4*m.mb); // ----.--10.--0-.----  =  Buttons: D0 = RMB, D1 = LMB, D2 = MMB
+            if(!(port & (0xFFFF^0xFBDF))) return mouse_clip(1),  m.x;                         // ----.-011.--0-.----  =  X-axis:  $00 … $FF
+            if(!(port & (0xFFFF^0xFFDF))) return mouse_clip(1), -m.y;                         // ----.-111.--0-.----  =  Y-axis:  $00 … $FF
+        }
     }
-#endif
 
     // kempston port (31) @fixme: also seen mappings on port 55 and 95 (?)
     if( kempston_mouse != 7 ) {
-#if FLAGS & GUNSTICK
         // gunstick (bestial warrior)
+        if(ZX_GUNSTICK)
         if(!(port & (0xFF^0xDF))) return /*puts("gunstick kempston"),*/ gunstick(0xFF);
-#endif
+
         // kempston joystick
         if(!(port & (0xFF^0xDF))) return /*mic_on = 0,*/ kempston; //bit 5 low = reading kempston (as told pera putnik)
         //if(!(port & 0xE0)) return kempston;          //bit 7,6,5 low = reading kempston (as floooh)
@@ -1291,8 +1233,8 @@ byte inport(word port) {
     if(!(port & (0xFFFF^0x3FFD))) return inport_0x3ffd();
     }
 
-#if FLAGS & ULAPLUS
     // ulaplus read data
+    if( ZX_ULAPLUS )
     if (!(port & (0xFFFF^0xFF3B))) {
         if( ulaplus_mode == 0 ) {
             return ulaplus_registers[ulaplus_data];
@@ -1301,10 +1243,10 @@ byte inport(word port) {
             return ulaplus_registers[64];
         }
     }
-#endif
 
-#if FLAGS & GUNSTICK // @fixme: add SINCLAIR2 port too
     // gunstick 0x7ffe,0xbffe,0xdffe,0xeffe,0xf7fe,0xfefe,0xfbfe,0xfdfe
+    // @fixme: add SINCLAIR2 port too
+    if( ZX_GUNSTICK )
     if (!(port & (0xFFFF^0xEFFE))) {
         int code = 0xFF;
 
@@ -1323,15 +1265,12 @@ byte inport(word port) {
 
         return /*puts("gunstick sinclair"),*/ gunstick(code);
     }
-#endif
 
     // ay
     if(!(port & (0xFFFF^0xFFFD))) return inport_0xfffd();
 
-#if FLAGS & FULLER
     // fuller joystick
     if(!(port & (0xFF^0x7F))) return /*mic_on = 0,*/ fuller;
-#endif
 
     // keyboard
     if(!(port & (0xFF^0xFE))) {
@@ -1379,135 +1318,138 @@ byte inport(word port) {
         }
 
 
-
-#if FLAGS & AUTOTAPE
-
-        // auto-tape tests [* issue]
-        // [x] rom: pilot loader, acid killer.tzx
-        // [x] full suite: gauntlet, *p-47 thunderbolt, munsters 48k, myth,
-        // [x] glued: batman caped crusader
-        // [x] ay stopper: madmix2 (symb), mortadelo y filemon 2 (spc), wizard warz,
-        // [x] press-any-key: the egg, cauldron2.tap
-        // [x] loading pauses: diver, doctum, coliseum.tap, barbarian(melbourne), indiana jones last crusade
-        // [ ] *viaje al centro de la tierra, tuareg, desperado
-        // [ ] *cauldron (silverbird),
-        // [ ] *turrican, turrican2, un squadron,
-        // [x] tusker, predator,
-        // [x] last ninja 2, karnov,
-        // [x] gryzor 48k, rainbow islands 48k
-        // [?] twilight, wild streets, 
-        // [?] time scanner, tmnt coin op, super wonder boy, strider 2, street hassle,
-        // [?] st dragon, spherical, real ghostbusters, spherical, perico delgado,
-        // [?] pang, outrun, laser squad, koronis rift,
-        // [?] gauntlet 2, line of fire, mandragore, the deep, 
-        // [?] galaxy force, flash gordon, dragons lair, dragons lair 2, dragon breed,
-        // [?] double dragons, desolator, final assault, forgotten worlds, crack down,
-        // [?] alien syndrome, altered beast,
-
-        // stable tape heuristics I used for a long time:
-        // - hint play if loading from rom && mic has tape
-        // newer heuristics that worked ok-ish:
-        // - hint stop if strchr("uo",voc[voc_pos/4] & 0x7f) ; pa(u)se st(o)p
-        // - hints based on IN FE port activity
-        //   - 70908 ts/s / 8 ts/portread = 8863 portreads/s. theory limit of 8863 Hz.
-        //     very high frequency polling are press-any-key pollings (>1700 Hz)
-        //     high frequency polling are data or pilot loaders (~500..1200 Hz)
-        //     low frequency polling are keyboard handlers (0..8 Hz)
-        //   - hint stop if keyboard is being read (<300hz); else hint loader. myth will work; madmix2 (shift) wont.
-        //   - hint stop if press-any-key tight loops (>1700hz); else hint loader. madmix2 will work; myth wont.
-        // newer heuristics that I tried and didnt fully work:
-        // - hint stop if num_written_ports(ay||spk) is significant, then we are playing; else hint loader. madmix2 will work; gauntlet wont.
-        // - hint stop if hash of AY regs[0..13] changes every second. 
-        // - hint stop if black/blue borders; else hint loader. gauntlet will work; p47 wont.
-        // - hint stop if IN FE from slow page; else hint loader. firelord wont work.
-        // @todo: more hints I didnt try
-        // - hint stop if reading mouse port (~playing)
-        // - hint stop if reading kempston(s) ports (~playing)
-        // - hint stop if reading keyboard matrix other than SPACE or BREAK (~playing)
-        // - hint stop if long pause (>=5s) found after tape progress is >30% (see: myth)
-        // - hint stop if long pause (>=5s) found between turbo blocks (see: myth or gauntlet)
-
-        // what I'm using now:
-        // inspect how the game processes the IN FE byte. if byte is RRA or checked against 0x20 then byte is a loading one.
-        // count the amount of loading bytes within a second: hint stop if count == 0; hint play if count > 200.
-
-        if( mic_has_tape )
+        if( ZX_AUTOPLAY )
         {
-            unsigned pc = PC(cpu) - 2;
-            byte *addr = ADDR(pc);
+            // auto-tape tests [* issue]
+            // [x] rom: pilot loader, acid killer.tzx
+            // [x] full suite: gauntlet, *p-47 thunderbolt, munsters 48k, myth,
+            // [x] glued: batman caped crusader
+            // [x] ay stopper: madmix2 (symb), mortadelo y filemon 2 (spc), wizard warz,
+            // [x] press-any-key: the egg, cauldron2.tap
+            // [x] loading pauses: diver, doctum, coliseum.tap, barbarian(melbourne), indiana jones last crusade
+            // [ ] *viaje al centro de la tierra, tuareg, desperado
+            // [ ] *cauldron (silverbird),
+            // [ ] *turrican, turrican2, un squadron,
+            // [x] tusker, predator,
+            // [x] last ninja 2, karnov,
+            // [x] gryzor 48k, rainbow islands 48k
+            // [?] twilight, wild streets, 
+            // [?] time scanner, tmnt coin op, super wonder boy, strider 2, street hassle,
+            // [?] st dragon, spherical, real ghostbusters, spherical, perico delgado,
+            // [?] pang, outrun, laser squad, koronis rift,
+            // [?] gauntlet 2, line of fire, mandragore, the deep, 
+            // [?] galaxy force, flash gordon, dragons lair, dragons lair 2, dragon breed,
+            // [?] double dragons, desolator, final assault, forgotten worlds, crack down,
+            // [?] alien syndrome, altered beast,
 
-            static unsigned numreads = 0;
-            if( 0
-                || !memcmp(addr,  "\xDB\xFE\x1F", 3) // Common
-                || !memcmp(addr,  "\xDB\xFE\xA9\xE6\x40", 5) // P-47, BloodBrothers
-                || !memcmp(addr,  "\xDB\xFE\xA0\xC2\x88\xFD", 6) // lonewolf3 v1
-                || !memcmp(addr,  "\xDB\xFE\xA0\xCA\x48\xFD", 6) // lonewolf3 v2
-                || !memcmp(addr,  "\xED\x78\xA8\xE6\x40", 5) // trivial pursuits' questions
-                || !memcmp(addr-1,"\x2C\xDB\xFE\xA4\xC2", 5) // gremlin2: Basil the Mouse Detective (10 Great Games 2),  Mask,  Mask (10 Great Games 2)
-                || !memcmp(addr-1,"\x2C\xDB\xFE\xA4\xCA", 5) // gremlin2: Basil the Mouse Detective (10 Great Games 2),  Mask,  Mask (10 Great Games 2)
-            )
-            numreads++;
+            // stable tape heuristics I used for a long time:
+            // - hint play if loading from rom && mic has tape
+            // newer heuristics that worked ok-ish:
+            // - hint stop if strchr("uo",voc[voc_pos/4] & 0x7f) ; pa(u)se st(o)p
+            // - hints based on IN FE port activity
+            //   - 70908 ts/s / 8 ts/portread = 8863 portreads/s. theory limit of 8863 Hz.
+            //     very high frequency polling are press-any-key pollings (>1700 Hz)
+            //     high frequency polling are data or pilot loaders (~500..1200 Hz)
+            //     low frequency polling are keyboard handlers (0..8 Hz)
+            //   - hint stop if keyboard is being read (<300hz); else hint loader. myth will work; madmix2 (shift) wont.
+            //   - hint stop if press-any-key tight loops (>1700hz); else hint loader. madmix2 will work; myth wont.
+            // newer heuristics that I tried and didnt fully work:
+            // - hint stop if num_written_ports(ay||spk) is significant, then we are playing; else hint loader. madmix2 will work; gauntlet wont.
+            // - hint stop if hash of AY regs[0..13] changes every second. 
+            // - hint stop if black/blue borders; else hint loader. gauntlet will work; p47 wont.
+            // - hint stop if IN FE from slow page; else hint loader. firelord wont work.
+            // @todo: more hints I didnt try
+            // - hint stop if reading mouse port (~playing)
+            // - hint stop if reading kempston(s) ports (~playing)
+            // - hint stop if reading keyboard matrix other than SPACE or BREAK (~playing)
+            // - hint stop if long pause (>=5s) found after tape progress is >30% (see: myth)
+            // - hint stop if long pause (>=5s) found between turbo blocks (see: myth or gauntlet)
 
-            static int freq = 0;
-            static uint64_t last = 0;
+            // what I'm using now:
+            // inspect how the game processes the IN FE byte. if byte is RRA or checked against 0x20 then byte is a loading one.
+            // count the amount of loading bytes within a second: hint stop if count == 0; hint play if count > 200.
 
-            enum { SLICE = 1 };
+            if( mic_has_tape )
+            {
+                unsigned pc = PC(cpu) - 2;
+                byte *addr = ADDR(pc);
 
-            ++freq;
+                static unsigned numreads = 0;
+                if( 0
+                    || !memcmp(addr,  "\xDB\xFE\x1F", 3) // Common
+                    || !memcmp(addr,  "\xDB\xFE\xA9\xE6\x40", 5) // P-47, BloodBrothers
+                    || !memcmp(addr,  "\xDB\xFE\xA0\xC2\x88\xFD", 6) // lonewolf3 v1
+                    || !memcmp(addr,  "\xDB\xFE\xA0\xCA\x48\xFD", 6) // lonewolf3 v2
+                    || !memcmp(addr,  "\xED\x78\xA8\xE6\x40", 5) // trivial pursuits' questions
+                    || !memcmp(addr-1,"\x2C\xDB\xFE\xA4\xC2", 5) // gremlin2: Basil the Mouse Detective (10 Great Games 2),  Mask,  Mask (10 Great Games 2)
+                    || !memcmp(addr-1,"\x2C\xDB\xFE\xA4\xCA", 5) // gremlin2: Basil the Mouse Detective (10 Great Games 2),  Mask,  Mask (10 Great Games 2)
+                )
+                numreads++;
 
-            if( (ticks - last) > 69888/SLICE ) {
-                tape_hz = freq*SLICE;
-                last = ticks, freq = 0;
+                static int freq = 0;
+                static uint64_t last = 0;
 
-#if 0
-                // auto-tape issues:
-                // - not working well: turrican1
-                // - wont stop tape: *viaje al centro de la tierra, p47 thunderbolt, *dynamite dux, *outrun europa
+                enum { SLICE = 1 };
 
-                if( mic_on ) {
-                    if( !numreads ) {
-                        printf("auto-stop tape (%u Hz, %u reads)\n", tape_hz, numreads);
+                ++freq;
+
+                if( (ticks - last) > 69888/SLICE ) {
+                    tape_hz = freq*SLICE;
+                    last = ticks, freq = 0;
+
+    #if 0
+                    // auto-tape issues:
+                    // - not working well: turrican1
+                    // - wont stop tape: *viaje al centro de la tierra, p47 thunderbolt, *dynamite dux, *outrun europa
+
+                    if( mic_on ) {
+                        if( !numreads ) {
+                            printf("auto-stop tape (%u Hz, %u reads)\n", tape_hz, numreads);
+                            mic_on = 0;
+                        }
+                    } else {
+                        if( numreads > 200 ) { // 273Hz turrican
+                            printf("auto-start tape (%u Hz, %u reads)\n", tape_hz, numreads);
+                            mic_on = 1;
+                        }
+                    }
+    #else
+                    // fixes: turrican, p47,
+                    // pending: wont stop tape: *viaje al centro de la tierra, *dynamite dux, *outrun europa (stop:228Hz)
+
+                    if( numreads <= 9 ) { // 9Hz turrican, 228Hz outrun europa
+                        if(mic_on) printf("auto-stop tape (%u Hz, %u reads)\n", tape_hz, numreads);
                         mic_on = 0;
                     }
-                } else {
                     if( numreads > 200 ) { // 273Hz turrican
-                        printf("auto-start tape (%u Hz, %u reads)\n", tape_hz, numreads);
+                        if(!mic_on) printf("auto-start tape (%u Hz, %u reads)\n", tape_hz, numreads);
                         mic_on = 1;
                     }
+    #endif
+                    numreads = 0;
                 }
-#else
-                // fixes: turrican, p47,
-                // pending: wont stop tape: *viaje al centro de la tierra, *dynamite dux, *outrun europa (stop:228Hz)
+            }
+        }
+        else
+        {
+            // if no auto-play...
 
-                if( numreads <= 9 ) { // 9Hz turrican, 228Hz outrun europa
-                    if(mic_on) printf("auto-stop tape (%u Hz, %u reads)\n", tape_hz, numreads);
-                    mic_on = 0;
-                }
-                if( numreads > 200 ) { // 273Hz turrican
-                    if(!mic_on) printf("auto-start tape (%u Hz, %u reads)\n", tape_hz, numreads);
+            // initial auto-start tape based on rom trap. user needs to pause/resume tape manually (via F2 key).
+            if(0)
+            if(!mic_on) {
+                unsigned pc = PC(cpu);
+                bool rom1 = ZX<=48 || (ZX <= 200 && (page128 & 16));
+                bool loading_from_rom = rom1 && (pc >= 0x04C2 && pc < 0x09F4); // (pc == 0x562 || pc == 0x5f1);
+                if( loading_from_rom ) {
+                    puts("auto-start tape (rom)");
                     mic_on = 1;
                 }
-#endif
-                numreads = 0;
             }
         }
-#else
-        // initial auto-start tape based on rom trap. user needs to pause/resume tape manually (via F2 key).
-        if(!mic_on) {
-            unsigned pc = PC(cpu);
-            bool rom1 = ZX<=48 || (ZX <= 200 && (page128 & 16));
-            bool loading_from_rom = rom1 && (pc >= 0x04C2 && pc < 0x09F4); // (pc == 0x562 || pc == 0x5f1);
-            if( loading_from_rom ) {
-                puts("auto-start tape (rom)");
-                mic_on = 1;
-            }
-        }
-#endif
 
         return code;
     }
 
-#if FLAGS & FLOATING
     // unattached port, read from floating bus. +2A/+3 returns 0xFF under most circumstances.
     // When the Z80 reads from an unattached port it will read the data present on the ULA bus, which will be a display byte being transferred to the video circuits or 0xFF when idle, such as periods spent building the border.
     // A number of commercial games used the floating bus effect, generally to synchronise with the display and allow for flicker-free drawing. Games known to use the floating bus include:
@@ -1523,12 +1465,13 @@ byte inport(word port) {
         // debug: printf("%d %d\n", tstate, value); // adjust
         return value;
     } // 48: 56 << 8 + 3..6 (0) = 14339..45 (vs 14336) // 128: 56 << 8 + 30 (28) = 14366 (vs 14364)
-#endif
 
     return 0xFF;
     // return port & 1 ? 0xFF : 0x00;
 }
 
+
+#include "zx_sav.h"
 
 #define FULL_QUICKSAVES 1 // 0 breaks run-a-head
 

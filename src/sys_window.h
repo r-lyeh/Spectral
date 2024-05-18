@@ -29,8 +29,9 @@ void window_override_icons() {
     SetWindowsHookEx(WH_CBT, window_create_callback, NULL, GetCurrentThreadId());
 }
 
-void warning(const char *msg) {
-    MessageBoxA(0,msg,"Warning",MB_OK);
+#define warning(msg) warning("Warning", msg)
+void (warning)(const char *title, const char *msg) {
+    MessageBoxA(0,msg,title,MB_OK);
 }
 
 void die(const char *msg) {

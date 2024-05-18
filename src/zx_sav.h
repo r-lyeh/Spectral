@@ -5,8 +5,10 @@
 //  AF AF2 BC BC2 DE DE2 HL HL2 IFF12 IM IR IX IY PC SP
 // num ports (in ascending order) [16]
 //  addr [16], data [16]
-// num sequential pages (in ascending order) [16]
-//  size [16], blob [N] (z80rle if size < 16k; not paged in if size == 0, thus blob is skipped)
+// num rom sequential pages (in ascending order) [4]
+//  size [16], blob [N] (@todo: z80rle if size < 16k; not paged in if size == 0, thus blob is skipped)
+// num ram sequential pages (in ascending order) [16]
+//  size [16], blob [N] (@todo: z80rle if size < 16k; not paged in if size == 0, thus blob is skipped)
 // num attached medias (tap, tzx, dsk, ...) [16]
 //  size [16], blob [N]
 
@@ -56,9 +58,21 @@ int export_state(FILE *fp) {
                     }
                     put16(0x00fe), put16(ZXBorderColor); // any ZX
 
+    if( ZX_ULAPLUS && ulaplus_enabled ) {
+        put16(0xBF3B), put16( 64 ); // mode group
+        put16(0xFF3B), put16(  1 ); // turn palette mode on
+        for( int i = 0; i < 64; ++i ) { // dump palette
+            put16(0xBF3B), put16( i ),
+            put16(0xFF3B), put16( ulaplus_registers[i] );
+        }
+    }
+
     put16(0x0000); // terminator
 
-    // @todo: ulaplus+
+    for( int i = 0; i < 4; ++i ) {
+        put16(0x4000);
+        putnn(ROM_BANK(i), 0x4000);
+    }
 
     for( int i = 0; i < 16; ++i ) {
         put16(0x4000);
@@ -115,6 +129,15 @@ int import_state(FILE *fp) {
         else if( port == 0x1ffd ) outport(port, page2a = data );
         else                      outport(port, data);
     }
+
+    for( int i = 0; i < 4; ++i ) {
+        uint16_t banklen;
+        get16(banklen);
+
+        getnn(ROM_BANK(i), banklen);
+    }
+
+    ZX_ALTROMS = ZX > 200 ? 0 : !!memcmp(ROM_BANK(0), ZX < 128 ? rom48 : rom128, 0x4000);
 
     for( int i = 0; i < 16; ++i ) {
         uint16_t banklen;

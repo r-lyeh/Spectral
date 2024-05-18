@@ -1,4 +1,4 @@
-call makeopt -Dmain=WinMain -DFLAGS=FLAGS_REL %*
+call makeopt -Dmain=WinMain %*
 del ..\*.ilk 1> nul 2> nul
 del ..\*.pdb 1> nul 2> nul
 
