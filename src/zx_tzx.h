@@ -2,7 +2,7 @@
 // [ref] https://www.alessandrogrussu.it/loading/schemes/Schemes.html
 //
 // @todo
-// tzx(csw) starbike1, starbike2
+// csw starbike1, starbike2
 // tzx(gdb) basil great mouse, bc quest for tires, book of the dead part 1 (crl), dan dare 2 mekon, world cup carnival
 // tzx(flow) hollywood poker, bubble bobble (the hit squad)
 // tzx(noise) leaderboard par 3, tai-pan, wizball
@@ -10,6 +10,106 @@
 // tzx(???) bathyscape
 
 #include <stdbool.h>
+
+int csw_load(byte *fp, int len) {
+    return 0;
+
+    mic_reset();
+
+    if( len < 0x20 || memcmp(fp, "Compressed Square Wave\x1a", 0x17) )
+        return 0;
+
+    byte *eot = fp + len;
+
+    fp += 0x17;
+
+    byte major = *fp++;
+    byte minor = *fp++;
+    int version = major * 100 + minor;
+
+    dword rate = 0, pulses = 0;
+    byte comp = 0, flags = 0;
+
+    /**/ if( version == 101 ) {
+        rate  = (*fp++); rate |= (*fp++)*0x100;
+        comp = *fp++; // 1 rle
+        flags = *fp++;
+        fp += 3; // reserved
+    }
+    else if( version = 200 ) {
+        rate  = (*fp++);
+        rate |= (*fp++)*0x100;
+        rate |= (*fp++)*0x10000;
+        rate |= (*fp++)*0x1000000;
+
+        pulses  = (*fp++);
+        pulses |= (*fp++)*0x100;
+        pulses |= (*fp++)*0x10000;
+        pulses |= (*fp++)*0x1000000;
+
+        comp = *fp++; // 1 rle, 2 zrle
+        flags = *fp++;
+
+        byte hdr = *fp++;
+        fp += 16; // skip application description
+        fp += hdr; // skip header
+    }
+    else {
+        warning("error: unknown .csw version");
+        return 0;
+    }
+
+    if( comp != 0x1 ) {
+        warning("error: unsupported compression method");
+        return 0;
+    }
+
+    printf("rate:%u\n", rate);
+
+    int level = 0;
+
+    if( comp == 0x1 )
+    while( fp < eot ) {
+        unsigned p = *fp++;
+        if( p == 0 ) {
+            p  = (*fp++);
+            p |= (*fp++)*0x100;
+            p |= (*fp++)*0x10000;
+            p |= (*fp++)*0x1000000;
+        }
+
+        // '0' saved as a x2 pulses of 855 T. since 1T = 1/3500 ms
+        // '0' is saved in 2*0.244ms
+
+        // 22050 or 44100 Hz (158 or 79 T-states/sample)
+
+        // 5s DELAY_HEADER = 8063
+        // 2s DELAY_DATA = 3223
+
+        // normalize pulse to 69888 ticks
+        int64_t pulses = ( 69888 * p ) / rate;
+        int limit = PILOT * 1.5;
+
+        pulses += !pulses;
+
+        static int i = 0; if(++i < 1000) printf("%u->%u,",p,(unsigned)pulses);
+
+        while(pulses > 0) {
+            mic_render_polarity(level ? HIGH : LOW), level ^= 1;
+            mic_render_sync(limit);
+            pulses -= limit;
+        }
+        if(pulses) {
+            mic_render_polarity(level ? HIGH : LOW), level ^= 1;
+            mic_render_sync(-pulses);
+        }
+    }
+
+    // ... data
+
+    mic_finish();
+    return 1;
+}
 
 int tzx_load(byte *fp, int len) {
     mic_reset();
@@ -100,57 +200,127 @@ mic_queue_has_turbo = 1;
                 bits   = (*src++);
                 pause  = (*src++); pause  |= (*src++)*0x100;
                 bytes  = (*src++); bytes  |= (*src++)*0x100; bytes |= (*src++)*0x10000;
-                mic_render_data(src, bytes, bits, zero, one);
+                mic_render_data(src, bytes, bits, zero, one, 2);
                 mic_render_pause(pause);
 mic_queue_has_turbo = 1;
                 debug = va("bytes:%5u pause:%3ums 0:%3u 1:%4u bits:%u", bytes, pause, zero, one, bits);
                 src += bytes;
 
-            break; case 0x15: // @todo: Terrahawks(48K), DreddOverEels, Thanatos(Erbe)
-                blockname = "Voc";
-                src += 5;
-                bytes  = (*src++); bytes  |= (*src++)*0x100; bytes |= (*src++)*0x10000;
+            break; case 0x15: // @todo: Catacombs of Balachor, Dead by Dawn, zombo, amnesia, Terrahawks(48K),   Super Cold War Simulator, Touch My Spectrum, elfen, Overtake the Pope, Overtake the POPE 2, route66, boulder jumper, DreddOverEels, Thanatos(Erbe)
+                blockname = "VOC";
+
+                // spec says freq is 22050 or 44100 Hz (158 or 79 states/sample)
+                // however, i have found only 79 or 80 states/sample
+
+                unsigned states = (*src++); states |= (*src++)*0x100;
+                         pause  = (*src++); pause  |= (*src++)*0x100;
+                         bits   = (*src++);
+                         bytes  = (*src++); bytes  |= (*src++)*0x100; bytes |= (*src++)*0x10000;
+
+                debug = va("bytes:%u pause:%ums states/sample:%u bits:%u", bytes, pause, states, bits);
+
+                // our current mic code puts a sample on EAR every 4 t-states
+                // this freq is feeding 80 states/sample though. x20 times faster
+
+                // mic_render_data(src, bytes/10, bits, ZERO, ONE, 1);
+                for( int i = 0; i < bytes/10; ++i) {
+
+                }
+
+                mic_render_pause(pause);
+
                 src += bytes;
-            break; case 0x18: // @todo: OlimpoEnGuerra(Part2), CaseOfMurderA
-                blockname = "Csw";
+
+            break; case 0x18: // ignored. see all cases: OlimpoEnGuerra(Part2), CaseOfMurderA, AdvancedGretaThunbergSimulator
+                blockname = "CSW";
                 bytes  = (*src++); bytes  |= (*src++)*0x100; bytes |= (*src++)*0x10000; bytes |= (*src++)*0x1000000;
+                #if 0
+                pause  = (*src++); pause  |= (*src++)*0x100;
+
+                unsigned rate = (*src++); rate |= (*src++)*0x100; rate |= (*src++)*0x10000;
+                unsigned comp = (*src++); unsigned zipped = comp & 2;
+                pulses = (*src++); pulses |= (*src++)*0x100; pulses |= (*src++)*0x10000; pulses |= (*src++)*0x1000000;
+
+                byte *csw = src;
+                bytes -= 10;
+
+                warning(va("csw %srle found", zipped ? "z-":""));
+                #endif
                 src += bytes;
-            break; case 0x19: // @todo: BountyBobStrikesBack(Americana), NowotnikPuzzleThe, Twister-MotherOfCharlotte, AYankeeInIraqv132(TurboLoader)
+
+            break; case 0x19: // @todo: Basil, BountyBobStrikesBack(Americana), NowotnikPuzzleThe, Twister-MotherOfCharlotte, AYankeeInIraqv132(TurboLoader)
                 blockname = "generalizedData";
                 bytes  = (*src++); bytes  |= (*src++)*0x100; bytes |= (*src++)*0x10000; bytes |= (*src++)*0x1000000;
                 pause  = (*src++); pause  |= (*src++)*0x100;
 
                 unsigned totp  = (*src++); totp  |= (*src++)*0x100; totp |= (*src++)*0x10000; totp |= (*src++)*0x1000000;
                 unsigned npp = (*src++);
-                unsigned asp = (*src++);
+                unsigned asp = (*src++); asp += 256 * !asp;
                 unsigned totd  = (*src++); totd  |= (*src++)*0x100; totd |= (*src++)*0x10000; totd |= (*src++)*0x1000000;
                 unsigned npd = (*src++);
-                unsigned asd = (*src++);
-                if(totp>0) {
-                    for( unsigned i = 0; i < asp; ++i ) {
-                        unsigned level = (*src++);
-                        for( unsigned j = 0; j < npp; ++j ) {
-                            sync1 = (*src++); sync1 |= (*src++)*0x100;
-                            mic_render_sync(sync1);
-                        }
-                    }
-                    for( unsigned i = 0; i < totp; ++i ) {
-                        unsigned symbol = (*src++);
-                        count = (*src++); count |= (*src++)*0x100;
+                unsigned asd = (*src++); asd += 256 * !asd;
+
+                debug = va("bytes:%u, pause:%ums, totp:%u, npp:%u, asp:%u, totd:%u, npd:%u, asd:%u", bytes, pause, totp, npp, asp, totd, npd, asd);
+
+                // 6951 bytes [Turbo        ] bits:2 N:1020 P:2577 S1:1365 S2:315 0:616 1:1232 7460ms UUUUUUUUUU
+                printf("\ntzx.block %03d ($%02X)    GDB: totp:%u npp:%u asp:%u totd:%u npd:%u asd:%u", processed, id, totp, npp, asp, totd, npd, asd);
+
+                struct symdef {
+                    byte polarity;
+                    word pulses[256]; // [0..NPP] or [0..NPD]
+                } symdef_asp[256] = {0}, symdef_asd[256] = {0};
+
+                for( unsigned symb = 0; totp && symb < asp; ++symb) {
+                    struct symdef *s = symdef_asp + symb;
+
+                    s->polarity = (*src++);
+                    printf("\ntzx.block %03d ($%02X)    GDB: t[%d] +%u, ", processed, id, symb, s->polarity);
+                    for( unsigned i = 0; i < npp; ++i) {
+                        s->pulses[i] = (*src++); s->pulses[i] |= (*src++)*0x100;
+                        printf("p%u, ", s->pulses[i]);
                     }
                 }
-                if(totd>0) {
-                    for( unsigned i = 0; i < asd; ++i ) {
-                        unsigned level = (*src++);
-                        for( unsigned j = 0; j < npd; ++j ) {
-                            sync1 = (*src++); sync1 |= (*src++)*0x100;
-                            mic_render_sync(sync1);
+
+                for( unsigned i = 0; i < totp; ++i) {
+                    unsigned symb = (*src++);
+                    unsigned reps = (*src++); reps |= (*src++)*0x100;
+
+                    struct symdef *s = symdef_asp + symb;
+
+                    for( int j = 0; j < npp; ++j) {
+                        if( s->pulses[j] ) {
+                            mic_render_polarity(s->polarity);
+                            mic_render_pilot(reps, s->pulses[j]);
                         }
                     }
-                    for( unsigned i = 0; i < totd; ++i ) {
-                        unsigned symbol = (*src++);
-                        count = (*src++); count |= (*src++)*0x100;
+                }
+
+                for( unsigned symb = 0; totd && symb < asd; ++symb) {
+                    struct symdef *s = symdef_asd + symb;
+                    s->polarity = (*src++);
+                    printf("\ntzx.block %03d ($%02X)    GDB: d[%d] +%u, ", processed, id, symb, s->polarity);
+                    for( unsigned i = 0; i < npd; ++i) {
+                        s->pulses[i] = (*src++); s->pulses[i] |= (*src++)*0x100;
+                        printf("p%u, ", s->pulses[i]);
                     }
+                }
+
+                puts("");
+
+                unsigned NB = ceil(log2(asd));
+                unsigned DS = ceil(NB*totd/8);
+
+                while( DS-- ) {
+                    byte data = (*src++);
+
+                    int zero = symdef_asd[0].pulses[0];
+                    int one = symdef_asd[1].pulses[0];
+
+                    // @fixme: apply polarity per bit, not byte
+                    mic_render_polarity(symdef_asd[0].polarity);
+                    mic_render_data(&data, 1, NB > 8 ? 8 : NB, zero, one, 2);
+
+                    NB -= 8;
                 }
 
             break; case 0x20: // OK(0) // TheMunsters
@@ -206,10 +376,67 @@ mic_queue_has_turbo = 1;
                 blockname = "return";
                 src += 0;
 
-            break; case 0x28: // IGNORED: LoneWolf3-TheMirrorOfDeath
+            break; case 0x28: // can be ignored: LoneWolf-TheMirrorOfDeath.tzx, HitPakTrio-Side1(Zafiro).tzx, Multimixx4-SideB.tzx, ColeccionDeExitosDinamic*.tzx
                 blockname = "select";
                 count  = (*src++); count  |= (*src++)*0x100;
                 src += count;
+
+#if 1 // HAS_PROMPT
+                src -= count;
+
+                byte selections = *src++;
+                uint16_t offsets[256] = {0};
+
+                char body[1024] = {0}, *ptr = body;
+                for( byte i = 0; i < selections; ++i ) {
+                    offsets[i] = (*src++); offsets[i] |= (*src++) * 0x100;
+                    byte len = (*src++);
+                    ptr += sprintf(ptr, "%d) %.*s\n", i+1, len, src);
+                    src += len;
+                }
+                char* answer = prompt( NULL, "Select block", body, "1" );
+
+                int selection = answer ? atoi(answer) : 0;
+                if( selection > 0 && selection <= selections ) {
+                    unsigned num_skipped_blocks = offsets[--selection] - 1;
+                    while( num_skipped_blocks-- > 0 ) {
+                        #define READ1(p) (src[p])
+                        #define READ2(p) (src[(p)+1] * 0x100 + src[p])
+                        #define READ3(p) (src[(p)+2] * 0x10000 + READ2(p))
+                        #define READ4(p) (src[(p)+3] * 0x1000000 + READ3(p))
+                        switch( *src++ ) { default:
+                        break; case 0x10: src += 0x04 + READ2(2);
+                        break; case 0x11: src += 0x12 + READ3(0xF);
+                        break; case 0x12: src += 0x04 ;
+                        break; case 0x13: src += 0x01 + READ1(0) * 2;
+                        break; case 0x14: src += 0x0A + READ3(7);
+                        break; case 0x15: src += 0x08 + READ3(5);
+                        break; case 0x18: src += 0x04 + READ4(0);
+                        break; case 0x19: src += 0x04 + READ4(0);
+
+                        break; case 0x20: src += 0x02;
+                        break; case 0x21: src += 0x01 + READ1(0);
+                        break; case 0x22: src += 0x00;
+                        break; case 0x23: src += 0x02;
+                        break; case 0x24: src += 0x02;
+                        break; case 0x25: src += 0x00;
+                        break; case 0x26: src += 0x02 + READ2(0) * 2;
+                        break; case 0x27: src += 0x00;
+                        break; case 0x28: src += 0x02 + READ2(0);
+                        break; case 0x2A: src += 0x04;
+                        break; case 0x2B: src += 0x05;
+
+                        break; case 0x30: src += 0x01 + READ1(0);
+                        break; case 0x31: src += 0x02 + READ1(1);
+                        break; case 0x32: src += 0x02 + READ2(0);
+                        break; case 0x33: src += 0x01 + READ1(0) * 3;
+                        break; case 0x35: src += 0x14 + READ4(0x10);
+
+                        break; case 0x5A: src += 0x09;
+                        }
+                    }
+                }
+#endif
 
             break; case 0x2A: // OK(0)
                 blockname = "48KStopTape"; 

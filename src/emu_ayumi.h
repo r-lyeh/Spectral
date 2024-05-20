@@ -273,7 +273,7 @@ void ayumi_set_noise(struct ayumi* ay, int period) {
 void ayumi_set_mixer(struct ayumi* ay, int index, int t_off, int n_off, int e_on) {
   ay->channels[index].t_off = t_off & 1;
   ay->channels[index].n_off = n_off & 1;
-  ay->channels[index].e_on = e_on;
+  ay->channels[index].e_on = e_on & 1; //< @r-lyeh: added &1
 }
 
 void ayumi_set_volume(struct ayumi* ay, int index, int volume) {

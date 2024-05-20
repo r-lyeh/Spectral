@@ -7,26 +7,27 @@ static void *p = 0;
 //#define freadnum(n) (fread(p = realloc(p, (n)), 1, (n), fp), p)
 
 int rom_load(const byte *src, int len) { // interface2 cartridge
-    if( src && len == 16384 ) {
-        reset(48);
-        /*
-        page128 &= ~32;
-        port_0x7ffd(32|16);
-        */
-        ZXBorderColor = 0;
-        PC(cpu) = 0;
-        memcpy(rom, src, len);
-        return 1;
-    }
-    return 0;
+    if(!( src && (len == 16384 || len == 32768 || len == 65536) )) 
+        return 0;
+
+    boot(len > 32768 ? 210 : len > 16384 ? 128 : 48, 0); // @fixme: needed?
+    /*
+    page128 &= ~32;
+    port_0x7ffd(32|16);
+    */
+    ZXBorderColor = 0;
+    PC(cpu) = 0;
+    memcpy(rom, src, len);
+    pins = z80_prefetch(&cpu, cpu.pc);
+    return 1;
 }
 
 int scr_load(const byte *src, int len) { // screenshot
     if(len != 6912) return 0; // @fixme: 6912+64 for ulaplus+ screen$
 #if 0
-    reset(48);
+    //boot(48, 0);
 #else
-    reset(48);
+    //boot(48, 0);
     /*
     page128 &= ~32;
     port_0x7ffd(32|16);
@@ -36,6 +37,8 @@ int scr_load(const byte *src, int len) { // screenshot
 #endif
     memcpy(rom, "\xF3\x00\x00\x76\x00\x00\x00", 7); // di, nop2, halt, nop3
     memcpy(VRAM, src, 6912);
+
+    pins = z80_prefetch(&cpu, cpu.pc);
     return 1;
 }
 
@@ -59,7 +62,7 @@ int sna_load(const byte *src, int size) {
     */
     if( size != 49179 && size != 131103 && size != 147487 ) return 0;
 
-reset(size == 49179 ? 48 : 128);
+//boot(size == 49179 ? 48 : 128, 0);
     page128 = 0; port_0x7ffd(32|16);
 
     I(cpu) = mread8();
@@ -103,6 +106,13 @@ reset(size == 49179 ? 48 : 128);
             if( i == 2 || i == 5 || i == page ) continue;
             memcpy(RAM_BANK(i), mreadnum(16384), 16384);
         }
+
+#if 0
+        // amend some games that rely on AY, which cannot be not saved in .sna format
+        // see: tai-pan 128k (title screen)
+        if(1) ay_registers[7] = 0x00b8;
+        if(1) ay_registers[15] = 0x00e5;
+#endif
     }
     else {
         // Rui Ribeiro's fix as seen in CSS FAQ
@@ -127,9 +137,10 @@ reset(size == 49179 ? 48 : 128);
     outport(0xFE, ZXBorderColor);
 
 #if DEV
-//    regs("sna_load");
+//    puts(regs("sna_load"));
 #endif
 
+    pins = z80_prefetch(&cpu, cpu.pc);
     return 1;
 }
 
@@ -169,7 +180,52 @@ void z80_unrle(int type, byte *dest, const byte* src, int len) {
         if (type == Z80V2_RLE) if(count>=limit) return;
     }
 }
+int z80_guess(const byte *source_, int len) {
+    byte buffer[86+10], ver = 0;
+    memcpy(buffer, source_, 87);
 
+    if( buffer[12]==255 ) buffer[12]=1; /*as told in CSS FAQ / .z80 section */
+
+    unsigned pc = buffer[7]<<8|buffer[6];
+    if(! pc ) {
+        pc = buffer[33]<<8|buffer[32];
+        if( !strchr("\x17\x36\x37", buffer[30]) )
+            warning(va(".z80 unknown version: %d\n", buffer[30]));
+        ver = buffer[30] == 0x17 ? 2 : 3;
+    }
+
+    if( ver < 2 ) {
+        return 48;
+    }
+
+    // common extended values (v2+v3)
+    /**/ if(buffer[34]== 7) return buffer[37]&0x80 ? 210 : 300; //OK!
+    else if(buffer[34]== 8) return buffer[37]&0x80 ? 210 : 300; //OK!
+    else if(buffer[34]== 9) return warning(va(".z80 submodel not supported: %d (Pentagon 128K)", buffer[34])), 128; // Pentagon 128k
+    else if(buffer[34]==10) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // Scorpion 256k
+    else if(buffer[34]==11) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // Didaktik-Kompakt
+    else if(buffer[34]==12) return 200; //OK!
+    else if(buffer[34]==13) return 210; //OK!
+    else if(buffer[34]==14) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // TC2048
+    else if(buffer[34]==15) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // TC2068
+    else if(buffer[34]==16) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // TS2068
+    else {
+    // v2 hw, v3 hw or Unknown hardware
+    /**/ if(buffer[34]== 0 && ver>=2) return buffer[37]&0x80 ? 16 : 48; //OK!
+    else if(buffer[34]== 1 && ver>=2) return buffer[37]&0x80 ? 16 : 48; //MISSING 48+IF1
+    else if(buffer[34]== 2 && ver>=2) return buffer[37]&0x80 ? 16 : 48; //MISSING 48+SAMRAM
+    else if(buffer[34]== 3 && ver>=2) return buffer[37]&0x80 ?200 :128; //OK!
+    else if(buffer[34]== 4 && ver>=2) return buffer[37]&0x80 ?200 :128; //MISSING 128+IF1:
+    else if(buffer[34]== 0 && ver!=2) return buffer[37]&0x80 ? 16 : 48; //OK!
+    else if(buffer[34]== 1 && ver!=2) return buffer[37]&0x80 ? 16 : 48; //MISSING 16+IF1 & 48+IF1:
+    else if(buffer[34]== 2 && ver!=2) return buffer[37]&0x80 ? 16 : 48; //MISSING 16+SAMRAM & 48+SAMRAM
+    else if(buffer[34]== 3 && ver!=2) return buffer[37]&0x80 ? 16 : 48; //MISSING 16+MGT & 48+MGT:
+    else if(buffer[34]== 4 && ver!=2) return buffer[37]&0x80 ?200 :128; //OK!
+    else if(buffer[34]== 5 && ver!=2) return buffer[37]&0x80 ?200 :128; //MISSING +2+IF1 & 128+IF1 :
+    else if(buffer[34]== 6 && ver!=2) return buffer[37]&0x80 ?200 :128; //MISSING 128 + MGT:
+    else                              return 48;
+    }
+}
 int z80_load(const byte *source_, int len) {
     int f, tam, sig;
     byte buffer[86+10], pag, ver = 0, ver_rle = 0;
@@ -182,23 +238,17 @@ int z80_load(const byte *source_, int len) {
 
     // Check file version
     unsigned pc = buffer[7]<<8|buffer[6];
-    if(! pc ) {
+    if( !pc ) {
         pc = buffer[33]<<8|buffer[32];
-        switch( buffer[30] ) {
-            case 23:   ver = 2; break;
-            default:   warning(va(".z80 unknown version: %d\n", buffer[30])); // ?
-            case 54: 
-            case 55:   ver = 3; break;
-        }
+        ver = buffer[30] == 23 ? 2 : 3;
     }
 
-    // Reset + Config pages
+    // Config pages
     if( ver < 2 ) {
-        reset(48);
-
         // .z80 v1.45 or earlier
         source=source_; source+=30;
 
+        // 48K only
         char *pages3 = malloc(0x4000*3);
         z80_unrle((buffer[12] & 0x20 ? Z80V1_RLE : Z80V1_RAW), pages3, source, 0);
         memcpy(RAM_BANK(5), pages3+0x4000*0, 0x4000);
@@ -208,33 +258,6 @@ int z80_load(const byte *source_, int len) {
     } else {
 
         // common extended values (v2+v3)
-        /**/ if(buffer[34]== 7) reset(buffer[37]&0x80 ? 210 : 300); //OK!
-        else if(buffer[34]== 8) reset(buffer[37]&0x80 ? 210 : 300); //OK!
-        else if(buffer[34]== 9) warning(va(".z80 submodel not supported: %d (Pentagon 128K)", buffer[34])), reset(128); // Pentagon 128k
-        else if(buffer[34]==10) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // Scorpion 256k
-        else if(buffer[34]==11) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // Didaktik-Kompakt
-        else if(buffer[34]==12) reset(200); //OK!
-        else if(buffer[34]==13) reset(210); //OK!
-        else if(buffer[34]==14) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // TC2048
-        else if(buffer[34]==15) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // TC2068
-        else if(buffer[34]==16) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // TS2068
-        else {
-        // v2 hw, v3 hw or Unknown hardware
-        /**/ if(buffer[34]== 0 && ver>=2) reset(buffer[37]&0x80 ? 16 : 48); //OK!
-        else if(buffer[34]== 1 && ver>=2) reset(buffer[37]&0x80 ? 16 : 48); //MISSING 48+IF1
-        else if(buffer[34]== 2 && ver>=2) reset(buffer[37]&0x80 ? 16 : 48); //MISSING 48+SAMRAM
-        else if(buffer[34]== 3 && ver>=2) reset(buffer[37]&0x80 ?200 :128); //OK!
-        else if(buffer[34]== 4 && ver>=2) reset(buffer[37]&0x80 ?200 :128); //MISSING 128+IF1:
-        else if(buffer[34]== 0 && ver!=2) reset(buffer[37]&0x80 ? 16 : 48); //OK!
-        else if(buffer[34]== 1 && ver!=2) reset(buffer[37]&0x80 ? 16 : 48); //MISSING 16+IF1 & 48+IF1:
-        else if(buffer[34]== 2 && ver!=2) reset(buffer[37]&0x80 ? 16 : 48); //MISSING 16+SAMRAM & 48+SAMRAM
-        else if(buffer[34]== 3 && ver!=2) reset(buffer[37]&0x80 ? 16 : 48); //MISSING 16+MGT & 48+MGT:
-        else if(buffer[34]== 4 && ver!=2) reset(buffer[37]&0x80 ?200 :128); //OK!
-        else if(buffer[34]== 5 && ver!=2) reset(buffer[37]&0x80 ?200 :128); //MISSING +2+IF1 & 128+IF1 :
-        else if(buffer[34]== 6 && ver!=2) reset(buffer[37]&0x80 ?200 :128); //MISSING 128 + MGT:
-        else                              reset(48);
-        }
-
         if(ZX>=128) {
             //  if the word [30] is 23:
             for(int psg=0;psg<16;psg++) { port_0xfffd(psg); port_0xbffd(buffer[39+psg]); }
@@ -319,12 +342,18 @@ if (tam==65535) sig-=49151;
 
     outport(0xFE, ZXBorderColor);
 
+#if 1 // def NEWCORE
+    AF(cpu) = _byteswap_ushort(AF(cpu));
+    AF2(cpu) = _byteswap_ushort(AF2(cpu));
+#endif
+
     printf("z80 v%d (rle:%d) (machine:%d)\n", ver, ver_rle, buffer[34]);
 
 #if DEV
-//    regs("z80_load");
+//    puts(regs("z80_load"));
 #endif
 
+    pins = z80_prefetch(&cpu, cpu.pc);
     return 1;
 }
 
@@ -372,9 +401,32 @@ int pok_load(const byte *src, int len) {
         if( bank & 8 )
         WRITE8(addr, val);
         else
-        RAM_BANK(bank&7)[addr & 0x3FFF] = val; 
+        RAM_BANK(bank&7)[addr & 0x3FFF] = val;
     }
 
     puts(".pok error");
     return 0;
+}
+
+int guess(byte *ptr, int size) { // guess required model type for given data
+    // dsk first
+    if( !memcmp(ptr, "MV - CPC", 8) || !memcmp(ptr, "EXTENDED", 8) ) return 300;
+
+    // tapes first
+    if( !memcmp(ptr, "ZXTape!\x1a", 8) ) return ZX;
+    if( !memcmp(ptr, "\x13\x00", 2) ) return ZX;
+    if( !memcmp(ptr, "Compressed Square Wave\x1a", 0x17) ) return ZX;
+
+    // headerless fixed-size formats now, sorted by ascending file size.
+    if( size == 6912 ) return 48;
+    if( size == 16384 ) return 48;
+    if( size == 32768 ) return 128;
+    if( size == 65536 ) return 210;
+    if( size == 49179 ) return 48;
+    if( size == 131103 ) return 128;
+    if( size == 147487 ) return 128;
+
+    // headerless variable-size formats now
+    if( *ptr == 'N' ) return ZX;
+    return z80_guess(ptr, size);
 }

@@ -4,8 +4,7 @@ Sinclair ZX Spectrum emulator from the 80s.
 ![image](https://github.com/r-lyeh/spectral/assets/35402248/8ae5f8d4-0a7c-41ee-9112-2e86bacdb262)
 
 ## About
-Spectral is an experimental emulator that I have been randomly assembling [since the pandemic days](https://twitter.com/r_rlyeh/status/1280964279903158273), inspired by my old fZX32 emulator.
-Hardcore ZX users will find little value in this emulator right now, but I hope newbies may find its ease of use somehow appealing to try.
+Spectral is an experimental emulator that I have been randomly assembling [since the pandemic days](https://twitter.com/r_rlyeh/status/1280964279903158273), inspired by my old fZX32 emulator. Accuracy and performance are long-term goals, but the primary focus is just having fun with this thing. Hardcore ZX users will find little value in this emulator right now, but I hope newbies may find its ease of use somehow appealing to try.
 That being said, Spectral has a very compatible TAP/TZX loader and some other interesting features that provide me some fun in these days.
 Code is highly experimental and prone to change in the future. I will keep altering/breaking things randomly for good sake.
 
@@ -17,7 +16,7 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - [x] ULA/ULA+.
 - [x] Beeper/AY.
 - [x] Kempston mouse. <!-- @todo: AMX mouse.-->
-- [x] Kempston/Fuller/Cursor joysticks.
+- [x] Kempston/Fuller/Cursor/Sinclair joysticks.
 - [x] RF/CRT experience (not physically accurate though).
 - [x] TAP/TZX/DSK/Z80/SNA/ROM/IF2/SCR/ZIP support. <!-- @todo: tzx info on window title -->
 - [x] SCR/PNG screenshots. <!-- ulaplus screenshots. video recording -->

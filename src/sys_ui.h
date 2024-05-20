@@ -14,6 +14,15 @@
 }
 
 #define JOYSTICK_ICON MAKE_ICON(1, \
+    00011000, \
+    00111100, \
+    00110100, \
+    00011000, \
+    00011000, \
+    01111110, \
+    11111111, \
+    01111110)
+/*
     00011100, \
     00011100, \
     00011100, \
@@ -22,6 +31,7 @@
     01101000, \
     01111110, \
     01111110)
+*/
 
 #define PLAY_ICON MAKE_ICON(2, \
     00100000, \
@@ -106,7 +116,7 @@
     00000000, \
     00000000)
 
-#define EJECT_ICON MAKE_ICON(0xC, \
+#define EJECT_ICON MAKE_ICON(0xE, \
     00000000, \
     00010000, \
     00111000, \
@@ -116,7 +126,7 @@
     11111110, \
     00000000)
 
-#define REVPLAY_ICON MAKE_ICON(0xE, \
+#define REVPLAY_ICON MAKE_ICON(0xF, \
     00000100, \
     00001100, \
     00011100, \
@@ -148,6 +158,7 @@ TV_ICON, BELL_ICON, BACKSPACE_ICON, MOUSE_ICON, GUN_ICON, EJECT_ICON, REVPLAY_IC
 
 const uint64_t bescii_bit[][2] = {
 CUSTOM_ICONS,
+#if 0 // bescii main charset (cpc) - numbers, symbols
 {0x0020,0x0000000000000000},{0x0021,0x1818181818001800},{0x0022,0x3636240000000000},{0x0023,0x6c6cfe6cfe6c6c00},
 {0x0024,0x107cd07c167c1000},{0x0025,0x00666c1830664600},{0x0026,0x386c3876dccc7600},{0x0027,0x1818100000000000},
 {0x0028,0x0c18303030180c00},{0x0029,0x30180c0c0c183000},{0x002a,0x00663cff3c660000},{0x002b,0x000018187e181800},
@@ -156,6 +167,17 @@ CUSTOM_ICONS,
 {0x0034,0x1c3c6cccfe0c0c00},{0x0035,0x7e66607c06663c00},{0x0036,0x3c66607c66663c00},{0x0037,0x7e66060c18181800},
 {0x0038,0x3c66663c66663c00},{0x0039,0x3c66663e06663c00},{0x003a,0x0000001800180000},{0x003b,0x0000001800181830},
 {0x003c,0x00000c1830180c00},{0x003d,0x0000007c007c0000},{0x003e,0x000030180c183000},{0x003f,0x3c66060c18001800},
+#else // master main charset (bbc micro) - numbers, symbols
+{0x0020,0x0000000000000000},{0x0021,0x1818181818001800},{0x0022,0x6c6c6c0000000000},{0x0023,0x36367f367f363600},
+{0x0024,0x0c3f683e0b7e1800},{0x0025,0x60660c1830660600},{0x0026,0x386c6c386d663b00},{0x0027,0x0c18300000000000},
+{0x0028,0x0c18303030180c00},{0x0029,0x30180c0c0c183000},{0x002a,0x00187e3c7e180000},{0x002b,0x0018187e18180000},
+{0x002c,0x0000000000181830},{0x002d,0x0000007e00000000},{0x002e,0x0000000000181800},{0x002f,0x00060c1830600000},
+{0x0030,0x3c666e7e76663c00},{0x0031,0x1838181818187e00},{0x0032,0x3c66060c18307e00},{0x0033,0x3c66061c06663c00},
+{0x0034,0x0c1c3c6c7e0c0c00},{0x0035,0x7e607c0606663c00},{0x0036,0x1c30607c66663c00},{0x0037,0x7e060c1830303000},
+{0x0038,0x3c66663c66663c00},{0x0039,0x3c66663e060c3800},{0x003a,0x0000181800181800},{0x003b,0x0000181800181830},
+{0x003c,0x0c18306030180c00},{0x003d,0x00007e007e000000},{0x003e,0x30180c060c183000},{0x003f,0x3c660c1818001800},
+#endif
+#if 0 // bescii main charset (cpc) - ABC
 {0x0040,0x7cc6ded6dcc07c00},{0x0041,0x183c66667e666600},{0x0042,0x7c66667c66667c00},{0x0043,0x3c66606060663c00},
 {0x0044,0x7c66666666667c00},{0x0045,0x7e60607860607e00},{0x0046,0x7e60607860606000},{0x0047,0x3c66606e66663c00},
 {0x0048,0x6666667e66666600},{0x0049,0x3c18181818183c00},{0x004a,0x0e06060606663c00},{0x004b,0x66666c786c666600},
@@ -164,6 +186,17 @@ CUSTOM_ICONS,
 {0x0054,0x7e18181818181800},{0x0055,0x6666666666663c00},{0x0056,0x66666666663c1800},{0x0057,0xc6c6c6d6d6fe6c00},
 {0x0058,0x66663c183c666600},{0x0059,0x6666663c18181800},{0x005a,0x7e060c1830607e00},{0x005b,0x3c30303030303c00},
 {0x005c,0x406030180c060200},{0x005d,0x3c0c0c0c0c0c3c00},{0x005e,0x183c660000000000},{0x005f,0x000000000000ff00},
+#else // master main charset (bbc micro) - ABC
+{0x0040,0x3c666e6a6e603c00},{0x0041,0x3c66667e66666600},{0x0042,0x7c66667c66667c00},{0x0043,0x3c66606060663c00},
+{0x0044,0x786c6666666c7800},{0x0045,0x7e60607c60607e00},{0x0046,0x7e60607c60606000},{0x0047,0x3c66606e66663c00},
+{0x0048,0x6666667e66666600},{0x0049,0x7e18181818187e00},{0x004a,0x3e0c0c0c0c6c3800},{0x004b,0x666c7870786c6600},
+{0x004c,0x6060606060607e00},{0x004d,0x63777f6b6b636300},{0x004e,0x6666767e6e666600},{0x004f,0x3c66666666663c00},
+{0x0050,0x7c66667c60606000},{0x0051,0x3c6666666a6c3600},{0x0052,0x7c66667c6c666600},{0x0053,0x3c66603c06663c00},
+{0x0054,0x7e18181818181800},{0x0055,0x6666666666663c00},{0x0056,0x66666666663c1800},{0x0057,0x63636b6b7f776300},
+{0x0058,0x66663c183c666600},{0x0059,0x6666663c18181800},{0x005a,0x7e060c1830607e00},{0x005b,0x7c60606060607c00},
+{0x005c,0x006030180c060000},{0x005d,0x3e06060606063e00},{0x005e,0x183c664200000000},{0x005f,0x00000000000000ff},
+#endif
+#if 0 // bescii main charset (cpc) - abc
 {0x0060,0x1008000000000000},{0x0061,0x00003c063e663e00},{0x0062,0x60607c6666667c00},{0x0063,0x00003c6660663c00},
 {0x0064,0x06063e6666663e00},{0x0065,0x00003c667e603c00},{0x0066,0x3c6660f860606000},{0x0067,0x00003e66663e063c},
 {0x0068,0x60607c6666666600},{0x0069,0x1800181818180c00},{0x006a,0x1800381818181870},{0x006b,0x6060666c786c6600},
@@ -171,7 +204,18 @@ CUSTOM_ICONS,
 {0x0070,0x00007c66667c6060},{0x0071,0x00003e66663e0606},{0x0072,0x00007c6660606000},{0x0073,0x00003c603c063c00},
 {0x0074,0x30307c3030301c00},{0x0075,0x0000666666663e00},{0x0076,0x00006666663c1800},{0x0077,0x0000c6c6d6d66c00},
 {0x0078,0x0000663c183c6600},{0x0079,0x00006666663e063c},{0x007a,0x00007e0c18307e00},{0x007b,0x0c18183018180c00},
-{0x007c,0x1818181818181818},{0x007d,0x3018180c18183000},{0x007e,0x000000003a6e0000},{0x00a0,0x0000000000000000},
+{0x007c,0x1818181818181818},{0x007d,0x3018180c18183000},{0x007e,0x000000003a6e0000},
+#else // master main charset (bbc micro) - abc
+{0x0060,0x30180c0000000000},{0x0061,0x00003c063e663e00},{0x0062,0x60607c6666667c00},{0x0063,0x00003c6660663c00},
+{0x0064,0x06063e6666663e00},{0x0065,0x00003c667e603c00},{0x0066,0x1c30307c30303000},{0x0067,0x00003e66663e063c},
+{0x0068,0x60607c6666666600},{0x0069,0x1800381818183c00},{0x006a,0x1800381818181870},{0x006b,0x6060666c786c6600},
+{0x006c,0x3818181818183c00},{0x006d,0x0000367f6b6b6300},{0x006e,0x00007c6666666600},{0x006f,0x00003c6666663c00},
+{0x0070,0x00007c66667c6060},{0x0071,0x00003e66663e0607},{0x0072,0x00006c7660606000},{0x0073,0x00003e603c067c00},
+{0x0074,0x30307c3030301c00},{0x0075,0x0000666666663e00},{0x0076,0x00006666663c1800},{0x0077,0x0000636b6b7f3600},
+{0x0078,0x0000663c183c6600},{0x0079,0x00006666663e063c},{0x007a,0x00007e0c18307e00},{0x007b,0x0c18187018180c00},
+{0x007c,0x1818181818181800},{0x007d,0x3018180e18183000},{0x007e,0x316b460000000000},
+#endif
+{0x00a0,0x0000000000000000},
 {0x00a1,0x0018001818181818},{0x00a2,0x00083e6868683e08},{0x00a3,0x3c6660f86060fe00},{0x00a4,0x00423c66663c4200},
 {0x00a5,0x66663c183c181800},{0x00a6,0x1818180000181818},{0x00a7,0x3c607c663e063c00},{0x00a8,0x2400000000000000},
 {0x00a9,0x38449aa29a443800},{0x00aa,0x060a060000000000},{0x00ab,0x0000366cd86c3600},{0x00ac,0x0000007e06060000},
@@ -365,7 +409,7 @@ CUSTOM_ICONS,
 };
 
 #define theFont bescii_bit // CC1.0
-enum { theFontW = 8, theFontH = 8, theFontPaddingW = 0, theFontPaddingH = 0, theFontLineSpacing = 4 };
+enum { theFontW = 8, theFontH = 8, theFontPaddingW = -1, theFontPaddingH = 0, theFontLineSpacing = 4 };
 
 const char *extract_utf32(const char *s, unsigned *out) {
     /**/ if( (s[0] & 0x80) == 0x00 ) return *out = (s[0]), s + 1;
@@ -383,6 +427,8 @@ const char* codepoint_to_utf8(unsigned c) { //< @r-lyeh
     else if (c < 0x110000) s[0] = 0xF0 | ((c >> 18) & 0x07), s[1] = 0x80 | ((c >> 12) & 0x3F), s[2] = 0x80 | ((c >>  6) & 0x3F), s[3] = 0x80 | (c & 0x3F), s[4] = 0;
     return s;
 }
+
+int ui_outline;
 
 int ui_print_glyph8x8(Tigr *ui, int ui_x, int ui_y, const rgba *colors, uint64_t bits) {
     // early clips
@@ -423,16 +469,39 @@ int ui_print_glyph8x8(Tigr *ui, int ui_x, int ui_y, const rgba *colors, uint64_t
 
     rgba *texture = &((rgba*)ui->pix)[ui_x + ui_y * _320];
 
+    // outline
+
+    if( ui_outline ) {
+    int ybak = y;
+
     for( ; y < h; ++y, texture += _320 ) {
         unsigned y64 = (7 - y) * 8; // will loop 56,48,40,32,24,16,8,0 
-        if(bits & (0x80ULL << y64)) texture[_320+1+0] = colors[0], texture[0] = colors[1];
-        if(bits & (0x40ULL << y64)) texture[_320+1+1] = colors[0], texture[1] = colors[1];
-        if(bits & (0x20ULL << y64)) texture[_320+1+2] = colors[0], texture[2] = colors[1];
-        if(bits & (0x10ULL << y64)) texture[_320+1+3] = colors[0], texture[3] = colors[1];
-        if(bits & (0x08ULL << y64)) texture[_320+1+4] = colors[0], texture[4] = colors[1];
-        if(bits & (0x04ULL << y64)) texture[_320+1+5] = colors[0], texture[5] = colors[1];
-        if(bits & (0x02ULL << y64)) texture[_320+1+6] = colors[0], texture[6] = colors[1];
-        if(bits & (0x01ULL << y64)) texture[_320+1+7] = colors[0], texture[7] = colors[1];
+        if(bits & (0x80ULL << y64)) texture[_319+0] = texture[1/*_321+0*/] = texture[-_321+0] = texture[-_319+0] = colors[0];
+        if(bits & (0x40ULL << y64)) texture[_319+1] = texture[2/*_321+1*/] = texture[-_321+1] = texture[-_319+1] = colors[0];
+        if(bits & (0x20ULL << y64)) texture[_319+2] = texture[3/*_321+2*/] = texture[-_321+2] = texture[-_319+2] = colors[0];
+        if(bits & (0x10ULL << y64)) texture[_319+3] = texture[4/*_321+3*/] = texture[-_321+3] = texture[-_319+3] = colors[0];
+        if(bits & (0x08ULL << y64)) texture[_319+4] = texture[5/*_321+4*/] = texture[-_321+4] = texture[-_319+4] = colors[0];
+        if(bits & (0x04ULL << y64)) texture[_319+5] = texture[6/*_321+5*/] = texture[-_321+5] = texture[-_319+5] = colors[0];
+        if(bits & (0x02ULL << y64)) texture[_319+6] = texture[7/*_321+6*/] = texture[-_321+6] = texture[-_319+6] = colors[0];
+        if(bits & (0x01ULL << y64)) texture[_319+7] = texture[8/*_321+7*/] = texture[-_321+7] = texture[-_319+7] = colors[0];
+    }
+
+    texture -= _320 * (h - ybak);
+    y = ybak;
+    }
+
+    // shadow
+
+    for( ; y < h; ++y, texture += _320 ) {
+        unsigned y64 = (7 - y) * 8; // will loop 56,48,40,32,24,16,8,0 
+        if(bits & (0x80ULL << y64)) texture[_321+0] = colors[0], texture[0] = colors[1];
+        if(bits & (0x40ULL << y64)) texture[_321+1] = colors[0], texture[1] = colors[1];
+        if(bits & (0x20ULL << y64)) texture[_321+2] = colors[0], texture[2] = colors[1];
+        if(bits & (0x10ULL << y64)) texture[_321+3] = colors[0], texture[3] = colors[1];
+        if(bits & (0x08ULL << y64)) texture[_321+4] = colors[0], texture[4] = colors[1];
+        if(bits & (0x04ULL << y64)) texture[_321+5] = colors[0], texture[5] = colors[1];
+        if(bits & (0x02ULL << y64)) texture[_321+6] = colors[0], texture[6] = colors[1];
+        if(bits & (0x01ULL << y64)) texture[_321+7] = colors[0], texture[7] = colors[1];
     }
     return 1;
 }
@@ -446,10 +515,14 @@ int ui_print_glyph(Tigr *ui, int ui_x, int ui_y, const rgba *colors, uint64_t ui
     return 0;
 }
 
-int ui_print(Tigr *ui, int ui_x, int ui_y, const rgba *colors, uint64_t ui_invert, const char *utf8) {
+int ui_print(Tigr *ui, int ui_x, int ui_y, const rgba *colors, const char *utf8) {
+    uint64_t ui_invert = 0;
     unsigned copyx = ui_x, copyy = ui_y;
     unsigned yqueue = 0, xmax = 0, ui_cr = ui_x;
     while( *utf8 ) {
+        if( *utf8 == '~' ) { ui_invert ^= ~0uLL, ++utf8; continue; } // special code: invert bitmask
+        if( *utf8 == '\f') { ++ui_x; ++utf8; continue; }
+
         int lf = *utf8 == '\n';
         int cr = *utf8 == '\r' || lf;
         int bs = *utf8 == '\b';
@@ -485,7 +558,7 @@ void ui_frame() {
     extern Tigr *app;
     tigrMouse(app, &ui_mx, &ui_my, &ui_mb);
 
-#if 1 // adjust mouse coords when shader for CRT distortion is applied
+#if 1 // adjust mouse coords when shader for CRT distortion is applied. move to sys_input.h
     extern int ZX_CRT;
     if( ZX_CRT ) {
         const float CURVATURE = 8.2f; // must match value in fxShader
@@ -527,22 +600,19 @@ void ui_at(Tigr *layer, int x, int y) {
 }
 
 void ui_notify(const char *utf8) {
-    int dims = ui_print(0, 0, 0, NULL, 0, utf8);
+    int dims = ui_print(0, 0, 0, NULL, utf8);
     int w = dims & 0xFFFF;
     int h = dims >> 16;
-    ui_print(ui_layer, (_320-w)/2, _240-(theFontH+theFontPaddingH)*2, ui_colors, *utf8 == '~' ? ~0ULL : 0ULL, utf8 + (*utf8 == '~'));
+    ui_print(ui_layer, (_320-w)/2, _240-(theFontH+theFontPaddingH)*2, ui_colors, utf8);
 }
 
 int ui_button(const char *hint8, const char *utf8) {
-    // special codes: `~` to invert bitmask
-    uint64_t invert = *utf8 == '~' ? ~0ULL : 0ULL; utf8 += !!invert;
-
 #if 0
     tigrPrint(ui_layer, tfont, ui_x, ui_y, "%s", utf8);
     int w = tigrTextWidth(tfont, utf8);
     int h = tigrTextHeight(tfont, utf8);
 #else
-    int dims = ui_print(ui_layer, ui_x, ui_y, ui_colors, invert, utf8);
+    int dims = ui_print(ui_layer, ui_x, ui_y, ui_colors, utf8);
     int w = dims & 0xFFFF;
     int h = dims >> 16;
     // debug:
@@ -569,6 +639,8 @@ int ui_button(const char *hint8, const char *utf8) {
 
     int nl = 0;
     while( *utf8 ) {
+        if( *utf8 == '~' ) { ++utf8; continue; }
+        if( *utf8 == '\f' ) { ++ui_x; ++utf8; continue; }
         int lf = *utf8 == '\n';
         int cr = *utf8 == '\r' || lf;
         int bs = *utf8 == '\b';

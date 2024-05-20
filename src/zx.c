@@ -1,4 +1,4 @@
-#define SPECTRAL "v0.4"
+#define SPECTRAL "v0.5"
 
 // # build (windows)
 // cl run.c /O2 /MT /DNDEBUG /GL /GF /arch:AVX2
@@ -26,28 +26,24 @@
 // https://worldofspectrum.org/faq/reference/48kreference.htm
 // https://faqwiki.zxnet.co.uk/wiki/ULAplus
 // https://foro.speccy.org/viewtopic.php?t=2319
-// test(48): RANDOMIZE USR 46578
-// test(48): RANDOMIZE USR 5050
-// test(2A): RANDOMIZE USR 20000
 
 //
 // done
 // cpu, ula, mem, rom, 48/128, key, joy, ula+, tap, ay, beep, sna/128, fps, tzx, if2, zip, rf, menu, kms, z80, scr,
-// key2/3, +2a/+3, fdc, dsk, autotape,
-
-// fix
-// tzx(flow,gdb)
-// kms window focus @ MMB+tigr, kms wrap win borders, kms fullscreen, kms coord wrap (inertia, r-type128-km)
-//
-// fixme: sav files are corrupting after many save/loads (see: jacknipper2)
+// key2/3, +2a/+3, fdc, dsk, autotape, gui, KL modes, load "" code
+// [x] glue consecutive tzx/taps in zips (side A) -> side 1 etc)
 
 // @todo:
-// animated states
+// [ ] widescreen fake borders
+// [ ] animated states
+// [ ] auto-saves, then F11 to rewind. use bottom azimuth bar
+// [ ] scan folder if dropped or supplied via cmdline
+// [ ] live coding disasm (like bonzomatic)
+// [ ] convert side-b/mp3s into voc/pulses
+// [ ] db interface [optionally: y/n/why]
+//     [hearts] NUM. Title(F2 to rename)   [ghost-load*][ghost-run*][ghost-play*][ghost-snd*] [*:white,red,yellow,green]
+//     on hover: show animated state if exists. show loading screen otherwise.
 //
-// db interface:
-// [hearts] NUM. Title(F2 to rename)   [load*][run*][play*][snd*] [*:white,red,yellow,green]
-// on hover: show animated state if exists. show loading screen otherwise.
-// 
 // todo (tapes)
 // [ ] overlay ETA
 // [ ] auto rewind
@@ -56,15 +52,19 @@
 //
 // todo (trap)
 // [ ] trap rom loading, edge detection
-// [ ] test db [y/n/why]
 // [ ] when first stop-the-tape block is reached, trim everything to the left, so first next block will be located at 0% progress bar
 
+// notes about TESTS mode:
+// - scans src/tests/ folder
+// - creates log per test
+// - 48k
+// - exits automatically
+// - 50% frames not drawn
+// - 50% drawn in fastest mode
 // @todo: tests
 // - send keys via cmdline: "--keys 1,wait,wait,2"
 // - send termination time "--maxidle 300"
 
-// [x] LOAD "" CODE if 1st block is code
-// [x] glue consecutive tzx/taps in zips (side A) -> side 1 etc)
 // [ ] glue consecutive tzx/taps in disk
 // [ ] glue: do not glue two consecutive tapes if size && hash match (both sides are same)
 // [ ] glue: if tape1 does not start with a basic block, swap tapes
@@ -77,9 +77,12 @@
 // try
 // https://github.com/anotherlin/z80emu
 // https://github.com/kspalaiologos/tinyz80/
+// https://github.com/jsanchezv/z80cpp/
 
 // try
 // https://damieng.com/blog/2020/05/02/pokes-for-spectrum/
+// test(48): RANDOMIZE USR 46578
+// test(2Aes): RANDOMIZE USR 20000
 
 // try (verify dsk protections)
 // https://simonowen.com/samdisk/sys_plus3/
@@ -97,10 +100,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
-enum { _320 = 352, _319 = _320-1, _32 = (_320-256)/2 };
-enum { _240 = 288, _239 = _240-1, _24 = (_240-192)/2 };
-
-void dis(unsigned pc, unsigned lines, FILE *fp);
+enum { _320 = 352, _319 = _320-1, _321 = _320+1, _32 = (_320-256)/2 };
+enum { _240 = 288, _239 = _240-1, _241 = _240+1, _24 = (_240-192)/2 };
 
 #include "3rd.h"
 #include "emu.h"
@@ -114,26 +115,15 @@ void dis(unsigned pc, unsigned lines, FILE *fp);
 int file_is_supported(const char *filename) {
     // @todo: trd,scl
     const char *ext = strrchr(filename ? filename : "", '.');
-    if( ext && strstr(".pok.sna.z80.tap.tzx.rom.dsk.scr.zip", ext) ) return 1;
-    if( ext && strstr(".POK.SNA.Z80.TAP.TZX.ROM.DSK.SCR.ZIP", ext) ) return 1;
+    if( ext && strstr(".pok.sna.z80.tap.tzx.csw.rom.dsk.scr.zip", ext) ) return 1;
+    if( ext && strstr(".POK.SNA.Z80.TAP.TZX.CSW.ROM.DSK.SCR.ZIP", ext) ) return 1;
     return 0;
 }
 
-void regs(const char *title) {
-    unsigned F = AF(cpu);
-    char *flags = va("%d %d %d %d %d %d %d %d", !!(F & 0x80), !!(F & 0x40), !!(F & 0x20), !!(F & 0x10), !!(F & 0x8), !!(F & 0x4), !!(F & 0x2), !!(F & 0x1));
-    printf("\n--- %s ---\n", title);
-    printf("af:%04x,af'%04x,bc:%04x,bc':%04x,pc:%04x,S Z Y H X P N C\n", AF(cpu), AF2(cpu), BC(cpu), BC2(cpu), PC(cpu));
-    printf("de:%04x,de'%04x,hl:%04x,hl':%04x,sp:%04x,%s\n", DE(cpu), DE2(cpu), HL(cpu), HL2(cpu), SP(cpu), flags);
-    printf("iff%04x,im:%04x,ir:%02x%02x,ix :%04x,iy:%04x\n", IFF1(cpu) << 8 | IFF2(cpu), IM(cpu), I(cpu),R(cpu), IX(cpu), IY(cpu));
-    printf("out254(%02x) page128(%02x) page2a(%02x)\n", ZXBorderColor, page128, page2a);
-    printf("ay reg%X", ay_current_reg); for( int i = 0; i < 16; ++i ) printf("%s%04x", i == ay_current_reg ? ">":" ", ay_registers[i]); puts("");
-    printf("mem%d%d%d%d%s", !!(page128&16), (page128&8?7:5), 2, page128&7, page128&32?"!":" ");
-    for( int i = 0; i < 16; ++i ) printf("%04x ", (crc32(0,RAM_BANK(i), 0x4000) & 0xffff) ^ 0xd286); puts("");
-}
-
-static int flick_frame = 0;
-static int flick_hz = 0;
+static float dt; 
+static double timer;
+static int flick_frame;
+static int flick_hz;
 
 void draw(window *win, int y /*0..311 tv scanline*/) {
     int width = _32+256+_32;
@@ -158,7 +148,7 @@ void draw(window *win, int y /*0..311 tv scanline*/) {
 // RF: misalignment
 *texture = ZXPalette[ZXBorderColor];
 enum { BAD = 8, POOR = 32, DECENT = 256 };
-int shift0 = !ZX_RF ? 0 : (rand()<(RAND_MAX/(boost_on?2:POOR))); // flick_frame * -(!!((y+0)&0x18))
+int shift0 = !ZX_RF ? 0 : (rand()<(RAND_MAX/(ZX_FASTFWD?2:POOR))); // flick_frame * -(!!((y+0)&0x18))
 texture += shift0;
 
         for(int x = 0; x < 32; ++x) {
@@ -393,10 +383,6 @@ int screenshot(const char *filename) {
 // command keys: sent either physically (user) or virtually (ui)
 int cmdkey;
 
-// modes when reloading machine: reload48, reload128, reload48+altrom, reload128+altrom
-const int reloads[] = { '48','128','!48','!128' };
-
-
 
 static byte* merge = 0;
 static size_t merge_len;
@@ -471,121 +457,6 @@ void *zip_read(const char *filename, size_t *size) {
 
 
 
-static char *last_load = 0;
-int load(const char *file, int must_clear, int do_rompatch) {
-    if( !file ) return 0;
-    last_load = (free(last_load), strdup(file));
-
-    if( must_clear ) {
-        // hard reset
-#if 0
-
-#if NEWCORE
-pins = z80_reset(&cpu);
-#else
-        z80_reset(&cpu);
-#endif
-
-#else
-        // http://www.z80.info/interrup.htm
-        IFF1(cpu) = IFF2(cpu) = IM(cpu) = 0;
-        PC(cpu) = I(cpu) = R(cpu) = 0;
-        SP(cpu) = AF(cpu) = 0xffff;
-#endif
-
-        // soft reset
-        mic_reset();
-rom_patch(do_rompatch);
-        /*page128 = 0;*/
-        if(ZX>=128) port_0x7ffd(0); // 128
-        if(ZX>=210) port_0x1ffd(0); // +2a/+3
-    }
-
-#if TESTS
-    printf("\n\n%s\n-------------\n\n", file);
-#endif
-
-    char *ptr = 0; size_t size = 0;
-    void *zip_read(const char *filename, size_t *size);
-    if( strstr(file, ".zip") ) {
-        ptr =  zip_read(file, &size);
-        if(!(ptr && size))
-            return 0;
-    }
-
-    if(!ptr)
-    for( FILE *fp = fopen(file,"rb"); fp; fclose(fp), fp = 0) {
-        fseek(fp, 0L, SEEK_END);
-        size = ftell(fp);
-        fseek(fp, 0L, SEEK_SET);
-        ptr = malloc(size);
-        fread(ptr, 1, size, fp);
-    }
-
-    if(!(ptr && size))
-        return 0;
-
-    // dsk first
-    if(!memcmp(ptr, "MV - CPC", 8) || !memcmp(ptr, "EXTENDED", 8)) {
-        if(must_clear) z80_load(ldplus3, sizeof(ldplus3)), pins = z80_prefetch(&cpu, cpu.pc);
-        return dsk_load(ptr, size), 1;
-    }
-
-    #define preload_snap(blob,len) do { \
-        if( sna_load(blob,len) || z80_load(blob,len) ) { \
-            /* clear vram in case pre-loaders are not clear snaps */ \
-            /* set border, ink and paper according to current ROM theme */ \
-            ZXBorderColor = VRAM[6144] & 7; \
-            memset(VRAM,0,6144); \
-            memset(VRAM+6144,VRAM[6144],32*24); \
-        } } while(0)
-
-    // pre-loaders
-    const byte*    bins[] = { ld128bas, ld48bas, ld128bin, ld48bin };
-    const unsigned lens[] = { sizeof(ld128bas), sizeof(ld48bas), sizeof(ld128bin), sizeof(ld48bin) };
-
-    // tapes first
-    if(tzx_load(ptr, (int)size)) {
-        int is_bin = mic_data[1] == 3, choose = (ZX < 128) + is_bin * 2;
-        if(must_clear) preload_snap(bins[choose], lens[choose]);
-rom_patch(mic_queue_has_turbo ? 0 : do_rompatch);
-pins = z80_prefetch(&cpu, cpu.pc);
-        return 1;
-    }
-    if(tap_load(ptr,(int)size)) {
-        int is_bin = mic_data[1] == 3, choose = (ZX < 128) + is_bin * 2;
-        if(must_clear) preload_snap(bins[choose], lens[choose]);
-rom_patch(do_rompatch); // beware: wont work for wizball.tap (custom loader)
-pins = z80_prefetch(&cpu, cpu.pc);
-        return 1;
-    }
-
-    // headerless fixed-size formats now, sorted by ascending file size.
-    if( scr_load(ptr, size) ) {
-pins = z80_prefetch(&cpu, cpu.pc);
-        return 1;
-    }
-    if( rom_load(ptr, size) ) {
-pins = z80_prefetch(&cpu, cpu.pc);
-        return 1;
-    }
-    if( sna_load(ptr, size) ) {
-pins = z80_prefetch(&cpu, cpu.pc);
-        return regs("load .sna"), 1;
-    }
-
-    // headerless variable-size formats now
-    if( *ptr == 'N' && pok_load(ptr, size) ) {
-        return 1;
-    }
-    if( z80_load(ptr, size) ) {
-pins = z80_prefetch(&cpu, cpu.pc);
-        return regs("load .z80"), 1;
-    }
-
-    puts("unknown file format");
-    return 0;
-}
 
 void crt(int enable) {
     extern window *app;
@@ -598,7 +469,7 @@ void crt(int enable) {
 
 
 
-window *app, *ui;
+window *app, *ui, *dbg;
 int do_disasm;
 float fps;
 
@@ -633,9 +504,9 @@ void input() {
     if( window_trigger(app, TK_F2) )     cmdkey = 'F2';
     if( window_trigger(app, TK_F3) )     cmdkey = 'F3';
     if( window_trigger(app, TK_F4) )     cmdkey = 'F4';
-    if( window_trigger(app, TK_F5) )     cmdkey = reloads[ !!window_pressed(app,TK_SHIFT) * 2 + !!window_pressed(app,TK_CONTROL) ];
+    if( window_trigger(app, TK_F5) )     cmdkey = 'F5';
     if( window_trigger(app, TK_F6) )     cmdkey = 'RUN';
-    if( window_trigger(app, TK_F7) )     cmdkey = 'F7';
+    if( window_trigger(app, TK_F7) )     cmdkey = 'POLR';
     if( window_trigger(app, TK_F8) )     cmdkey = 'F8';
     if( window_trigger(app, TK_F9) )     cmdkey = window_pressed(app, TK_SHIFT) ? 'AY' : 'F9';
     if( window_trigger(app, TK_F11) )    cmdkey = 'F11';
@@ -840,8 +711,17 @@ void rescan() {
     printf("%d games\n", numgames);
 }
 
-int active = 0, selected = 0, scroll = 0;
+int active, selected, scroll;
 int game_browser() { // returns true if loaded
+
+    // scan files
+    do_once
+    {
+        uint64_t then = time_ns();
+        rescan();
+        printf("%5.2fs rescan\n", (time_ns() - then)/1e9);
+    }
+
     tigrClear(ui, !active ? tigrRGBA(0,0,0,0) : tigrRGBA(0,0,0,128));
 
     if( !numgames ) return 0;
@@ -960,7 +840,7 @@ int game_browser() { // returns true if loaded
     if( window_pressed(app, TK_CONTROL) || window_trigger(app, TK_SPACE) ) {
         int update = 0;
         int starred = dbgames[selected] >> 8;
-        int color = dbgames[selected] & 0xFF;;
+        int color = dbgames[selected] & 0xFF;
         if( window_trigger(app, TK_SPACE) ) color = (color+1) % 4, update = 1;
         if( window_trigger(app, 'D') ) starred = starred != 'D' ? 'D' : 0, update = 1; // disk error
         if( window_trigger(app, 'T') ) starred = starred != 'T' ? 'T' : 0, update = 1; // tape error
@@ -1012,12 +892,16 @@ int game_browser() { // returns true if loaded
                 }
             }
         }
-        bool must_clear = insert_next_disk_or_tape || strstr(games[selected], ".pok") || strstr(games[selected], ".POK") ? 0 : 1;
 
-        if(must_clear)
-        clear(window_pressed(app, TK_SHIFT) ? 48 : strstri(games[selected], ".dsk") ? 300 : 128);
+        int model = strstri(games[selected], ".dsk") ? 300 : window_pressed(app, TK_SHIFT) ? 48 : 128;
+        int must_clear = insert_next_disk_or_tape || strstr(games[selected], ".pok") || strstr(games[selected], ".POK") ? 0 : 1;
+        int must_turbo = window_pressed(app,TK_CONTROL) || ZX_TURBOROM ? 1 : 0;
+        int use_preloader = must_clear ? 1 : 0;
 
-        if( load(games[selected], must_clear, window_pressed(app,TK_CONTROL) || ZX_TURBOROM ? 1:0) ) {
+        if( must_clear ) boot(model, 0);
+        if( must_turbo ) rom_patch_turbo();
+
+        if( loadfile(games[selected],use_preloader) ) {
             window_title(app, va("Spectral%s %s%d - %s", DEV ? " DEV" : "", ZX > 128 ? "+":"", ZX > 128 ? ZX/100:ZX, 1+strrchr(games[selected], DIR_SEP)));
 
             // clear window keys so the current key presses are not being sent to the 
@@ -1032,38 +916,6 @@ int game_browser() { // returns true if loaded
     return 0;
 }
 
-unsigned dasm_pc;
-char dasm_str[128] = {0};
-uint8_t z80dasm_read(void *user_data) {
-    uint8_t data = READ8(dasm_pc);
-    return ++dasm_pc, data;
-}
-uint8_t z80dasm_write(char c, void *user_data) {
-    char buf[2] = { c/*tolower(c)*/, 0};
-    strncat(dasm_str, buf, 128);
-    return 0;
-}
-char* z80dasm(unsigned pc) {
-    int bytes = (*dasm_str = 0, z80dasm_op(dasm_pc = pc, z80dasm_read, z80dasm_write, NULL) - pc);
-
-    char hexdump[128], *ptr = hexdump;
-    for(int x=0;x<bytes;++x)
-    ptr += sprintf(ptr, "%s%02X", " "+(!x), READ8(pc+x));
-
-    char bank[8];
-    sprintf(bank, "%d%d%d%d", !!(page128&16), (page128&8?7:5), 2, page128&7);
-
-    return va("%d%s %04X: %-13s  %s", bytes, bank, pc, dasm_str, hexdump);
-}
-
-void dis(unsigned pc, unsigned lines, FILE *fp) {
-    for( unsigned y = 0; y < lines; ++y ) {
-        char *line = z80dasm(pc);
-        pc += line[0] - '0';
-        fputs(line+1, fp);
-        fputs("\n", fp);
-    }
-}
 
 
 const char* about() {
@@ -1071,7 +923,7 @@ const char* about() {
     return va("Spectral " SPECTRAL " (Public Domain).\nhttps://github.com/r-lyeh/Spectral\n\n%d games found (%d%%)", numgames, 100 - (numerr * 100 / (total + !total)));
 }
 
-void draw_ui(const char *status) {
+void draw_ui() {
 
     // ui
     {
@@ -1088,12 +940,6 @@ void draw_ui(const char *status) {
         static char compat[64];
         snprintf(compat, 64, "  OK:%04.1f%%     ENTER:128, +SHIFT:48, +CTRL:Try turbo", (total-numerr) * 100.f / (total+!total));
         window_printxy(ui, compat, 0,(_240-12.0)/11);
-        }
-
-        if( ZX_DEBUG )
-        {
-            int w = tigrTextWidth(tfont, status); tigrPrint(ui, tfont, (_320-w)/2,(_240-12.0*2), ui_ff, "%s", status);
-            // int w = strlen(status) * 8; ui_print(ui, (_320-w)/2,(_240-12.0*2), ui_colors, "%s", status);
         }
 
         // ui
@@ -1128,7 +974,7 @@ void draw_ui(const char *status) {
         // right panel: emulator options
         if( 1 )
         {
-            int chr_x = REMAP(smooth,0,1,33,28) * 11 + 3, chr_y = REMAP(smooth,0,1,-4,2) * 11;
+            int chr_x = REMAP(smooth,0,1,33,28) * 11 + 0, chr_y = REMAP(smooth,0,1,-4,2) * 11;
 
             {
                 // draw black panel
@@ -1137,29 +983,41 @@ void draw_ui(const char *status) {
             }
 
             ui_at(ui,chr_x - 8,chr_y-11);
-            if( ui_click(NULL, "") ) (warning)("About", about());
+            if( ui_click("-Screenshot-", "") ) cmdkey = 'SCR'; // send screenshot command
 
             ui_at(ui,chr_x,chr_y-11);
-            if( ui_press("-Fast-forward-", "\x2\b\b\b\b\x2\b\b\b\b\x2%d\n\n",(int)fps) ) cmdkey = 'F1';
+            if( ui_press("-Fast-forward-", "\x2\b\b\b\x2\b\b\b\x2%d\n\n",(int)fps) ) cmdkey = 'F1';
 
-            if( ui_click("-Toggle ROM-", "%d%s\n",ZX,ZX_ALTROMS ? "!":"") ) cmdkey = 'ROM';
-            if( ui_click("-Toggle TV mode-", "▒%d\n", 1+(ZX_CRT << 1 | ZX_RF)) ) cmdkey = 'F9';
-            if( ui_click("-Toggle AY core-", "♬%d\n",ZX_AY) ) cmdkey = 'AY';
-            if( ui_click("-Toggle Joystick-", "\x1%d\n", ZX_JOYSTICK)) cmdkey = 'JOY';
-            if( ui_click("-Toggle Mouse-", "\x9%d\n", ZX_MOUSE) ) cmdkey = 'MICE';
-            if( ui_click("-Toggle Lightgun-", "\xB%d\n", ZX_GUNSTICK) ) cmdkey = 'GUN';
-            if( ui_click("-Toggle ULA+-", "+%d\n", ZX_ULAPLUS) ) cmdkey = 'PLUS';
-            if( ui_click("-Toggle RunAHead-", !ZX_RUNAHEAD ? "🯆0\n" : "🯇1\n") ) cmdkey = 'RUN';
-            if( ui_click("-Toggle TurboROM-", !ZX_TURBOROM ? "0\n" : "1\n")) cmdkey = 'TROM';
-            if( ui_click("-Toggle AutoPlay-", "\x2%d\n", ZX_AUTOPLAY) ) cmdkey = 'AUTO';
+            const char *models[] = { [1]="16",[3]="48",[8]="128",[12]="+2",[13]="+2A",[18]="+3" };
+            if( ui_click("-Reload Model-", "\f%s%s",models[ZX/16],ZX_ALTROMS ? "!":"") ) cmdkey = 'SWAP';
+            //if( ui_click("-NMI-", "") ) cmdkey = 'NMI';
+            if( ui_click("-Reset-", "\n") ) cmdkey = 'RST';
+
+            if( ui_click("-Toggle TV mode-", "▒\f%d\n", 1+(ZX_CRT << 1 | ZX_RF)) ) cmdkey = 'F9';
+            if( ui_click("-Toggle AY core-", "♬\f%d\n",ZX_AY) ) cmdkey = 'AY';
+            if( ui_click("-Toggle ULA+-", "%c\f%d\n", ZX_ULAPLUS ? 'U':'u', ZX_ULAPLUS) ) cmdkey = 'PLUS';
+
+            if( ui_click("-Toggle Joystick-", "\x1\f%d\n", ZX_JOYSTICK)) cmdkey = 'JOY';
+            if( ui_click("-Toggle Mouse-", "\x9\f%d\n", ZX_MOUSE) ) cmdkey = 'MICE';
+            if( ui_click("-Toggle Lightgun-", "\xB\f%d\n", ZX_GUNSTICK) ) cmdkey = 'GUNS';
+
+            if( ui_click("-Toggle RunAHead-", !ZX_RUNAHEAD ? "🯆\f0\n" : "🯇\f1\n") ) cmdkey = 'RUN';
+            if( ui_click("-Toggle TurboROM-", !ZX_TURBOROM ? "\f0\n" : "\f1\n")) cmdkey = 'TROM';
+            if( ui_click("-Toggle AutoPlay-", "\x2\f%d\n", ZX_AUTOPLAY) ) cmdkey = 'AUTO';
+            if( ui_click("-Toggle TapePolarity-", "%c\f%d\n", mic_low ? '+':'-', !!mic_low) ) cmdkey = 'POLR';
+
+            if( ui_click("-Toggle BASIC mode-", "~%c~\f%d\n", ZX_KLMODE ? 'L' : 'K', ZX_KLMODE) ) cmdkey = 'KL';
+
+            // if( ui_click("-Toggle Speed-", "\f%d\n", (int)(ZX_FPS*50.)) ) cmdkey = 'FPS';
+            if( ui_click("-Toggle 50/60 Hz-", "\f%d\n", ZX_FPS > 1) ) cmdkey = 'FPS';
 
             int right = chr_x+8*4-4;
-            int bottom = chr_y+8*31.0;
+            int bottom = chr_y+8*31.0-1;
 
-            ui_at(ui,right-8*3,bottom-11);
-            //if( ui_click("-Screenshot-", "●") ) cmdkey = 'SCR'; // send screenshot command
+            ui_at(ui,chr_x - 8,bottom+1);
+            if( ui_click(NULL, "") ) (warning)("About", about());
 
-            ui_at(ui,right,bottom+1);
+            ui_at(ui,right,bottom);
             if( ui_click("-Debug-", "") ) cmdkey = 'DEV'; // send disassemble command
         }
 
@@ -1170,17 +1028,18 @@ void draw_ui(const char *status) {
                 active ^= 1;
         } else {
             if( ui_click(NULL, !mic_on ? "\x2" : "\x3") ) mic_on ^= !!mic_has_tape;
-            if( ui_click(NULL, "\xe\b\b\b\b\xe") ) mic_on = !!mic_has_tape, tap_prev(), mic_on = 0;
-            if( ui_click(NULL, "\x2\b\b\b\b\x2") ) mic_on = !!mic_has_tape, tap_next(), mic_on = 0;
-            if( ui_click(NULL, "■") ) mic_on = 0;
+            if( ui_click(NULL, "\xf\b\b\b\xf") ) mic_prev();
+            if( ui_click(NULL, "\x2\b\b\b\x2") ) mic_next();
+            if( ui_click(NULL, "■") ) mic_on = 0, voc_pos = 0;
             ui_x += 2;
-            if( ui_click(NULL, "\xc") ) active ^= 1;
+            if( ui_click(NULL, "\xe") ) active ^= 1;
             ui_x += 1;
         }
 
         // tape progress
-        float pct = (voc_pos/4) / (float)(voclen+!voclen);
-        if( ZX_AUTOPLAY ? mic_on /* && (pct < 1.00f)*/ : 1 ) {
+        float pct = mic_tellf();
+        if( pct <= 1.00f )
+        if( ZX_AUTOPLAY ? mic_on : 1 ) {
             TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + UI_LINE1 * _320];
 
             // bars & progress
@@ -1199,21 +1058,13 @@ void draw_ui(const char *status) {
                 tigrMouseCursor(app, 1);
                 if( mbuttons ) {
                     mx = mx < 0 ? 0 : mx > _320 ? _320 : mx;
-                    float target = (mx / (float)_320) * (float)(voclen+!voclen);
-#if 0
-                    // animate seeking
-                    voc_pos = (voc_pos/4) * 0.50f + target * 0.50f ;
-#else
-                    voc_pos = target;
-#endif
-                    voc_pos *= 4;
-
+                    mic_seekf(mx / (float)_320);
                 }
             }
         }
 
         // azimuth slider
-        if( ZX_DEBUG ) 
+        if( ZX_DEBUG )
         if( !active ) {
             TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + (_240-7) * _320];
             unsigned mark = REMAP(azimuth, 0.98,1.2, 0,1) * _320;
@@ -1228,7 +1079,7 @@ void draw_ui(const char *status) {
             // mouse seeking
             int mx, my, mbuttons;
             tigrMouse(app, &mx, &my, &mbuttons);
-            if( my >= (_240-10) && my < _240 ) {
+            if( my >= (_240-11) && my < _240 ) {
                 tigrMouseCursor(app, 1);
                 if(mbuttons/*&4*/) {
                     mx = mx < 0 ? 0 : mx > _320 ? _320 : mx;
@@ -1264,7 +1115,7 @@ int main() {
         printer = fopen(va("%s.txt", __argv[1]), "wt"); //"a+t");
         if(!printer) die("cant open file for logging");
 
-        boost_on = 1;
+        ZX_FASTFWD = 1;
     }
 #endif
 
@@ -1274,20 +1125,12 @@ int main() {
         GetModuleFileName(0,path,MAX_PATH);
         *strrchr(path, '\\') = '\0';
         SetCurrentDirectoryA(path);
-
-        // scan files
-        {
-            float dt;
-            dt = tigrTime();
-            rescan();
-            dt += tigrTime();
-            printf("%5.2fms rescan\n", dt*1000);
-        }
     }
 
     // app
     app = window_open(_32+256+_32, _24+192+_24, va("Spectral%s", DEV ? " DEV" : "") );
     ui = window_bitmap(_320, _240);
+    dbg = window_bitmap(_320, _240);
 
     // postfx
     crt(ZX_CRT);
@@ -1296,12 +1139,12 @@ int main() {
     audio_init();
 
     // zx
-    clear(ZX);
+    boot(128, 0);
 
     // import state
     for( FILE *state = fopen("spectral.sav","rb"); state; fclose(state), state = 0) {
-        import_state(state);
-        pins = z80_prefetch(&cpu, cpu.pc);
+        if( import_state(state) )
+            pins = z80_prefetch(&cpu, cpu.pc);
     }
 
     // main loop
@@ -1309,15 +1152,15 @@ int main() {
         ui_frame();
         input();
 
-        int accelerated = ZX_FAST ? boost_on || (mic_on && voclen) : 0;
+        int accelerated = ZX_FASTTAPE ? ZX_FASTFWD || (mic_on && voc_len) : 0;
         if( accelerated && active ) accelerated = 0;
 
         // z80, ula, audio, etc
         // static int frame = 0; ++frame;
         int do_sim = active ? 0 : 1;
-        int do_drawmode = 1; // no render (<0), single frame (0), scanlines (1)
+        int do_drawmode = 1; // no render (<0), full frame (0), scanlines (1)
         int do_flashbit = accelerated ? 0 : 1;
-        int do_runahead = accelerated || ZX >= 300 ? 0 : ZX_RUNAHEAD;
+        int do_runahead = accelerated ? 0 : ZX_RUNAHEAD;
 
 #if TESTS
         // be fast. 50% frames not drawn. the other 50% are drawn in the fastest mode
@@ -1345,6 +1188,10 @@ int main() {
         }
 #endif
 
+        if( ZX_TURBOROM )
+        rom_patch_turbo();
+        rom_patch_klmode();
+
         static byte counter = 0; // flip flash every 16 frames @ 50hz
         if( !((++counter) & 15) ) if(do_flashbit) ZXFlashFlag ^= 1;
 
@@ -1352,12 +1199,15 @@ if( do_runahead == 0 ) {
         do_audio = 1;
         frame(do_drawmode, do_sim); //accelerated ? (frame%50?0:1) : 1 );
 } else {
-        do_audio = 0;
+        // runahead:
+        // - https://near.sh/articles/input/run-ahead https://www.youtube.com/watch?v=_qys9sdzJKI // https://docs.libretro.com/guides/runahead/
+
+        do_audio = 1;
         frame(-1, do_sim);
 
         quicksave(10);
 
-        do_audio = 1;
+        do_audio = 0;
         frame(do_drawmode, do_sim);
 
         quickload(10);
@@ -1372,21 +1222,30 @@ if( do_runahead == 0 ) {
         }
 
         if( ZX_DEBUG ) {
-            // @todo: disasm gui
-            regs("z80");
-            dis(PC(cpu), 6, stdout);
+            float x = 0.5, y = 2;
+
+            tigrClear(dbg, tigrRGBA(0,0,0,128));
+
+            static char status[128] = "";
+            char *ptr = status;
+            ptr += sprintf(ptr, "%dm%02ds ", (unsigned)(timer) / 60, (unsigned)(timer) % 60);
+            ptr += sprintf(ptr, "%5.2ffps%s %d mem%d%d%d%d%s ", fps, do_runahead ? "!":"", ZX, GET_MAPPED_ROMBANK(), (page128&8?7:5), 2, page128&7, page128&32?"!":"");
+            ptr += sprintf(ptr, "%02X %02X %04X ", page128, page2a, PC(cpu));
+            ptr += sprintf(ptr, "%c%c %4dHz ", "  +-"[mic_has_tape*2+!mic_low], mic_peek(voc_pos), tape_hz);
+
+            ui_print(dbg, x*11, y*11, ui_colors, status), y += 1.5;
+
+            ui_print(dbg, x*11, y*11, ui_colors, regs(0)), y += 5;
+
+            ui_print(dbg, x*11, y*11, ui_colors, dis(PC(cpu), 22)), y += 22;
         }
             
         // game browser
         int game_loaded = game_browser();
 
-        if( do_runahead == 1 && !game_loaded /*&& !accelerated*/ ) {
-//            checkpoint_load(10);
-        }
-
         // measure time & frame lock (50.01 fps)
-        float dt;
-        if(accelerated) {
+        int max_speed = accelerated || !ZX_FPS; // max speed if accelerated or no fps lock
+        if( max_speed ) {
             dt = tigrTime();
             // constant time flashing when loading accelerated tapes (every 16 frames @ 50hz)
             static float accum = 0; accum += dt;
@@ -1401,11 +1260,13 @@ if( do_runahead == 0 ) {
             dt = tigrTime();
             if( dt < (1000/50.f) ) sys_sleep( (1000/50) - dt );
 #else // accurate (beware of CPU usage)
+            float target = ZX_FPS * (ZX < 128 ? 50.08:50.01);
+
             // be nice to os
-            sys_sleep(5);
+            sys_sleep(ZX_FPS > 1.2 ? 1 : 5);
             // complete with shortest sleeps (yields) until we hit target fps
             dt = tigrTime();
-            for( float target_fps = 1.f/(ZX < 128 ? 50.08:50.01); dt < target_fps; ) {
+            for( float target_fps = 1.f/(target+!target); dt < target_fps; ) {
                 sys_yield();
                 dt += tigrTime();
             }
@@ -1418,17 +1279,13 @@ if( do_runahead == 0 ) {
         if( time_now >= 1 ) { fps = frames / time_now; time_now = frames = 0; }
 
         // tape timer
-        static double accum = 0;
-        if(mic_on && voclen) accum += dt;
+        if(mic_on && voc_len) timer += dt;
 
         // stats & debug
-        static char status[128] = "";
-        char *ptr = status;
-        ptr += sprintf(ptr, "%dm%02ds ", (unsigned)(accum) / 60, (unsigned)(accum) % 60);
-        ptr += sprintf(ptr, "%5.2ffps%s %d mem%d%d%d%d%s ", fps, do_runahead ? "!":"", ZX, !!(page128&16), (page128&8?7:5), 2, page128&7, page128&32?"!":"");
-        ptr += sprintf(ptr, "%02X %02X %04X ", page128, page2a, PC(cpu));
-        ptr += sprintf(ptr, "%c%c %4dHz ", "  +-"[mic_has_tape*2+mic_invert_polarity], voc && voc_pos/4 < voclen ? voc[voc_pos/4] & 0x7f & ~32 : ' ', tape_hz);
-        draw_ui(status);
+        draw_ui();
+
+        if( ZX_DEBUG )
+        tigrBlitAlpha(app, dbg, 0,0, 0,0, _320,_240, 1.0f);
 
         // draw ui on top
         tigrBlitAlpha(app, ui, 0,0, 0,0, _320,_240, 1.0f);
@@ -1436,98 +1293,102 @@ if( do_runahead == 0 ) {
         // flush
         window_update(app);
 
+
+        #define LOAD(ZX,TURBO,file) if(file) do { \
+                boot(ZX, 0); if(TURBO || window_pressed(app,TK_CONTROL)) rom_patch_turbo(); \
+                if( !loadfile(file,1) ) { \
+                    if( !load_shader( file ) ) { \
+                        warning(va("cannot open '%s' file\n", file)); \
+                    } \
+                } \
+            } while(0)
+
         // parse drag 'n drops. reload if needed
         for( char **list = tigrDropFiles(app); list; list = 0)
         for( int i = 0; list[i]; ++i ) {
-            int do_clear = 1;
-            int do_rompatch = !!window_pressed(app,TK_CONTROL);
-
-            // if( do_clear ) clear(window_pressed(app,TK_SHIFT) ? 48 : 128);
-
-            if( !load(list[i], do_clear, do_rompatch|ZX_TURBOROM) ) {
-                if( !load_shader( list[i] ) ) {
-                    warning(va("cannot open '%s' file\n", __argv[i]));
-                }
-            }
+            #if TESTS
+            LOAD(48,1,list[i]);
+            #else
+            LOAD(ZX,ZX_TURBOROM,list[i]);
+            #endif
         }
 
         // parse cmdline. reload if needed
         do_once
         for( int i = 1; i < __argc; ++i )
-        if( __argv[i][0] == '-' ) {
-            if( __argv[i][1] == 'v' ) warning(about());
-        } else {
-            int do_clear = 1;
-            int do_rompatch = !!window_pressed(app,TK_CONTROL);
-
-            // if( do_clear ) clear(window_pressed(app,TK_SHIFT) ? 48 : 128);
-
-#if TESTS
-            config(48);
-            do_rompatch = 1;
-#endif
-
-            if( !load(__argv[i], do_clear, do_rompatch|ZX_TURBOROM) ) {
-                if( !load_shader( __argv[i] ) ) {
-                    warning(va("cannot open '%s' file\n", __argv[i]));
-                }
-            }
+        if( __argv[i][0] != '-' ) {
+            #if TESTS
+            LOAD(48,1,__argv[i]);
+            #else
+            LOAD(ZX,ZX_TURBOROM,__argv[i]);
+            #endif
         }
+        else if( __argv[i][1] == 'v' ) warning(about());
+
 
         // clear command
         int cmd = cmdkey;
         cmdkey = 0;
 
         // parse commands
-        boost_on = 0;
+        ZX_FASTFWD = 0;
         switch(cmd) { default:
             break; case 'ESC':   active ^= 1;
-            break; case  'F1':   boost_on = 1; // fast-forward cpu
-            break; case  'F2':   { if( !voclen ) active ^= 1; else mic_on ^= 1; } // open browser if start_tape is requested but no tape has been ever inserted
-            break; case  'F3':   tap_prev();
-            break; case  'F4':   tap_next();
-            break; case  'F7':   mic_invert_polarity ^= 1;
-            break; case  'F8':   ZX_FAST ^= 1;
+            break; case  'F1':   ZX_FASTFWD = 1; // fast-forward cpu
+            break; case  'F2':   { if( !voc_len ) active ^= 1; else mic_on ^= 1; } // open browser if start_tape is requested but no tape has been ever inserted
+            break; case  'F3':   mic_prev();
+            break; case  'F4':   mic_next();
+            break; case  'F8':   ZX_FASTTAPE ^= 1;
             // cycle tv modes
             break; case  'F9':   { static int mode = 0; do_once mode = ZX_CRT << 1 | ZX_RF; mode = (mode + 1) & 3; ZX_RF = mode & 1; crt( ZX_CRT = !!(mode & 2) ); }
             break; case 'F11':   quicksave(0);
             break; case 'F12':   quickload(0);
 
             // cycle AY cores
-            break; case  'AY':   { const int table[] = { 0,2,1,0 }; ZX_AY = table[ZX_AY]; }
-
-            break; case  '48':   clear(48),  load(last_load, 1, ZX_TURBOROM);
-            break; case '128':   clear(128), load(last_load, 1, ZX_TURBOROM);
+            break; case  'AY':   { const int table[] = { 1,2,0,0 }; ZX_AY = table[ZX_AY]; }
 
             break; case 'SCR':   cmdkey = 'SCR2'; // resend screenshot cmd
 
-            break; case 'TROM':  ZX_TURBOROM ^= 1; clear(ZX); load(last_load, 1, ZX_TURBOROM); // toggle turborom
-            break; case 'ROM':   // ZX_ALTROMS ^= 1;  clear(ZX); load(last_load, 1, ZX_TURBOROM); // toggle rom
+            break; case 'TROM':  ZX_TURBOROM ^= 1; boot(ZX, 0); loadfile(last_load,1); // toggle turborom and reload
+            break; case 'F5':    reset(0); loadfile(last_load, 1);
+            break; case 'NMI':   if( pins & Z80_NMI ) pins &= ~Z80_NMI; else pins |= Z80_NMI; // @todo: verify
+            break; case 'RST':   reset(KEEP_MEDIA/*|QUICK_RESET*/); // if(last_load) free(last_load), last_load = 0;
+            break; case 'SWAP':  // toggle model and reload
             {
-                static int mode = 0; 
-                do_once mode = (ZX < 128) * 2 + !!ZX_ALTROMS;
-                mode = (mode + 1) % 4;
-                ZX = mode < 2 ? 128 : 48;
-                ZX_ALTROMS = !!(mode & 1);
-                clear(ZX); load(last_load, 1, ZX_TURBOROM); // toggle rom
+                static int modes[] = { 128, 48, 200, 210, 300, 16 };
+                static byte mode = 0;
+                while(modes[mode] != ZX)
+                mode = (mode + 1) % 6;
+                mode = (mode + 1) % 6;
+                ZX = modes[ mode ];
+                boot(ZX, 0); loadfile(last_load,1); // toggle rom
             }
-            break; case 'JOY':   ZX_JOYSTICK = (ZX_JOYSTICK + 1) % 4; // cycle Cursor/Kempston/Fuller,Sinclair1,Sinclair2
-            break; case 'GUN':   ZX_GUNSTICK ^= 1;   // cycle guns
+            break; case 'JOY':   ZX_JOYSTICK = (ZX_JOYSTICK + 1) % 4; if(ZX_JOYSTICK) ZX_GUNSTICK = 0; // cycle Cursor/Kempston/Fuller,Sinclair1,Sinclair2
+            break; case 'GUNS':  ZX_GUNSTICK ^= 1;   if(ZX_GUNSTICK) ZX_MOUSE = 0, ZX_JOYSTICK = 0; // cycle guns
+            break; case 'MICE':  ZX_MOUSE ^= 1;      if(ZX_MOUSE) ZX_GUNSTICK = 0;                  // cycle kempston mouse(s)
             break; case 'PLUS':  ZX_ULAPLUS ^= 1;    // cycle ulaplus
-            break; case 'MICE':  ZX_MOUSE ^= 1;      // cycle kempston mouse
             break; case 'AUTO':  ZX_AUTOPLAY ^= 1;   // cycle autoplay command
             break; case 'RUN':   ZX_RUNAHEAD ^= 1;   // cycle runahead mode
             break; case 'DEV':   ZX_DEBUG ^= 1;
+            break; case 'KL':    ZX_KLMODE ^= 1, ZX_KLMODE_PATCH_NEEDED = 1;
+            break; case 'POLR':  mic_low ^= 64;
+
+            //break; case 'FPS':   { const float table[] = { [0]=1,[10]=1.2,[12]=2,[20]=4,[40]=0 }; ZX_FPS = table[(int)(ZX_FPS*10)]; }
+            break; case 'FPS':   { const float table[] = { [10]=1.2,[12]=1 }; ZX_FPS = table[(int)(ZX_FPS*10)]; }
         }
 
     } while( window_alive(app) );
 
     // export state
 #if NEWCORE
+    // do
     while( !z80_opdone(&cpu) ) pins = z80_tick(&cpu, pins);
+    // while(IFF1(cpu));
 #endif
+    if(medias) media[0].pos = voc_pos / (double)(voc_len+!voc_len);
     for( FILE *state = fopen("spectral.sav","wb"); state; fclose(state), state = 0) {
-        export_state(state);
+        if( !export_state(state) )
+            warning("Error exporting state");
     }
 
     window_close(app);

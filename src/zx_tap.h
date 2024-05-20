@@ -140,7 +140,8 @@
 // [] BrainSport, Hijack (1986)(electric dreams software)
 
 // [5/0] Polarity (+)             Lone Wolf 3, Basil Mouse Detective, Mask, DarkStar, Wizball.tap (PZXTools)
-// [0/2] Polarity (-)             Forbidden Planet (V1,V2),
+// [0/2] Polarity (-)             Forbidden Planet (V1,V2), lonewolf 3 48
+//                                try also: hudson hawk,starbike
 // [6/0] Longer pilots (x1.0250)  The Untouchables (TheHitSquad), Dogfight 2187, ATF, TT Racer, Lightforce, Magmax, Shockway Rider
 // [2/0] Shorter syncs            Italy 1990 (Winners Edition), 
 // [3/0] Longer pauses (x1.03)    hijack (EDS) 128, italy 1990 winners, dogfight 2187
@@ -222,77 +223,92 @@
 // no: bloodwych
 
 #define voc_pos RAW_fsm
-#define mic_has_tape (!!voclen)
+#define mic_has_tape (!!voc_len)
 
 float DELAY_PER_MS = 3500; // 69888/20; // 3500; // (ZX_TS*50.06/1000) // (ZX_TS*50.6/1000)
 enum { PILOT = 2168, DELAY_HEADER = 8063, DELAY_DATA = 3223, SYNC1 = 667, SYNC2 = 735, ZERO = 855, ONE = 1710, END_MS = 1000 };
 
+#if 0 // try: tk90x turbo timings (R.G.)
+    PILOT = 1408,
+    SYNC1 = 397,
+    SYNC2 = 317,
+    ZERO = 325,
+    ONE = 649,
+    n_pilot = 4835,
+    END_MS = 318,
+#endif
+
 #define AZIMUTH_DEFAULT 1.002501 // + 1.02631; // + 1.0450; // 0.9950; // 0.9950; // 0.9937f; // 0.9937 1.05 both fixes lonewolf+hijack(1986)(electric dreams software).tzx
 float azimuth = AZIMUTH_DEFAULT;
 
-byte        mic,mic_on;
+int         mic,mic_on;
 char        mic_preview[_320+1];
-int         mic_invert_polarity = 0;
-int         mic_low;
+int         mic_low = 64; // polarity(+:64) or (-:0)
 
 int         RAW_tstate_prev;
 uint64_t    RAW_fsm;
 
+enum polarity_t { FLIP, KEEP, LOW, HIGH } mic_polarity;
+
 struct mic_queue_type {
-    const char *debug;
-    int count;
-    int pulse;
-    int block;
-} *mic_queue = 0, *mic_turbo = 0;
-int mic_queue_wr = 0, mic_queue_has_turbo = 0;
+    unsigned count : 15;
+    unsigned pulse : 15;
+    unsigned level : 2; // polarity level: flip(0), keep(1), low(2), high(3)
+    char debug;
+} *mic_queue, *mic_turbo;
+int mic_queue_wr, mic_queue_has_turbo;
 
-byte *mic_data = 0; // do not free
-int mic_datalen = 0;
+byte mic_byte2;
 
-byte *voc = 0;
-unsigned int voclen = 0;
+byte *voc; // do not free
+unsigned int voc_len;
 unsigned int voccap = 1;
 
 void voc_init(int reserve) {
     voc = realloc(voc, voccap = reserve);
-    voclen = 0;
+    voc_len = 0;
 }
 void voc_push(byte x, int count) {
-    if( (voclen+count) >= voccap ) {
-        voccap = (voclen+count) * 1.75;
+    if( (voc_len+count) >= voccap ) {
+        voccap = (voc_len+count) * 1.75;
         voc = realloc(voc, voccap);
-        if (!voc) exit(-printf("Out of mem %d bytes\n", voccap));
+        if (!voc) die(va("voc_push(): Out of mem %d bytes\n", voccap));
     }
-    memset(&voc[voclen], x, count);
-    voclen += count;
+    memset(&voc[voc_len], x, count);
+    voc_len += count;
 }
 
+void mic_render_polarity(unsigned polarity) {
+    mic_polarity = polarity;
+}
 
 void mic_render_pilot(float count, float pulse) {
     // longer pilots (x1.0250) fixes: untouchables (hitsquad), lightforce, ATF, TT Racer, Explorer (EDS)...
     pulse *= 1.0250;
     // PILOT
-    mic_queue[mic_queue_wr].debug = "pilot";
+    mic_queue[mic_queue_wr].debug = 'l'; // pi(l)ot
+    mic_queue[mic_queue_wr].level = mic_polarity;
     mic_queue[mic_queue_wr].count = count;
     mic_queue[mic_queue_wr++].pulse = pulse; assert(pulse > 0);
 }
 void mic_render_sync(float pulse) {
     // SYNC1 or SYNC2 (usually)
-    mic_queue[mic_queue_wr].debug = "sync";
+    mic_queue[mic_queue_wr].debug = 'n'; // sy(n)c
+    mic_queue[mic_queue_wr].level = mic_polarity;
     mic_queue[mic_queue_wr].count = 1;
     mic_queue[mic_queue_wr++].pulse = pulse; assert(pulse > 0);
 }
-void mic_render_data(byte *data, unsigned bytes, unsigned bits, unsigned zero, unsigned one) {
-    // COPY
-    mic_data = realloc(mic_data, (mic_datalen += bytes));
-    memcpy(mic_data + mic_datalen - bytes, data, bytes);
+void mic_render_data(byte *data, unsigned bytes, unsigned bits, unsigned zero, unsigned one, int bitrepeat) {
+    // COPY 2nd byte
+    if(mic_byte2 == 0xFF && bytes > 1) mic_byte2 = data[1];
     // DATA
     for( ; bytes-- > 0; ++data ) for( int i = 0; i < 8; ++i ) {
-    mic_queue[mic_queue_wr].debug = "data";
-    mic_queue[mic_queue_wr].count = 2;
-    mic_queue[mic_queue_wr++].pulse = ((*data) & (1<<(7-i)) ? one : zero);
+        mic_queue[mic_queue_wr].debug = 't'; // da(t)a
+        mic_queue[mic_queue_wr].level = mic_polarity;
+        mic_queue[mic_queue_wr].count = bitrepeat;
+        mic_queue[mic_queue_wr++].pulse = ((*data) & (1<<(7-i)) ? one : zero);
     }
-    // truncate latest bits
+    // truncate last bits
     mic_queue_wr -= 8 - bits;
 }
 
@@ -311,15 +327,15 @@ void mic_render_pause(unsigned pause_ms) {
     // fix hijack (EDS) 128, italy 1990 winners, dogfight 2187
     pause_ms *= 1.03; // 70908 vs 69888
 
-    // @fixme: stretch longer pauses if turborom is enabled (x6?) see: 1942.tzx + turborom, or topo games
-
     // END PILOT
     if(pause_ms) {
-    mic_queue[mic_queue_wr].debug = "pause1";
+    mic_queue[mic_queue_wr].debug = '1'; // pause(1)
+    mic_queue[mic_queue_wr].level = mic_polarity;
     mic_queue[mic_queue_wr].count = 1;
     mic_queue[mic_queue_wr++].pulse = DELAY_PER_MS;
 
-    mic_queue[mic_queue_wr].debug = "pause";
+    mic_queue[mic_queue_wr].debug = 'u'; // pa(u)se
+    mic_queue[mic_queue_wr].level = mic_polarity;
     mic_queue[mic_queue_wr].count = 1;
     mic_queue[mic_queue_wr++].pulse = pause_ms * DELAY_PER_MS;
     }
@@ -334,7 +350,8 @@ void mic_render_stop(void) { // REV
     // batman the movie
     // express raider
 
-    mic_queue[mic_queue_wr].debug = "stop";
+    mic_queue[mic_queue_wr].debug = 'o'; // st(o)p
+    mic_queue[mic_queue_wr].level = mic_polarity;
     mic_queue[mic_queue_wr].count = 1;
     mic_queue[mic_queue_wr++].pulse = DELAY_PER_MS; //0;
 }
@@ -343,7 +360,7 @@ void mic_render_full(byte *data, unsigned bytes, unsigned bits, float pilot_len,
     mic_render_pilot(pilot_len, pilot);
     mic_render_sync(sync1);
     mic_render_sync(sync2);
-    mic_render_data(data, bytes, bits, zero, one);
+    mic_render_data(data, bytes, bits, zero, one, 2);
     mic_render_pause(pause);
 }
 
@@ -353,90 +370,110 @@ void mic_render_standard(byte *data, unsigned bytes, float pilot_len) {
 
 
 byte ReadMIC(int tstates) {
-//    if(voc && (RAW_fsm/4) >= voclen) return mic_on = 0, mic; // end of tape
-    if(RAW_fsm && (RAW_fsm/4) >= voclen) return mic_on = 0, mic; // end of tape
-
-#if 0
-    // auto-start tape on rom trap
-    if(!mic_on) {
-        unsigned pc = PC(cpu);
-        bool rom1 = ZX<=48 || (ZX <= 200 && (page128 & 16));
-        bool loading_from_rom = rom1 && pc < 0x4000; // (pc >= 0x04C2 && pc < 0x09F4); // (pc == 0x562 || pc == 0x5f1);
-        if( loading_from_rom ) {
-            mic_on = 1;
-        }
-        return 0;
-    }
-#endif
-
-    unsigned pc = PC(cpu);
-    bool rom1 = ZX<=48 || (ZX <= 200 && (page128 & 16));
-    bool loading_from_rom = rom1 && pc < 0x4000; // && (pc >= 0x04C2 && pc < 0x09F4); // (pc == 0x562 || pc == 0x5f1);
-    bool rom_turbo = patched_rom && loading_from_rom;
-    struct mic_queue_type *queue = rom_turbo ? mic_turbo : mic_queue;
+//    if(voc && (RAW_fsm/4) >= voc_len) return mic_on = 0, mic; // end of tape
+    if(RAW_fsm && (RAW_fsm/4) >= voc_len) return mic_on = 0, mic; // end of tape
 
 repeat:;
-    if( RAW_fsm == 0 ) {
+    if( RAW_fsm == 0 || tstates < 0 ) {
 
-    mic_low = mic_invert_polarity ? 0 : 64; // <-- polarity sensitive: 64: fixes hudson hawk,starbike, 0: fixes lonewolf,basil,mask,
+    uint64_t then = time_ns();
+
+    // @fixme: this heuristic cant be used anymore since ReadMIC(-1) is called during snapshot restore. see: .sav code
+    bool loading_from_rom = 1; // PC(cpu) < 0x4000 && GET_MAPPED_ROMBANK() == GET_BASIC_ROMBANK();
+
+    bool turbo_rom = rom_patches & TURBO_PATCH;
+    struct mic_queue_type *queue = turbo_rom && loading_from_rom ? mic_turbo : mic_queue;
+
     mic = mic_low;
     voc_init(128 * 1024 * 1024); // @fixme: 128 mib seems excessive
     for( int i = 0; i < mic_queue_wr; ++i ) {
         int count = queue[i].count;
+
+        // longer pauses if turborom is enabled. see: 1942.tzx + turborom (valid combo?)
+        // see: custardthekid(48) + bestialwarrior(lightgun) + turborom
+        if( queue == mic_turbo && queue[i].debug == 'u' )
+            count *= 8; // should be x6 in theory
+
         for( int j = 0; j < count; ++j ) {
+
+            if( j == 0 ) {
+            if( queue[i].level == FLIP ) mic ^= 64;
+            if( queue[i].level == HIGH ) mic = mic_low ^ 64;
+            if( queue[i].level == LOW )  mic = mic_low;
+            }
+            else
             mic ^= 64;
-            if( queue[i].debug[2] == 'u' && !strcmp(queue[i].debug, "pause") ) mic = mic_low;
+
+            if( queue[i].debug == 'u' ) mic = mic_low; // pa(u)se
+
             int pulse = queue[i].pulse; // * (rom_turbo ? 1.0 : azimuth);
-//if( !strcmp(queue[i].debug, "pilot") ) pulse *= 1.0250; // longer pilots: breaks: italy90, fixes: untouchables (hitsquad), dogfight 2187, lightforce, ATF, TT Racer
-//if( !strcmp(queue[i].debug, "sync") ) pulse -= 2; // shorter syncs: fix italy 1990 (winners), hijack (1986)(electric dreams software)
+//if( queue[i].debug == 'l') ) pulse *= 1.0250; // longer pilots: breaks: italy90, fixes: untouchables (hitsquad), dogfight 2187, lightforce, ATF, TT Racer
+//if( queue[i].debug == 'n') ) pulse -= 2; // shorter syncs: fix italy 1990 (winners), hijack (1986)(electric dreams software)
             assert(pulse > 0);
 
-            voc_push( mic<<1 | queue[i].debug[2], (pulse / 4) + !!(pulse % 4));
+            voc_push( mic<<1 | queue[i].debug, (pulse / 4) + !!(pulse % 4));
         }
-        // if( (i+1)==mic_queue_wr || !(i%100000) ) printf("%d/%d,%d bytes\r", i, mic_queue_wr, voclen);
+        // if( (i+1)==mic_queue_wr || !(i%100000) ) printf("%d/%d,%d bytes\r", i, mic_queue_wr, voc_len);
     }
 
-#if 1
+    printf("%5.2fs tape render\n", (time_ns() - then) / 1e9 ); then = time_ns();
+
+#if 0
     // create tape preview in 3 steps
     // 1) clear preview
     // 2) datas or pilots as dotted line
     // 3) ensure pauses and gaps are clearly blank over dots from step 2
     memset(mic_preview, 0, sizeof(mic_preview));
-    if( voclen )
+    if( voc_len )
     for( int i = 0; i <= _320; ++i ) {
         float pct = (float)i / _320;
-        unsigned pos = (voclen-1) * pct;
+        unsigned pos = (voc_len-1) * pct;
         int has_data = 't' == (voc[pos] & 0x7f); // da(t)a
         int has_pilot = 'l' == (voc[pos] & 0x7f); // pi(l)ot
         mic_preview[i] |= has_data || has_pilot ? (i & 1) : 0;
     }
-    if( voclen )
-    for( int pos = 0; pos < voclen; ++pos ) {
-        unsigned pct = (float)pos * _320 / (voclen - 1);
+    if( voc_len )
+    for( int pos = 0; pos < voc_len; ++pos ) {
+        unsigned pct = (float)pos * _320 / (voc_len - 1);
+        int has_pause = 'u' == (voc[pos] & 0x7f); // pa(u)se, st(o)p
+        if( has_pause ) mic_preview[pct] = 0, mic_preview[pct - (pct > 0)] = 0;
+    }
+#else
+    // create tape preview in 2 steps
+    // 1) any kind of data is a dotted line
+    // 2) ensure pauses and gaps are clearly blank over dots from step 1
+    for( int i = 0; i <= _320; ++i ) mic_preview[i] = (i & 1);
+    for( unsigned pos = 0; pos < voc_len; pos += 64 ) {
+        unsigned pct = (float)pos * _320 / (voc_len - 1);
         int has_pause = 'u' == (voc[pos] & 0x7f); // pa(u)se, st(o)p
         if( has_pause ) mic_preview[pct] = 0, mic_preview[pct - (pct > 0)] = 0;
     }
 #endif
 
+    printf("%5.2fs tape render (preview)\n", (time_ns() - then) / 1e9 ); then = time_ns();
+
     printf("%d last mic\n", mic);
 
-
+    if(tstates < 0) return mic;
 
         RAW_fsm = 4;
         RAW_tstate_prev = tstates;
     }
     if( RAW_fsm ) {
         int diff=tstates-RAW_tstate_prev;
-if(diff>69888) diff = 4; if(diff < 0) diff = 0; // fix games with animated intros: EggThe, diver, doctum, coliseum.tap+turborom, barbarian(melbourne)
+#if 1
+if(ZX_AUTOPLAY && diff>69888) diff = /*69888*/4; // fix games with animated intros or pauses: cauldron2.tap, EggThe, diver, doctum, coliseum.tap+turborom, barbarian(melbourne)
+if(diff < 0) diff = 0;
+#endif
         RAW_tstate_prev=tstates;
         RAW_fsm+=diff>=0?diff:69888-diff; // ZX_TS, max tstates
 
-//        mic_on = (RAW_fsm/4) < voclen;
+//        mic_on = (RAW_fsm/4) < voc_len;
         mic = mic_on ? (voc[RAW_fsm/4]>>1)&64 : mic; // 0
     }
 
     // stop tape if needed.
-    if( mic_on && strchr(/*!mic_queue_has_turbo ? "uo" :*/ "o", voc[RAW_fsm/4]&0x7f)) { // pa(u)se st(o)p
+    if( mic_on && (voc[RAW_fsm/4]&0x7f) == 'o') { // pa(u)se st(o)p
         puts("auto-stop tape block found");
         mic_on = 0;
     }
@@ -447,7 +484,7 @@ if(diff>69888) diff = 4; if(diff < 0) diff = 0; // fix games with animated intro
 void mic_finish() {
 #if 0
     mic_render_stop();
-    mic_queue[mic_queue_wr].debug = "";
+    mic_queue[mic_queue_wr].debug = '\0';
     mic_queue[mic_queue_wr].pulse = 0;
 #else
     mic_render_pause(1000);
@@ -457,29 +494,29 @@ void mic_finish() {
     for( int i = 0; i < mic_queue_wr; ++i ) {
         mic_turbo[i] = mic_queue[i];
 
-        /**/ if(!strcmp(mic_turbo[i].debug, "pilot")) {
-            IF_ROMHACK_FASTER_EDGES(mic_turbo[i].pulse -= 358);          // ROMHACK $5e7 x16 faster edges (OK)
-            IF_ROMHACK_FASTER_PILOTS_AND_PAUSES(mic_turbo[i].count /= 6); // ROMHACK $571 x6 faster pilots/pauses (OK)
+        /**/ if( mic_turbo[i].debug == 'l' ) { // pi(l)ot
+            IF_TURBOROM_FASTER_EDGES(mic_turbo[i].pulse -= 358);          // ROMHACK $5e7 x16 faster edges (OK)
+            IF_TURBOROM_FASTER_PILOTS_AND_PAUSES(mic_turbo[i].count /= 6); // ROMHACK $571 x6 faster pilots/pauses (OK)
         }
-        else if(!strcmp(mic_turbo[i].debug, "sync")) {
-            IF_ROMHACK_FASTER_EDGES(mic_turbo[i].pulse -= 358);  // ROMHACK $5e7 x16 faster edges (OK)
+        else if( mic_turbo[i].debug == 'n' ) { // sy(n)c
+            IF_TURBOROM_FASTER_EDGES(mic_turbo[i].pulse -= 358);  // ROMHACK $5e7 x16 faster edges (OK)
         }
-        else if(!strcmp(mic_turbo[i].debug, "data")) {
-            IF_ROMHACK_HALF_BITS(mic_turbo[i].count /= 2);           // ROMHACK $5ca 50% eliminate dupe bits of data
-            IF_ROMHACK_FASTER_EDGES(mic_turbo[i].pulse -= 358);  // ROMHACK $5e7 x16 faster edges (OK)
-            IF_ROMHACK_TURBO(mic_turbo[i].pulse /= ROMHACK_TURBO);  // ROMHACK $5a5 turbo loader (OK)
+        else if( mic_turbo[i].debug == 't' ) { // da(t)a
+            IF_TURBOROM_HALF_BITS(mic_turbo[i].count /= 2);           // ROMHACK $5ca 50% eliminate dupe bits of data
+            IF_TURBOROM_FASTER_EDGES(mic_turbo[i].pulse -= 358);  // ROMHACK $5e7 x16 faster edges (OK)
+            IF_TURBOROM_TURBO(mic_turbo[i].pulse /= ROMHACK_TURBO);  // ROMHACK $5a5 turbo loader (OK)
         }
-        else if(!strcmp(mic_turbo[i].debug, "pause")) {
+        else if( mic_turbo[i].debug == 'u' ) { // pa(u)se
             //commented because of spirits.tzx
-            IF_ROMHACK_FASTER_EDGES(mic_turbo[i].pulse -= 358);          // ROMHACK $5e7 x16 faster edges (OK)
-            IF_ROMHACK_FASTER_PILOTS_AND_PAUSES(mic_turbo[i].pulse /= 6); // ROMHACK $571 x6 faster pilots/pauses (OK)
+            IF_TURBOROM_FASTER_EDGES(mic_turbo[i].pulse -= 358);          // ROMHACK $5e7 x16 faster edges (OK)
+            IF_TURBOROM_FASTER_PILOTS_AND_PAUSES(mic_turbo[i].pulse /= 6); // ROMHACK $571 x6 faster pilots/pauses (OK)
         }
     }
 }
 
-void mic_reset() {
-    mic_queue = realloc(mic_queue, sizeof(struct mic_queue_type) * (0x100000 * 8 + 4) );
-    mic_turbo = realloc(mic_turbo, sizeof(struct mic_queue_type) * (0x100000 * 8 + 4) );
+void mic_reset(void) {
+    mic_queue = realloc(mic_queue, sizeof(struct mic_queue_type) * (0x180000 * 8 + 4) );
+    mic_turbo = realloc(mic_turbo, sizeof(struct mic_queue_type) * (0x180000 * 8 + 4) );
     mic_queue_wr = 0;
     mic_queue_has_turbo = 0;
 
@@ -489,10 +526,49 @@ void mic_reset() {
     RAW_fsm = 0;
     RAW_tstate_prev = 0;
 
-    mic_datalen = 0;
+    mic_byte2 = 0xFF;
 
     memset(mic_preview, 0, sizeof(mic_preview));
+
+    // do not reset polarity: let user decide
+    // mic_low = 64;
 }
+
+void mic_next() { // @fixme: requires rendered tape (voc[])
+    if( mic_has_tape ) {
+        voc_pos /= 4;
+        while(voc_pos < voc_len &&                'l' == (voc[voc_pos] & 0x7f)) voc_pos++; // pa(u)se st(o)p pi(l)ot sy(n)c da(t)a
+        while(voc_pos < voc_len &&                'l' != (voc[voc_pos] & 0x7f)) voc_pos++; // pa(u)se st(o)p pi(l)ot sy(n)c da(t)a
+        voc_pos = 4 * (voc_pos - (voc_pos >= voc_len));
+        RAW_tstate_prev = 0;
+    }
+}
+void mic_prev() { // @fixme: requires rendered tape (voc[])
+    if( mic_has_tape ) {
+        voc_pos /= 4;
+        while(voc_pos < voc_len && voc_pos > 0 && 'l' == (voc[voc_pos] & 0x7f)) voc_pos--; // pa(u)se st(o)p pi(l)ot sy(n)c da(t)a
+        while(voc_pos < voc_len && voc_pos > 0 && 'l' != (voc[voc_pos] & 0x7f)) voc_pos--; // pa(u)se st(o)p pi(l)ot sy(n)c da(t)a
+        while(voc_pos < voc_len && voc_pos > 0 && 'l' == (voc[voc_pos] & 0x7f)) voc_pos--; // pa(u)se st(o)p pi(l)ot sy(n)c da(t)a
+        voc_pos = 4 * (voc_pos);
+        RAW_tstate_prev = 0;
+    }
+}
+
+char mic_peek(uint64_t targetbit) {
+    return voc && targetbit/4 < voc_len ? voc[targetbit/4] & 0x7f & ~32 : ' ';
+}
+void mic_seekf(float pct) {
+    if( pct >= 0 && pct <= 1 ) {
+        if( voc && voc_len ) {
+            voc_pos = pct * (voc_len - 1);
+            voc_pos *= 4;
+        }
+    }
+}
+float mic_tellf() {
+    return (voc_pos/4) / (float)(voc_len+!voc_len);
+}
+
 
 int tap_load(void *fp, int siz) {
     mic_reset();
@@ -518,18 +594,4 @@ int tap_load(void *fp, int siz) {
 
     mic_finish();
     return 1;
-}
-
-void tap_prev() { // @fixme: requires rendered tape (voc[])
-    voc_pos /= 4;
-    while(voc_pos < voclen && voc_pos > 0 && 'l' == (voc[voc_pos] & 0x7f)) voc_pos--; // pa(u)se st(o)p pi(l)ot sy(n)c da(t)a
-    while(voc_pos < voclen && voc_pos > 0 && 'l' != (voc[voc_pos] & 0x7f)) voc_pos--; // pa(u)se st(o)p pi(l)ot sy(n)c da(t)a
-    while(voc_pos < voclen && voc_pos > 0 && 'l' == (voc[voc_pos] & 0x7f)) voc_pos--; // pa(u)se st(o)p pi(l)ot sy(n)c da(t)a
-    RAW_tstate_prev = voc_pos = voc_pos * 4;
-}
-void tap_next() { // @fixme: requires rendered tape (voc[])
-    voc_pos /= 4;
-    while(voc_pos < voclen &&                'l' == (voc[voc_pos] & 0x7f)) voc_pos++; // pa(u)se st(o)p pi(l)ot sy(n)c da(t)a
-    while(voc_pos < voclen &&                'l' != (voc[voc_pos] & 0x7f)) voc_pos++; // pa(u)se st(o)p pi(l)ot sy(n)c da(t)a
-    RAW_tstate_prev = voc_pos = voc_pos * 4;
 }

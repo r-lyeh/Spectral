@@ -2629,12 +2629,14 @@ LRESULT CALLBACK tigrWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                     tigrPosition(bmp, win->scale, dw, dh, win->pos);
                 }
 
+#if 1
                 // If someone tried to maximize us (e.g. via shortcut launch options),
                 // prefer instead to be borderless.
                 if (wParam == SIZE_MAXIMIZED) {
                     ShowWindow((HWND)bmp->handle, SW_NORMAL);
                     tigrEnterBorderlessWindowed(bmp);
                 }
+#endif
             }
             return 0;
 #ifndef TIGR_DO_NOT_PRESERVE_WINDOW_POSITION

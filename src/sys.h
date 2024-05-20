@@ -10,6 +10,12 @@ typedef unsigned int   rgba;
 #define __thread __declspec(thread)
 #define FIXME(msg) printf("FIXME: " msg " (%s:%d)\n", __FILE__, __LINE__)
 
+#ifdef _MSC_VER
+#define bswap16 _byteswap_ushort
+#else
+#define bswap16 __builtin_bswap16
+#endif
+
 #include "sys_file.h"
 #include "sys_string.h"
 #include "sys_sleep.h"

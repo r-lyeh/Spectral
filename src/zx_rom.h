@@ -2,44 +2,77 @@
 #include "res/roms/128"
 #include "res/roms/plus2"
 #include "res/roms/plus3"
+#include "res/roms/pentagon128"
 
-#include "res/roms/plus2c"
-#include "res/roms/lg18v07"
-#include "res/roms/gw03v33"
+//#include "res/roms/plus2c"    // https://speccy4ever.speccy.org/_CMS.htm
+#include "res/roms/lg18v07"     // https://speccy4ever.speccy.org/_CMS.htm
+//#include "res/roms/gw03v33"   // https://speccy4ever.speccy.org/_CMS.htm
 
+#include "res/snaps/ld16bas"
+#include "res/snaps/ld16bin"
 #include "res/snaps/ld48bas"
 #include "res/snaps/ld48bin"
-//#include "res/snaps/ld128scr"
 #include "res/snaps/ld128bas"
 #include "res/snaps/ld128bin"
+#include "res/snaps/ldplus2bas"
+#include "res/snaps/ldplus2bin"
+#include "res/snaps/ldplus2abas"
+#include "res/snaps/ldplus2abin"
 #include "res/snaps/ldplus3"
+#include "res/snaps/ldplus3bas"
+#include "res/snaps/ldplus3bin"
 //#include "res/snaps/ldusr0bas"
 //#include "res/snaps/ldusr0bin"
 
 #define ROMHACK_TURBO 2.6 // x2 ok; x4,x6,x8 modes not working anymore :(
-#define IF_ROMHACK_FASTER_EDGES(...)             __VA_ARGS__ // can be enabled
-#define IF_ROMHACK_FASTER_PILOTS_AND_PAUSES(...) __VA_ARGS__ // can be enabled
-#define IF_ROMHACK_HALF_BITS(...)              //__VA_ARGS__ // not working anymore :(
-#define IF_ROMHACK_TURBO(...)                    __VA_ARGS__ // can be enabled
+#define IF_TURBOROM_FASTER_EDGES(...)             __VA_ARGS__ // can be enabled
+#define IF_TURBOROM_FASTER_PILOTS_AND_PAUSES(...) __VA_ARGS__ // can be enabled
+#define IF_TURBOROM_HALF_BITS(...)              //__VA_ARGS__ // not working anymore :(
+#define IF_TURBOROM_TURBO(...)                    __VA_ARGS__ // can be enabled
 
-// romturbo stats
+// turborom stats
 // parapshock: 232s (normal)
 // parapshock:  73s (then, 50% processed bits, 6x pilots/pauses, x15 syncs) -> 30s -> 23s
 // parapshock:  18s (then, F1 boost)
-int patched_rom = 0;
 
-void rom_patch(int on) {
+enum { TURBO_PATCH = 1, ALT_PATCH = 2, SCROLL_PATCH = 4 };
+int rom_patches;
+
+void patch(byte *from, byte *to, int len, byte *src, const byte *dst) {
+    int hits = 0;
+    while( (to - from) > len ) {
+        if( memcmp(from, src, len) == 0 )
+            memcpy((from += len) - len, dst, len), ++hits;
+        else
+            ++from;
+    }
+    printf("%d patch(es) found\n", hits);
+}
+
+void rom_patch_scroll() {
+    if(rom_patches & SCROLL_PATCH) return;
+    rom_patches |= SCROLL_PATCH;
+    // supress "Scroll?" message: JP #0CD2
+    memset(ROM_BASIC()+0x0C93, 0, 0xCD2-0xC93);
+}
+
+void rom_restore() {
+    rom_patches = 0;
+
     // [ref] https://speccy.xyz/rom/asm/0556.html
 
-    if( ZX <=  48) memcpy(rom, rom48,     0x4000*1);
-    if( ZX == 128) memcpy(rom, rom128,    0x4000*2);
-    if( ZX == 200) memcpy(rom, romplus2,  0x4000*2);
-    if( ZX >= 210) memcpy(rom, romplus3,  0x4000*4);
+    /**/ if( ZX >= 210) memcpy(rom, romplus3,  0x4000*4);
+    else if( ZX >= 200) memcpy(rom, romplus2,  0x4000*2);
+    else if( ZX >= 128) memcpy(rom, rom128,    0x4000*2);
+    else if( ZX >=  16) memcpy(rom, rom48,     0x4000*1);
 
     if(ZX_ALTROMS)
     {
+    // install pentagon rom on 128 model :o)
+    // if( ZX == 128) memcpy(rom+0x0000, pentagon128, 0x4000*2);
+#if 0
     // install plus2c on 128/+2 models
-    if( ZX <= 200) memcpy(rom+0x0000, romplus2c, 0x4000), memcpy(rom+0x4000, rom48, 0x4000);
+    if( ZX <= 200) memcpy(rom+0x0000, romplus2c, 0x4000), memcpy(rom+0x4000, rom128+0x4000, 0x4000);
     if( ZX <= 200) rom[0x0566] = '6';  // 198(6) Sinclair
     if( ZX <= 200) rom[0x37F6] = 0x00; // black menu titles
     if( ZX <= 200) rom[0x3864] = 0x40; // black banners
@@ -48,30 +81,65 @@ void rom_patch(int on) {
     if( ZX <= 200) memcpy(rom+0x2744+11, rom128+0x2744+11, 2); // restore classic rom1 locked in 48 mode
     if( ZX <= 200) rom[0x1B2B+13] = 0x03; // fix error msg on plus2c+gw03/lg18+SPECTRUM command combo; (BORDER q#PI instead of 0 OK) ; $0013 -> $0003 Address of a $FF byte within ROM 1, used to generate error report "0 OK".
 
-    // install gw03 on 16/48/128/+2 models.
-    if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48), romgw03v33/*romlg18v07,rom48*/, 0x4000);
+    // install gw03
+    if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48), romgw03v33/*romjgh077/*romgw03v33/*romlg18v07/*rom48*/, 0x4000);
+#endif
+
+    // note: rom48, contains a vector FF table in the [0x386E..0x3D00) region
+    // if( ZX >= 128) memcpy(rom+0x4000, romplus2+0x4000, 0x4000); //memset(rom+0x4000*0+0x386E, 0xFF, 0x3D00-0x386E);
+
+    // Owen: Changing three instructions to NOP allows the original, unmodified ROM from the Spectrum 48K to be used in place of ROM 1.
+    // EF       RST  28H          ; Attempt to display TV tuning test screen.
+    // 04 3C    DEFW TEST_SCREEN  ; $3C04. Will return if BREAK is not being pressed.
+    // if(ZX==128||ZX==200) memset(rom+0x4000*0+0x240, 0x00, 3);
+
+    // [0x3D00..0x3FFF] = charset [0x20..0x7f], 8 bytes each
+    // Groot: 0x11CD [border], 0x1265 [paper], 0x1539 [(c) 1982 Sinclair Research Ltd]
+    // Groot: New NMI routine: Quick start basic without memory erase!
+    // memcpy(rom+0x4000 * (ZX > 48)+0x66, "\xF3\xAF\xD3\xFE\x3E\x3F\xED\x47\x2A\xB2\x5C\xC3\x19\x12", 14);
+
+#if 0 // opense basic
+    if( ZX <= 200) {
+        memcpy(rom+0x0000, rom128, 0x4000);
+        // patch x3 nop as described in plus2c.txt (aowen)
+        if(ZX==128||ZX==200) memset(rom+0x4000*0+0x240, 0x00, 3);
+        // update token tables from TOKENS=$95 to TOKENS=$a9
+        patch(rom,rom+0x4000,3,"\x21\x96\x00","\x21\xAA\x00");  // LD   HL,TOKENS+$0001 ; $0096. Token table entry "RND" in ROM 1.
+        patch(rom,rom+0x4000,3,"\x21\xCF\x00","\x21\xE2\x00");  // LD   HL,TOKENS+$003A ; $00CF. Token table entry "ASN" in ROM 1.
+        patch(rom,rom+0x4000,3,"\x21\x00\x01","\x21\x13\x01");  // LD   HL,TOKENS+$006B ; $0100. Token table entry "OR" in ROM 1.
+        patch(rom,rom+0x4000,3,"\x21\x3E\x01","\x21\x51\x01");  // LD   HL,TOKENS+$00A9 ; $013E. Token table entry "MERGE" in ROM 1.
+        patch(rom,rom+0x4000,3,"\x21\x8B\x01","\x21\x9E\x01");  // LD   HL,TOKENS+$00F6 ; $018B. Token table entry "RESTORE" in ROM 1.
+        patch(rom,rom+0x4000,3,"\x21\xD4\x01","\x21\xE5\x01");  // LD   HL,TOKENS+$013F ; $01D4. Token table entry "PRINT" in ROM 1.
+        patch(rom,rom+0x4000,3,"\x21\x96\x00","\x21\xAA\x00");  // LD   HL,TOKENS+1     ; $0096. Address of token table in ROM 1.
+    }
+    if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48), romsebasic/*romgw03v33/*romlg18v07/*rom48*/, 0x4000);
+#endif
     }
 
 #if TESTS
-    if( ZX <= 200) memset(rom+0x4000 * (ZX > 48)+0x0C93, 0, 0xCD2-0xC93); // supress "Scroll?" message: JP #0CD2
+    rom_patch_scroll();
 #endif
+}
 
-    patched_rom = on && ZX <= 200;
-if( patched_rom ) {
+void rom_patch_turbo() {
+    if(rom_patches & TURBO_PATCH) return;
 
-    byte *rombank = ROM_BANK(ZX >= 128 ? 1 : 0);
+    rom_patches |= TURBO_PATCH;
 
-IF_ROMHACK_FASTER_PILOTS_AND_PAUSES(
+    byte *rombank = ROM_BANK(GET_BASIC_ROMBANK());
+
+IF_TURBOROM_FASTER_PILOTS_AND_PAUSES(
     // ROMHACK $571 x6 faster pilot pulse
     memcpy(rombank+0x571, "\x21\x01\x00", 3); // LD HL,$0415 -> LD HL,$0105      The length of this waiting period will be almost one second in duration. -> /=4
     memcpy(rombank+0x580, "\x06\x4E",     2); // LD B,$9C                        The timing constant -> /=4
     memcpy(rombank+0x587, "\x3E\x63",     2); // LD A,$C6                        However the edges must have been found within about 3,000 T states of each other. -> /=4
 );
-IF_ROMHACK_FASTER_EDGES(
+IF_TURBOROM_FASTER_EDGES(
     // ROMHACK $5e7 x16 faster edges (sync) (358T->0T)
     memcpy(rombank+0x5E7, "\x3E\x01",     2); // LD A,$16 -> LD A,$1             Wait 358 T states before entering the sampling loop.
+    // beware: +2A/+3 is LD A,$C6 !!! 170 extra states
 );
-IF_ROMHACK_HALF_BITS(
+IF_TURBOROM_HALF_BITS(
     // ROMHACK $5ca option A: eliminate dupe bits (data) AND 16 faster edges (sync) (358T->0T)
     //memcpy(rombank+0x5CA, "\xCD\xED\x05", 3); // CALL LD_EDGE_2->SAMPLE ($5E3->$5ED)  Find the length of the 'off' and 'on' pulses of the next bit.
 
@@ -82,7 +150,7 @@ IF_ROMHACK_HALF_BITS(
     //memcpy(rombank+0x5E3, "\x00\x00\x00\x00", 4);
 );
 
-IF_ROMHACK_TURBO(
+IF_TURBOROM_TURBO(
     // ROMHACK $5a5 turbo loader
     // x1 B0,B2,CB,B0 OK
     // x2 58,59,66,58 OK
@@ -115,4 +183,34 @@ IF_ROMHACK_TURBO(
     rombank[0x5D3+1] /= ROMHACK_TURBO; // LD B,$B0 -> $XX                 Set the timing constant for the next bit.
 );
 }
+
+void rom_patch_klmode() {
+    // apply hot patch
+    if( ZX_KLMODE_PATCH_NEEDED && PC(cpu) == 0x15E1 ) { // @todo: find another less hacky PC addr
+        int rombank = GET_MAPPED_ROMBANK();
+        int basicbank = GET_BASIC_ROMBANK();
+        if( rombank == basicbank ) 
+        {
+            ZX_KLMODE_PATCH_NEEDED = 0;
+
+            // install lg18
+            memcpy(rom + 0x4000 * basicbank, romlg18v07, 0x4000);
+            if(rom_patches & TURBO_PATCH) rom_patch_turbo();
+            if(rom_patches & SCROLL_PATCH) rom_patch_scroll();
+            rom_patches |= ALT_PATCH;
+
+            // toggle mode
+            if( ZX_KLMODE ) { // L
+                WRITE8(0x5C6A, READ8(0x5C6A) & ~32 ); // FLAGS2, clear bit 5
+                WRITE8(0x5C3B, READ8(0x5C3B) &  (8 | 4) ); // FLAGS, set permanent+transient flag to 'L'
+            } else { // K
+                WRITE8(0x5C6A, READ8(0x5C6A) | 32 ); // FLAGS2, set bit 5
+                WRITE8(0x5C3B, READ8(0x5C3B) & ~(8 | 4) ); // FLAGS, set permanent+transient flag to 'K'
+            }
+
+            // submit enter key to force a refresh in rom
+            extern int keymap[5][5];
+            keymap[3][2] &= 0xFE;
+        }
+    }
 }

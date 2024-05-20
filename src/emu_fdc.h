@@ -1147,7 +1147,7 @@ void fdc_scan()
 
 
 
-void fdc_init(int a, int b)
+void fdc_reset()
 {
  memset(&driveA, 0, sizeof(struct t_drive)); // clear disk drive A data structure
  memset(&driveB, 0, sizeof(struct t_drive)); // clear disk drive B data structure
@@ -1158,6 +1158,9 @@ void fdc_init(int a, int b)
  fdc.phase = CMD_PHASE;
  fdc.flags = STATUSDRVA_flag | SKIP_flag | OVERRUN_flag; // | STATUSDRVB_flag;
 
+ driveA.write_protected = 1; // is the image write protected?
+ // driveA.random_DEs = 1; // sectors with Data Errors return random data?
+
  active_drive = &driveA; // reference to the currently selected drive
  active_track = NULL; // reference to the currently selected track, of the active_drive
 
@@ -1167,4 +1170,5 @@ void fdc_init(int a, int b)
 void fdc_motor(unsigned char on)
 {
  fdc.motor=on;
+ fdc.flags |= STATUSDRVA_flag; // | STATUSDRVB_flag;
 }

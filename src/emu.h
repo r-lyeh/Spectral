@@ -41,6 +41,7 @@
 #define IM(cpu)    (cpu).im
 #define IFF1(cpu)  (cpu).iff1
 #define IFF2(cpu)  (cpu).iff2
+#define WZ(cpu)    (cpu).wz
 
 #define z80_interrupt(x,on) do { \
     if(on) pins |= Z80_INT; \

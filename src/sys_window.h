@@ -37,6 +37,7 @@ void (warning)(const char *title, const char *msg) {
 void die(const char *msg) {
     fprintf(stderr, "%s\n", msg);
     warning(msg);
+    if(IsDebuggerPresent()) DebugBreak();
     exit(-1);
 }
 
