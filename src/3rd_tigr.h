@@ -33,8 +33,9 @@ extern "C" {
 // Bitmaps ----------------------------------------------------------------
 
 // This struct contains one pixel.
-typedef struct {
-    unsigned char r, g, b, a;
+typedef union { //< @r-lyeh: convert to union and provide rgba member
+    struct { unsigned char r, g, b, a; };
+    unsigned rgba;
 } TPixel;
 
 // Window flags.

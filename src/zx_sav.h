@@ -1,23 +1,28 @@
-// ## snapshot spec v1: big endian (readable when hexdumped)
+// warning: the format spec is yet subject to change. wip.
+
+// ## snapshot spec v0: big endian (readable when hexdumped)
 // [optional .png screenshot, variable size]
 // header [16] + version [16]
+// @todo: uncompressed SCR page, then get this page excluded in 16ram pages block
 // z80 regs (in alphabetical order) [16 each]
 //  AF AF2 BC BC2 DE DE2 HL HL2 IFF12 IM IR IX IY PC SP WZ
-// num ports (in ascending order) [16]
+// ports (in ascending order, ideally)
 //  addr [16], data [16]
-// num rom sequential pages (in ascending order) [4]
+//  [...]
+//  null terminator [16]
+// 04 rom pages in ascending order
 //  size [16], blob [N] (@todo: z80rle if size < 16k; not paged in if size == 0, thus blob is skipped)
-// num ram sequential pages (in ascending order) [16]
+// 16 ram pages in ascending order
 //  size [16], blob [N] (@todo: z80rle if size < 16k; not paged in if size == 0, thus blob is skipped)
 // num attached medias (tap, tzx, dsk, ...) [16]
-//  pages [16], size [16], seek [16]
-// blob[0]
-// blob[1]
-// ..
-// blob[16]
+//  pages [16], bytes in last page [16], seek percent [16]
+//  [...]
+// attached blobs for medias
+//  blob
+//  [...]
+// @todo: checksum [16] (checksum of all the previous blocks found. initial hash = snap version that your emu supports)
 
 // @todo: save/load to mem
-// @todo: checksum at eof
 // @todo: png header,
 //        then make screenshot() to write a snapshots too,
 //        then allow .pngs to be dropped,
@@ -47,7 +52,9 @@ int export_state(FILE *fp) {
     put16(STATE_HEADER);
     put16(STATE_VERSION);
 
-    put16(ZX|!!(rom_patches&TURBO_PATCH)); // this flag shouldnt be here
+    // model and submodel flags
+    put16(ZX);
+    put16( (!!(rom_patches&TURBO_PATCH)) << 15 | !!ZX_PENTAGON );
 
     put16(AF(cpu));
     put16(AF2(cpu));
@@ -66,6 +73,7 @@ int export_state(FILE *fp) {
     put16(SP(cpu));
     put16(WZ(cpu));
 
+                    put16(0x00fe), put16(ZXBorderColor); // any ZX
     if( ZX >= 210 ) put16(0x1ffd), put16(page2a); // +2A, +3
     if( ZX >= 128 ) put16(0x7ffd), put16(page128); // any 128
     if( ZX >= 128 ) for( int i = 0; i < 16; ++i ) { // any 128
@@ -73,7 +81,6 @@ int export_state(FILE *fp) {
                         put16(0xfffd), put16(reg);
                         put16(0xbffd), put16(ay_registers[reg]);
                     }
-                    put16(0x00fe), put16(ZXBorderColor); // any ZX
 
     if( ZX_ULAPLUS && ulaplus_enabled ) {
         put16(0xBF3B), put16( 64 ); // mode group
@@ -131,9 +138,14 @@ int import_state(FILE *fp) {
     check16(STATE_HEADER);
     check16(STATE_VERSION);
 
-    get16(ZX); int turbo = ZX&1;
-    boot(ZX&0xFFFE,0);
-    rom_patches |= turbo * TURBO_PATCH;
+    get16(ZX);
+    boot(ZX,0);
+
+    // @fixme: we should put boolean flags here like: has_snow, has_contended, has_beta128, has_timings, etc
+    uint16_t submodel;
+    get16(submodel);
+    rom_patches |= !!(submodel&0x8000) * TURBO_PATCH;
+    ZX_PENTAGON = !!(submodel & 1);
 
     get16(AF(cpu));
     get16(AF2(cpu));
@@ -169,8 +181,6 @@ int import_state(FILE *fp) {
         getnn(ROM_BANK(i), banklen);
     }
 
-    // ZX_ALTROMS = ZX > 200 ? 0 : !!memcmp(ROM_BANK(0), ZX < 128 ? rom48 : rom128, 0x4000);
-
     for( int i = 0; i < 16; ++i ) {
         uint16_t banklen;
         get16(banklen);
@@ -193,7 +203,7 @@ int import_state(FILE *fp) {
     for( int i = 0; i < medias; ++i ) {
         getnn(media[i].bin, media[i].len);
         if(loadbin_(media[i].bin, media[i].len, 0))
-            mic_seekf(media[i].pos); // @fixme: dsk side/sector case
+            mic_seekf(media[i].pos); // @fixme: dsk side/sector case. needed?
     }
 
     puts(regs("import_state"));

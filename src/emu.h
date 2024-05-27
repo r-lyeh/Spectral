@@ -7,6 +7,7 @@
 #include "emu_ay.h"
 #include "emu_ayumi.h"
 #include "emu_fdc.h"
+#include "emu_wd1793.h"
 
 #if! REDCODE
 

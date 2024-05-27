@@ -1,6 +1,9 @@
 // @todo: hexdump mem contents (HL),(BC),etc on the right panel
 // @todo: bonzomatic
-// 
+// @todo: rom symbols and vars 05CA(LD-8-BITS) 5C6A(FLAGS2) etc.
+// @todo: memwatch, exit subroutine, callstack
+// @todo: breakpoint, break on next/specific port access/read/write,
+// @todo: break on data condition, poke finder
 
 unsigned dasm_pc;
 char dasm_str[128] = {0};
@@ -56,7 +59,7 @@ char *regs(const char *title) {
     for( int i = 0; i < 16; ++i ) 
     ptr += sprintf(ptr, "%02x", ( crc32(0,RAM_BANK(i), 0x4000) ^ 0xab54d286) >> 24 );
     extern int rom_patches;
-    ptr += sprintf(ptr, "\nFE:%02x 2A:%02x 128:%02x FDC:%d PATCH:%02x\n", ZXBorderColor, page2a, page128, !!fdc.led, rom_patches);
+    ptr += sprintf(ptr, "\nFE:%02x 2A:%02x 128:%02x LED:%d MOD:%02x\n", ZXBorderColor, page2a, page128, !!fdc.led, rom_patches);
 
     return buf;
 }

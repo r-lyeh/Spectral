@@ -30,3 +30,108 @@ void audio_init() {
 
     atexit(audio_quit);
 }
+
+
+
+//#include "res/audio/insert"  // S16 C1 22050Hz zxsp
+//#include "res/audio/eject"   // S16 C1 22050Hz zxsp
+
+//#include "res/audio/motor"   // S16 C1 22050Hz cap32
+#include "res/audio/motor2"  // S16 C1 22050Hz rvm
+//#include "res/audio/running" // S16 C1 22050Hz zxsp
+
+#include "res/audio/seek"    // S16 C1 22050Hz cap32
+//#include "res/audio/seek2"   // S16 C1 22050Hz 
+
+#include "res/audio/read"    // S16 C1 22050Hz
+//#include "res/audio/step"    // S16 C1 22050Hz too fast
+
+typedef struct voice_t {
+    int id;
+    int16_t *samples;
+    unsigned len;   // number of samples
+    unsigned count; // number of loops (0=stop, ~0u=inf)
+    double pos;     // position within samples (seek)
+} voice_t;
+
+enum { voices_max = 4 };
+
+voice_t voice[voices_max];
+
+char *voice_info(int i) {
+    int id = voice[i].id;
+    return va("play %c%c%c%c x%d %f/%u %p", 
+        (voice[i].id>>24)&255,(voice[i].id>>16)&255,(voice[i].id>>8)&255,(voice[i].id>>0)&255,
+        voice[i].count,
+        voice[i].pos, voice[i].len,
+        voice[i].samples );
+}
+
+float mix(float dt) {
+    float accum = 0, voices = 0;
+    for( int i = 0; i < voices_max; ++i ) {
+        voice_t *v = voice + i;
+        if( !v->count ) continue;
+
+        v->pos += dt;
+
+        if( v->pos >= v->len ) {
+            v->pos -= v->len;
+            v->count--;
+        }
+
+        if( v->count ) {
+            // 16-bit mono [-32768..32767] to float [-1..1]
+            accum += v->samples[(unsigned)v->pos] / 32768.f;
+            ++voices;
+        }
+    }
+
+    return accum / (voices+!voices);
+}
+
+int play(int sample, unsigned count) {
+    static voice_t motors[] = {
+        {'moto', (int16_t*)(44+wavmotor2), (sizeof(wavmotor2) - 44) / 2},
+    };
+    static voice_t seeks[] = {
+        {'seek', (int16_t*)(44+wavseek), (sizeof(wavseek) - 44) / 2},
+    };
+    static voice_t reads[] = {
+        {'read', (int16_t*)(44+wavread), (sizeof(wavread) - 44) / 2},
+    };
+
+    voice_t *v = 0;
+    // find current slot
+    if( !v ) for( int i = 0; i < voices_max; ++i ) { 
+        if( voice[i].id == sample ) {
+            // already playing? update & exit
+            voice[i].count = count;
+            return 1;
+        }
+    }
+    // else find free slot
+    if( !v ) for( int i = 0; i < voices_max; ++i ) {
+        if( voice[i].count ) continue;
+        v = voice + i;
+        break;
+    }
+    // else abort
+    if( !v ) return 0;
+
+    // load known samples
+    /**/ if( sample == 'moto' ) *v = motors[0];
+    else if( sample == 'seek' ) *v = seeks[0];
+    else if( sample == 'read' ) *v = reads[0];
+    else return 0;
+
+    // update markers
+    v->id = sample;
+    v->pos = 0;
+    v->count = count;
+    return 1;
+}
+
+void mixer_reset() {
+    memset(voice, 0, sizeof(voice));
+}

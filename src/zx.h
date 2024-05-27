@@ -1,48 +1,74 @@
-// .sav files:
-// - may be corrupt. repro steps: many save/loads (see: jacknipper2)
-// - buggy interface 1 roms (RAIDERS.ROM)
-// - no .dsk in medias
-// - tape marker not very exact in turborom medias
-
 // known issues:
+
+// tape not ticking (w AUTOPLAY=ON):
+// - 1942.tzx
+// - nosferatu(alternativeltd) (issue2 can load it right now; may be a (-) tape)
+
+// runahead
+// - bonanza bros.dsk
+// 
+
+// tape
+// - abadiadelcrimen.tzx crashes towards end of tape
+
+// wont stop tape at eof
+// - hijack
+// - dogfight
+// error: bad ./games/x/tests/input_keyboard/Rasputin48-issue3.tap.zip zip
+
+// .ay files:
+// - could use ay2sna again in the future
+// .dsk files:
+// - no offset-info\r\n extension. see: mercs(samdisk), paperboy2
+// .sav files:
+// - may be corrupt. repro steps: many save/loads (see: jacknipper2 menu, RAIDERS.ROM screen$)
+// - may be corrupt. repro steps: save during tape load or disk load
+// - tape marker not very exact in turborom medias
 // altroms:
 // - donkeykong(erbe) (128): no ay (wrong checksum?)
 // - bloodbrothers (128): no ay (wrong checksum?)
 // - travelwithtrashman (128): crash (wrong checksum?)
 // - r-type128-km-nocheats (lg18v07 + usr0): r tape err (no turbo) or crash (turbo)
+// - lg18,gw03,sebasic fail in the games above. jgh v0.77 seems to work
+// auto-locale:
+// - will corrupt medias with checksums (like tap files)
 // ay:
-// - Pentagons have an AY clocked at 1.75 MHz
 // - Fuller Box AY chip is clocked at 1.63819 MHz
+// - ABC/ACB modes when stereo is enabled
 // beeper:
 // - fix: indiana jones last crusade
 // - p-47 in-game click sound (ayumi? beeper?). double check against real zx spectrum
 // crash (vsync/int line?):
-// - cauldron2(silverbird)
 // - hostages(erbe) +2, +3 versions. 48 is ok.
 // disciple/plusd/mgt (lack of):
 // - zxoom.z80
-// fdc:
-// - afterburner(1988).dsk (should we detect +3 speedlock? fuse does)
 // floating:
 // - not working yet
+// - gloop (probably)
+// keyboard:
+// - modern typing. eg, shift+2 for quotes, not symb+P.
 // lightgun:
 // - gunstick + (kempston || kmouse) conflicts
 // mouse:
 // - kms window focus @ MMB+tigr, kms wrap win borders, kms fullscreen, kms coord wrap (inertia, r-type128-km)
 // - load rtype-km, load another game or reset, notice no mouse cursor
-// tape ticks:
-// - 1942.tzx
-// - nosferatu(alternativeltd)
-// - darkstar, wizball.tap
+// pentagon:
+// - AY should clock at 1.75 MHz exact, CPU at 3.50 MHz exact
+// - no autoboot (autoboot is activated by paging in TR-DOS rom and jumping to 0)
+//   "Unreal Speccy Portable checks for a boot.B file in firsts sectors. If not found, send two keystrokes (Enter). That only makes sense on Pentagon machines with the reset service rom (gluck), the first Enter show a list of files and the latter selects the first file."
+// tape
+// - https://discord.com/channels/654774470652723220/689220116801650811/1245696186891894814
+// - voc renderer is memory hungry
 // timing:
-// - border: sentinel, defenders of earth, dark star, super wonder boy
-// - border: aquaplane, olympic games, vectron, mask3
+// - border: sentinel, defenders of earth, dark star, super wonder boy (pause)
+// - border: aquaplane, olympic games, vectron, mask3, jaws, platoon
 // - multicolor: mask3, shock megademo, MDA, action force 2, old tower, hardy
 // - contended: exolon main tune requires contended memory, otherwise it's too fast +15% tempo
 // - floating: arkanoid (original), cobra (original), sidewize, short circuit
+// trdos
+// - page in .z80 not handled
 // turborom:
 // - x4,x6 modes not working anymore. half bits either.
-// - +2A/+3 models cant load BASIC blocks (.bin are fine)
 // tzx:
 // - flow,gdb,voc,csw
 
@@ -58,11 +84,6 @@ int do_audio = 1;
 
 // ZX
 
-#define ZX_TS_48K     69888
-#define ZX_TS_128K    70908
-#define ZX_FREQ_48K   3500000
-#define ZX_FREQ_128K  3546894
-
 int ZX_TS;
 int ZX_FREQ;
 int ZX_RF = !DEV;
@@ -72,20 +93,25 @@ int ZX_AY = 1; // 0: no, 1: ayumi, 2: flooh's, 3: both (ZX_AY is a mask)
 int ZX_TURBOROM = 0; // 0: no, 1: patch rom so loading standard tape blocks is faster (see: .tap files)
 int ZX_JOYSTICK = 3; // 0: no, 1: sinclair1, 2: sinclair2, 3: cursor/fuller/kempston/protek, 4..: other mappings
 int ZX_AUTOPLAY = 1; // yes/no: auto plays/stops tapes based on #FE port reads
-int ZX_RUNAHEAD = 1; // yes/no: improves input latency
+int ZX_RUNAHEAD = 0; // yes/no: improves input latency
 int ZX_MOUSE = 1; // yes/no: kempston mouse
 int ZX_ULAPLUS = 1; // yes/no: ulaplus 64color mode
 int ZX_GUNSTICK = 0; // yes/no: gunstick/lightgun @fixme: conflicts with kempston & kmouse
 int ZX_DEBUG = 0; // status bar, z80 disasm
-float ZX_FPS = 1; // fps lock: 0 (max), x1 (50 pal), x1.2 (60 ntsc), x2 (7mhz), x4 (14mhz)
-int ZX_FASTFWD = 0, ZX_FASTTAPE = 1;
+float ZX_FPS = 1; // fps multiplier: 0 (max), x1 (50 pal), x1.2 (60 ntsc), x2 (7mhz), x4 (14mhz)
+int ZX_AUTOLOCALE = 0; // yes/no: automatically patches games from foreign languages into english
+int ZX_FASTCPU = 0; // yes/no: max cpu speed
+int ZX_FASTTAPE = 1; // yes/no: max tape speed
 
-enum { ZX_KMODE, ZX_LMODE };
-int ZX_KLMODE = ZX_KMODE; /* 0:(K mode in 48, default), 1:(L mode in 48) */ int ZX_KLMODE_PATCH_NEEDED = ZX_KMODE;
+int ZX_PENTAGON = 0; // DEV; // whether the 128 model emulates the pentagon or not
+
+int ZX_KLMODE = 0; // 0:(K mode in 48, default), 1:(L mode in 48)
+int ZX_KLMODE_PATCH_NEEDED = 0; // helper internal variable, must be init to match ZX_KLMODE
 
 const
 int ZX_ALTROMS = 0; // 0:(no, original), 1:(yes, custom)
 
+void logport(word port, byte value, int is_out);
 void outport(word port, byte value);
 byte inport(word port);
 
@@ -118,8 +144,8 @@ int int_counter;
 
     #define GET_MAPPED_ROMBANK() ((page128 & 16 ? 1 : 0) | ((page2a & 5) == 4 ? 2 : 0)) // 0, 0/1 or 0/1/2/3
     #define GET_BASIC_ROMBANK() ((ZX>=128) + 2*(ZX>=210)) // 0 (16/48), 1 (128/+2) or 3 (+2A/+3)
-    #define GET_EDITOR_ROMBANK() ((ZX>=128)) // 0 or 1
-    #define GET_3DOS_ROMBANK() (2 * (ZX >= 210)) // ROMBANK2
+    #define GET_EDITOR_ROMBANK() (!(ZX<=200)) // 0 (128/+2) or 1 (+2A/+3)
+    #define GET_3DOS_ROMBANK() (2 * (ZX >= 210)) // 2 (+2A/+3)
     #define ROM_BASIC()  ROM_BANK(GET_BASIC_ROMBANK())
     #define ROM_EDITOR() ROM_BANK(GET_EDITOR_ROMBANK())
     #define ROM_3DOS()   ROM_BANK(GET_3DOS_ROMBANK())
@@ -154,7 +180,11 @@ byte page128;
 // plus3/2a
 byte page2a;
 
+// betadisk
+byte beta128;
+
 // keyboard
+int issue2;
 int keymap[5][5];
 
 // joysticks
@@ -167,7 +197,8 @@ byte kempston_mouse;
 #define TAPE_VOLUME 0.15f // relative to ~~buzz~~ ay
 #define BUZZ_VOLUME 0.25f // relative to ay
 beeper_t buzz;
-byte last_fe;
+byte ear;
+byte spk;
 
 // ay
 ay38910_t ay;
@@ -180,7 +211,7 @@ void ay_reset() {
 }
 
 // vsync
-byte zx_vsync;
+byte zx_int;
 
 // ticks
 uint64_t ticks, TS;
@@ -188,6 +219,17 @@ uint64_t ticks, TS;
 // tape
 int tape_hz; // for vis
 uint64_t tape_ticks;
+
+// autoplay vars
+int autoplay;
+int autostop;
+int autoplay_freq;
+uint64_t autoplay_last;
+unsigned autoplay_numreads;
+
+// wd1793
+WD1793 wd;
+FDIDisk fdd[NUM_FDI_DRIVES];
 
 // medias (tap,tzx,dsk...)
 struct media_t {
@@ -206,6 +248,12 @@ void media_mount(byte *bin, int len) { media[medias].bin = memcpy(realloc(media[
 #include "zx_tzx.h"
 #include "zx_sna.h" // requires page128, ZXBorderColor
 
+enum { ALL_FILES = 0, GAMES_ONLY = 3*4, TAPES_AND_DISKS_ONLY = 6*4, DISKS_ONLY = 9*4 };
+int file_is_supported(const char *filename, int skip) {
+    const char *ext = strrchr(filename ? filename : "", '.');
+    return ext && strstri(skip+".zip.pok.scr.rom.sna.z80.tap.tzx.csw.dsk.img.mgt.trd.fdi.scl.$b.$c.", ext);
+}
+
 // 0: cannot load, 1: snapshot loaded, 2: tape loaded, 3: disk loaded
 int loadbin_(byte *ptr, int size, int preloader) {
     if(!(ptr && size))
@@ -213,6 +261,7 @@ int loadbin_(byte *ptr, int size, int preloader) {
 
     if( preloader ) {
         int model = guess(ptr, size);
+        ZX_PENTAGON = model < 0; model = abs(model);
         if( ZX != model ) boot(model, ~0u);
         else reset(ZX);
     }
@@ -303,7 +352,18 @@ int loadfile(const char *file, int preloader) {
     char *ptr = 0; size_t size = 0;
     void *zip_read(const char *filename, size_t *size);
     if( strstr(file, ".zip") ) {
-        ptr = zip_read(file, &size);
+        ptr = zip_read(file, &size); // @leak
+
+        if( ptr ) {
+            // update file from archived filename. use 1st entry if multiple entries on zipfile are found
+            for( zip *z = zip_open(file, "rb"); z; zip_close(z), z = 0 )
+            for( unsigned i = 0 ; i < zip_count(z); ++i ) {
+                if( file_is_supported(zip_name(z,i), GAMES_ONLY) ) {
+                    file = va("%s",zip_name(z,i));
+                    break;
+                }
+            }
+        }
     }
 
     if(!ptr)
@@ -311,8 +371,41 @@ int loadfile(const char *file, int preloader) {
         fseek(fp, 0L, SEEK_END);
         size = ftell(fp);
         fseek(fp, 0L, SEEK_SET);
-        ptr = malloc(size);
+        ptr = malloc(size); // @leak
         fread(ptr, 1, size, fp);
+    }
+
+    if( ZX_AUTOLOCALE ) {
+        translate(ptr, size, 'en');
+    }
+
+    const char *ext = strrchr(file, '.');
+    const char *extensions = ".img.mgt.trd.fdi.scl.$b .$c ."; // order must match FMT enum definitions in FDI header
+    const char *extfound = ext ? strstri(extensions, ext) : NULL;
+    if( extfound ) {
+        int format = FMT_AUTO + ( extfound - extensions ) / 3;
+        if( format > FMT_HOBETA ) format = FMT_HOBETA;
+        printf(
+            "FMT_IMG = %d\n"
+            "FMT_MGT = %d\n"
+            "FMT_TRD = %d\n"
+            "FMT_FDI = %d\n"
+            "FMT_SCL = %d\n"
+            "FMT_HOB = %d\n" 
+            "format = %d\n", FMT_IMG, FMT_MGT, FMT_TRD, FMT_FDI, FMT_SCL, FMT_HOBETA, format
+        );
+
+        // this temp file is a hack for now. @fixme: implement a proper file/stream abstraction in FDI library
+        for( FILE *fp = fopen("spectral.$$$", "wb"); fp; fwrite(ptr, size, 1, fp), fclose(fp), fp = 0);
+        int ok = LoadFDI(&fdd[0], "spectral.$$$", format);
+        unlink("spectral.$$$");
+
+        if( ok ) {
+            ZX_PENTAGON = 1;
+            ZX = 128;
+            boot(ZX, KEEP_MEDIA);
+            return 1;
+        }
     }
 
     int rc = loadbin(ptr, size, preloader);
@@ -469,51 +562,11 @@ const unsigned char keytbl[256][3] = {
 
 // 16/48
 void port_0x00fe(byte value) {
-    last_fe = value;
-
     // border color
     ZXBorderColor = (value & 0x07);
 
     // speaker
-    //0x08 : tape when saving
-    //0x10 : speaker
-    //0x18 : both. works for 99% of games, some others wont (parapshock values: 0x18,0x08,0x18,...)
-    //mic  : tape when loading
-
-#if 0
-    int is_saving = (page128&16) && (PC(cpu) >= 0x4ae && PC(cpu) <= 0x51a);
-    int mask = is_saving ? 0x08 : 0x10;
-    int spk = mic_on ? mic : 0;
-
-    beeper_set(&buzz, !!(spk || (value & mask)));
-#else
-    // @todo: check Cobra's Arc
-    // ref: https://piters.tripod.com/cassport.htm
-    // ref: https://retrocomputing.stackexchange.com/a/27539
-    // The threshold voltage for reading the input state (at the pin) of the ULA is 0.7V (*)
-    // BIT4 EAR     BIT3 MIC     PIN 28 VOLTAGE  BIT6 IN READ
-    //        0            0               0.34             0
-    //        0            1               0.66             0 (borderline (*))
-    //        1            0               3.56             1
-    //        1            1               3.70             1
-    //
-    const float beeper_volumes[] = {
-        TAPE_VOLUME, // rest volume
-        TAPE_VOLUME, // tape volume (??%) see diagram above (*)
-        0.96f, // beeper volume (96%)
-        1.00f  // tape+beeper volume (100%)
-    };
-
-    int beeper = !!(value & 0x10);
-    int tape = !!(mic | (!(value & 0x8)));
-    int combined = beeper * 2 + tape;
-
-    #if 1 // @fixme: adjust buzzer volume accordingly
-    beeper_set_volume(&buzz, beeper_volumes[combined]);
-    #endif
-
-    beeper_set(&buzz, combined);
-#endif
+    spk = value;
 }
 
 // zx128
@@ -637,11 +690,7 @@ void port_0x3ffd(byte value) {
 }
 
 
-
 void config(int ZX) {
-    ZX_TS = ZX < 128 ? ZX_TS_48K : ZX_TS_128K;
-    ZX_FREQ = ZX < 128 ? ZX_FREQ_48K : ZX_FREQ_128K;
-
     if(ZX >= 16) {
         MEMr[3]=DUMMY_BANK(0);
         MEMr[2]=DUMMY_BANK(0);
@@ -653,9 +702,13 @@ void config(int ZX) {
         MEMw[1]=RAM_BANK(5);
         MEMw[0]=DUMMY_BANK(0);
 
+        issue2=1;
         page128=32; // -1
         page2a=128; // -1
         //contended_mask=1;
+
+        ZX_TS = 69888;
+        ZX_FREQ = 3500000;
     }
 
     if(ZX >= 48) {
@@ -664,11 +717,20 @@ void config(int ZX) {
     }
 
     if( ZX >= 128) {
+        issue2=0;
         page128=0;
         port_0x7ffd(page128);
+
+        ZX_TS = 70908;
+        ZX_FREQ = 3546894;
     }
 
-    if( ZX >= 210 ) { // +2A +3
+    if( ZX_PENTAGON ) { // ZX == 128
+        ZX_TS = 71680;
+        ZX_FREQ = 3500000;
+    }
+
+    if( ZX >= 210 ) { // +2A/+3
         page2a=0;
         port_0x1ffd(page2a);
     }
@@ -724,67 +786,8 @@ void config(int ZX) {
     }
 
     floating_bus = ZX <= 48 ? floating48 : ZX <= 200 ? floating128 : NULL;
+    if( ZX_PENTAGON ) floating_bus = NULL;
 }
-
-// mouse
-struct mouse {
-    int x, y, lb, mb, rb;
-};
-struct mouse mouse() {
-    extern Tigr *app;
-    int mx, my, mb, lmb, mmb, rmb; // buttons: R2M1L0 bits
-    tigrMouse(app, &mx, &my, &mb); lmb = mb & 1; mmb = !!(mb & 2); rmb = !!(mb & 4);
-    return ( (struct mouse) {mx, my, lmb, mmb, rmb} );
-}
-void mouse_clip(int clip) {
-    static RECT restore; do_once GetClipCursor(&restore);
-
-    extern Tigr *app;
-    HWND hWnd = (HWND)app->handle;
-
-    extern int active; // ui
-
-    // get client area (0,0,w,h)
-    RECT dims;
-    GetClientRect(hWnd, &dims);
-
-    // convert area to desktop coordinates
-    RECT win = dims;
-    ClientToScreen(hWnd, (POINT*)&win.left); // convert top-left
-    ClientToScreen(hWnd, (POINT*)&win.right); // convert bottom-right
-
-    // wrap mouse over the edges
-    if( clip && !active ) {
-        int w = dims.right, h = dims.bottom;
-        int x = win.left, y = win.top;
-
-        // mouse coords relative to top-left (0,0) client area
-        struct mouse m = mouse();
-        // convert to desktop coords
-        int mx = win.left + m.x;
-        int my = win.top + m.y;
-
-        // difference between Tigr's and Windows' mouse desktop coords
-        POINT p;
-        GetCursorPos(&p);
-        int diffx = mx - p.x, diffy = my - p.y;
-
-        if(mx<x) while(mx<x) mx += w;
-        else while(mx>(x+w/2)) mx -= w;
-
-        if(my<y) while(my<y) my += h;
-        else while(my>(y+h/2)) my -= h;
-
-        SetCursorPos(mx - diffx,my - diffy);
-    }
-
-    // Clip or restore the cursor to its previous area.
-    // ClipCursor(clip && !active ? &win : &restore);
-
-    // Hide or show cursor
-    ShowCursor(clip && !active ? FALSE : TRUE);
-}
-
 
 
 
@@ -926,6 +929,20 @@ uint64_t tick1(int num_ticks, uint64_t pins, void* user_data) {
     if( pins & Z80_MREQ ) {
         if( pins & Z80_RD ) {
             uint16_t addr = Z80_GET_ADDR(pins);
+
+            // Install shadow TRDOS ROM when the PC is in ROM1 + [0x3D00..0x3DFF] range
+            // Uninstall it as soon as PC is out of ROM space
+            if( ZX_PENTAGON/*beta128*/ ) {
+                unsigned pc = PC(cpu);
+                if( ((pc & 0xFF00) == 0x3D00) && (MEMr[0] == (rom + 0x4000 * 1)) ) {
+                    MEMr[0] = rom + 0x4000 * 2; // install shadow rom
+                }
+                else
+                if( pc >= 0x4000 && (MEMr[0] == (rom + 0x4000 * 2)) ) {
+                    MEMr[0] = rom + 0x4000 * (page128 & 16 ? 1 : 0); // * 1; restore rom1
+                }
+            }
+
             uint8_t value = READ8(addr);
             Z80_SET_DATA(pins, value);
         }
@@ -968,9 +985,58 @@ uint64_t tick1(int num_ticks, uint64_t pins, void* user_data) {
     sys_audio();
 
     // vsync
-    return pins | (zx_vsync ? zx_vsync = 0, Z80_INT : 0);
+    return pins | (zx_int ? zx_int = 0, Z80_INT : 0);
 }
 
+
+void sim_frame() {
+    // logic that ticks every new frame
+    // if( !((ticks) % ZX_TS) ) {
+    if( 1 ) {
+        // vsync (once per frame)
+        zx_int = 1;
+
+        // auto-play tape. this one has x50 faster rate than stopping tape.
+        if( autoplay && !mic_on ) {
+            ZX_FASTTAPE = 1;
+
+            if( ZX_AUTOPLAY ) {
+                mic_on = 1, printf("auto-play tape (%u Hz, %u reads)\n", tape_hz, autoplay_numreads);
+            }
+        }
+
+        autoplay = 0;
+        autostop = 0;
+    }
+    // logic that ticks once per second
+    // if( !((ticks) % (ZX_TS*50)) ) {
+    static int frame = 0; ++frame;
+    if( !(frame % 50) ) {
+        // auto-stop tape. stopping a tape is a risky action and load will be canceled if not done at the right moment.
+        // so, the thinking for this block has a x50 slower rate than playing a tape. we have to be sure.
+        if( autostop && mic_on ) {
+            ZX_FASTTAPE = 0;
+
+            if( ZX_AUTOPLAY ) {
+                mic_on = 0, printf("auto-stop tape (%u Hz, %u reads)\n", tape_hz, autoplay_numreads);
+            }
+        }
+
+        if( /*autoplay &&*/ !ZX_AUTOPLAY ) {
+            // kick off the initial tape playing automatically. since AUTOPLAY is OFF,
+            // user will need to pause/resume tape manually (via F2 key) from this point.
+            if( mic_has_tape && !mic_on ) {
+                if( (PC(cpu) & 0xff00) == 0x0500 && GET_MAPPED_ROMBANK() == GET_BASIC_ROMBANK() ) {
+                    puts("auto-play tape (rom)");
+                    mic_on = 1;
+                }
+            }
+        }
+
+        autoplay = 0;
+        autostop = 0;
+    }
+}
 
 void sim(unsigned TS) {
     // if(TS<0)return;
@@ -979,8 +1045,8 @@ void sim(unsigned TS) {
 
     for( int tick = 0; tick < TS; ++tick) {
 
-        if (zx_vsync /*  && cpu.step == 2 && IFF1(cpu) */ ) { // adjust
-            zx_vsync = 0;
+        if (zx_int /*  && cpu.step == 2 && IFF1(cpu) */ ) { // adjust
+            zx_int = 0;
 
             // request vblank interrupt
             z80_interrupt(&cpu, 1);
@@ -1005,9 +1071,45 @@ void sim(unsigned TS) {
     ticks += TS;
     tape_ticks += !!mic_on * TS;
 #endif
+
+    fdc_tick(TS);
 }
 
 void sys_audio() {
+#if 1
+    // mic/ear speaker
+
+    // ref: https://piters.tripod.com/cassport.htm
+    // ref: https://retrocomputing.stackexchange.com/a/27539
+    // The threshold voltage for reading the input state (at the pin) of the ULA is 0.7V (*)
+    // BIT4 EAR     BIT3 MIC     PIN 28 VOLTAGE  BIT6 IN READ
+    //        0            0               0.34             0
+    //        0            1               0.66             0 (borderline (*))
+    //        1            0               3.56             1
+    //        1            1               3.70             1
+    //
+    const float beeper_volumes[] = {
+        TAPE_VOLUME, // rest volume
+        TAPE_VOLUME, // tape volume (??%) see diagram above (*)
+        0.96f, // beeper volume (96%)
+        1.00f  // tape+beeper volume (100%)
+    };
+
+    int save_audio = spk & 0x8;
+    int load_audio = ear;
+    int tape = !!load_audio ^ !!save_audio;
+
+    int beeper = !!(spk & 0x10);
+    int combined = !!beeper * 2 + !!tape;
+
+    // ensure that: SAVE "P" : BEEP 1,1 : LOAD "p" shall output sound
+    // Cobra's Arc has menu music and in-game speech
+    // Parapshock has menu music
+
+    beeper_set_volume(&buzz, beeper_volumes[combined]);
+    beeper_set(&buzz, beeper | tape );
+#endif
+
     // tick the beeper (full frequency)
     bool sample_ready = beeper_tick(&buzz);
 
@@ -1025,6 +1127,9 @@ void sys_audio() {
     if( do_audio && sample_ready ) {
         float master = 0.98f * !!ZX_AY; // @todo: expose ZX_AY_VOLUME / ZX_BEEPER_VOLUME instead
         float sample = (buzz.sample * 0.75f + ay_sample * 0.25f) * master;
+
+        float digital = mix(0.5); // 70908/44100. 69888/44100. // ZX_TS/s); 22050 11025 44100
+        sample += digital * 5; // increase volume
 
         audio_queue(sample);
     }
@@ -1077,9 +1182,99 @@ void ula_reset() {
     }
 }
 
+void logport(word port, byte value, int is_out) {
+    return;
+
+    // [ref] https://worldofspectrum.org/faq/reference/ports.htm
+    // sorted by xxNN byte, then NNxx byte
+    if( 0
+        || port == 0xfefe // keyboard
+        || port == 0xfdfe // keyboard
+        || port == 0xfbfe // keyboard
+        || port == 0xf7fe // keyboard, sinclair2
+        || port == 0xeffe // keyboard, sinclair1
+        || port == 0xdffe // keyboard
+        || port == 0xbffe // keyboard
+        || port == 0x7ffe // keyboard
+
+        || port == 0x00fe // ear/mic border/beeper
+
+        || port == 0xfffd // ay
+        || port == 0xbffd // ay
+        || port == 0x7ffd // mem128
+        || port == 0x3ffd // fdc
+        || port == 0x2ffd // fdc
+        || port == 0x1ffd // mem+2a/fdcmotor
+        || port == 0x0ffd // parallel
+
+        || port == 0xffdf // kempston mouse
+        || port == 0xfbdf // kempston mouse
+        || port == 0xfadf // kempston mouse
+
+        || port == 0x00df // kempston joystick
+
+        ||(port == 0x007f && !ZX_PENTAGON/*!beta128*/ ) // fuller joystick
+        ||(port == 0x005f && !ZX_PENTAGON/*!beta128*/ ) // fuller ay
+        ||(port == 0x003f && !ZX_PENTAGON/*!beta128*/ ) // fuller ay
+
+        || port == 0xff3b // ulaplus
+        || port == 0xbf3b // ulaplus
+    )
+        return;
+
+    if( (port & 0xff) == 0xfe ) return; // ula
+
+    unsigned pc = PC(cpu); // Z80_GET_ADDR(pins);
+    if( is_out )
+    printf("%04x OUT %4X, %X\n", pc, port, value);
+    else
+    printf("%04x IN  %4X (%X)\n", pc, port, value);
+}
+
 
 void outport(word port, byte value) {
-    //printf("out port[%04x]=$%02x\n", port, value);
+#if NDEBUG <= 0
+    logport(port, value, 1);
+#endif
+
+    // XXXXXXXX ---1 1111 when trdos is enabled. ports: 1F,3F,5F,7F,FF
+    if( (port & 3) == 3 ) { // (port & 0xff1f) == 0x1f) { // 
+        int trdos = ZX_PENTAGON/*beta128*/ && MEMr[0] == (rom + 0x4000 * 2);
+        if( trdos ) {
+            // command(0)/track(1)/sector(2)/data(3)/system(4) WD write registers
+
+            int index;
+#if 0
+            // convert 1F,3F,5F,7F,FF ports into 0,1,2,3,4 index
+            index = ((port & 0x80 ? 0xA0-1 : port) >> 5) & 7;
+#else
+            if(port & 0x80) index = WD1793_SYSTEM;
+            else if( ( port & 0x60 ) == 0x60 ) index = WD1793_DATA;
+            else if( ( port & 0x60 ) == 0x40 ) index = WD1793_SECTOR;
+            else if( ( port & 0x60 ) == 0x20 ) index = WD1793_TRACK;
+            else if( ( port & 0x60 ) == 0x00 ) index = WD1793_COMMAND;
+#endif
+
+            if( !index ) {
+                int drive_state = ((value >> 5) & 7) < 4; // on, off
+            }
+            // Commands Register for index #0 (0x1F)
+            // 0 0 0 0  h v x x  Init 0X
+            // 0 0 0 1  h v x x  Seek 1X
+            // 0 0 1 i  h v x x  Step 2X 3X
+            // 0 1 0 i  h v x x  Step forward 4X 5X
+            // 0 1 1 i  h v x x  Step back 6X 7X
+            // 1 0 0 m  s e c 0  Read sectors 8X
+            // 1 0 1 m  s e c a  Write sectors AX BX
+            // 1 1 0 0  0 e 0 0  Read address CX
+            // 1 1 0 1 J3J2J1J0  Forced Interrupt DX
+            // 1 1 1 0  0 e 0 0  Read track EX
+            // 1 1 1 1  0 e 0 0  Format track FX
+            Write1793(&wd, index, value);
+            return;
+        }
+    }
+
 
 #if 0
     if(contended_mask & 4) //if +2a or +3 then apply (fixes fairlight games)
@@ -1230,18 +1425,44 @@ trig:;
     return code;
 }
 
-// autoplay vars
-int autoplay_freq;
-uint64_t autoplay_last;
-unsigned autoplay_numreads;
 
-byte inport(word port) {
-    // unsigned PC = z80_pc(&cpu); if(PC >= 0x3D00 && PC <= 0x3DFF) printf(" in port[%04x]\n", port); // betadisk
-
+byte inport_(word port) {
     // if(port != 0x1ffd && port != 0x2ffd && port != 0x3ffd && port != 0x7ffe) { puts(regs("inport")); printf(" in port[%04x]\n", port); }
     //[0102] alien syndrome.dsk ??
     //[0002] alien syndrome.dsk ??
     //[fefe] alien syndrome.dsk
+
+
+    // XXXXXXXX ---1 1111 when trdos is enabled. ports: 1F,3F,5F,7F,FF
+    if( (port & 3) == 3 ) { //  (port & 0xff1f) == 0x1f) { // 
+        int trdos = ZX_PENTAGON/*beta128*/ && MEMr[0] == (rom + 0x4000 * 2);
+        if( trdos ) {
+            // status(0)/track(1)/sector(2)/data(3)/ready(4) WD read registers
+
+            int index;
+#if 0
+            // convert 1F,3F,5F,7F,FF ports into 0,1,2,3,4 index
+            index = ((port & 0x80 ? 0xA0-1 : port) >> 5) & 7;
+#else
+            if(port & 0x80) index = WD1793_SYSTEM;
+            else if( ( port & 0x60 ) == 0x60 ) index = WD1793_DATA;
+            else if( ( port & 0x60 ) == 0x40 ) index = WD1793_SECTOR;
+            else if( ( port & 0x60 ) == 0x20 ) index = WD1793_TRACK;
+            else if( ( port & 0x60 ) == 0x00 ) index = WD1793_STATUS;
+#endif
+
+            // read from reg 0xFF(4) system 
+            // D0, D1   - diskdrive select. 00 for drive A, 01 for drive B 10 for drive C, 11 for drive D
+            // D2       - hardware microcontroller reset. by resetting and then setting this bit again, we can form impulse of microcontroller reset. usually this reset happens in very begin of TR-DOS session. 
+            // D3       - this digit blocks signal HLT of microcontroller. For normal work must contain '1'. 
+            // D4       - Diskdrive head select. contents of this digit translates directly to diskdrive. 0 means first head or 'bottom' side of disk, 1 - second head/'top' side of disk.
+            // D5       - Density select. reset of this digit makes microcontroller works in FM mode, seted digit - MFM.
+            // D6 DRQ   - signal showing request of data by microcontroller 
+            // D7 INTRQ - signal of completion of execution of command.
+            return Read1793(&wd, index);
+        }
+    }
+
 
     // +2a/+3
     if( ZX >= 210 )
@@ -1259,9 +1480,9 @@ byte inport(word port) {
         // kempston mouse
         if( kempston_mouse == 7 ) {
             struct mouse m = mouse();
-            if(!(port & (0xFFFF^0xFADF))) return mouse_clip(1), 0xFF&~(1*m.rb+2*m.lb+4*m.mb); // ----.--10.--0-.----  =  Buttons: D0 = RMB, D1 = LMB, D2 = MMB
-            if(!(port & (0xFFFF^0xFBDF))) return mouse_clip(1),  m.x;                         // ----.-011.--0-.----  =  X-axis:  $00 … $FF
-            if(!(port & (0xFFFF^0xFFDF))) return mouse_clip(1), -m.y;                         // ----.-111.--0-.----  =  Y-axis:  $00 … $FF
+            if(!(port & (0xFFFF^0xFADF))) return mouse_clip(1), mouse_cursor(0), 0xFF&~(1*m.rb+2*m.lb+4*m.mb); // ----.--10.--0-.----  =  Buttons: D0 = RMB, D1 = LMB, D2 = MMB
+            if(!(port & (0xFFFF^0xFBDF))) return mouse_clip(1), mouse_cursor(0),  m.x;                         // ----.-011.--0-.----  =  X-axis:  $00 … $FF
+            if(!(port & (0xFFFF^0xFFDF))) return mouse_clip(1), mouse_cursor(0), -m.y;                         // ----.-111.--0-.----  =  Y-axis:  $00 … $FF
         }
     }
 
@@ -1330,6 +1551,8 @@ byte inport(word port) {
         extern int active;
         if(!active) {
 
+        // test: Without this matrix behaviour Zynaps, for instance, 
+        // won't pause when you press 5,6,7,8 and 0 simultaneously. @fixme
         if (!(port & 0x0100)) code &= keymap[4][1];
         if (!(port & 0x0200)) code &= keymap[3][1];
         if (!(port & 0x0400)) code &= keymap[2][1];
@@ -1341,48 +1564,51 @@ byte inport(word port) {
 
         }
 
-        // abu simbel profanation (FIXME)
+        // issue2/3 handling
         // issue2 keyboard emulation (16K/48K only). bits 765 set. 560,000 48k sold models.
         // issue3 keyboard emulation (>=128 models). bits 7 5 set, 6 reset. 3,000,000 48k sold models.
-        // On an Issue 2, both bits 3 and 4 must be reset for the same effect to occur.
         // On an Issue 3, an OUT 254 with bit 4 reset will give a reset bit 6 from IN 254.
-#if 1
-        int issue2 = ZX < 128; // false
-        int issue_mask = issue2 ? 0x18 : 0x10;
-        code |= 0xE0;
-        if( !(last_fe & issue_mask) ) code &= ~0x40;
-#else
-        code |= 0xE0; // issue2
-        //    code &= 0xBF; // issue3
-#endif
+        // On an Issue 2, both bits 3 and 4 must be reset for the same effect to occur.
+        // test from css faq:
+        // 10 OUT 254,BIN 11101111
+        // 20 PRINT IN 254
+        // 30 OUT 254,BIN 11111111
+        // 40 PRINT IN 254
+        // 50 GOTO 10
+        // For a correct test do not press any key while running, and have no EAR input.
+        // If the output is 191,255,191,255 etc, you are on real Spectrum Issue 3.
+        // If output is always 191 or always 255, change the value in line 10 to BIN 11100111.
+        // If output is then 191,255,191,255 etc, then you are on Spectrum Issue 2.
+        // If output is still always 191 or always 255 you are on Spectrum emulator.
+
+        if( (spk & ( issue2 ? 0x18 : 0x10 )) == 0 )
+            code &= ~(1 << 6);
+
+        // Bit 6 of IN-Port 0xfe is the EAR input bit
+        // Note: Status of MIC line (block below), can alter the behavior of the last code assignment.
+        // See: AbuSimbelProfanation(Gremlin) + polarity of ending TZX pause/stop blocks.
 
         if( 1 ) {
-            byte ear = ReadMIC(tape_ticks);
-
-// if(ZX<128) ear ^= 64; // inv polarity: wizball.tap,forbiddenplanet,lonewolf48,
-// [5/0] Polarity (+)             Lone Wolf 3, Basil Mouse Detective, Mask, DarkStar, Wizball.tap (PZXTools)
-// [0/2] Polarity (-)             Forbidden Planet (V1,V2), lonewolf 3 48
-//                                try also: hudson hawk,starbike
-
-#if 1 // output sound if tape is being read
-            if(mic_on)
-            beeper_set(&buzz, !!((last_fe & 0x10) | !!ear));
-#endif
-
+            ear = mic_on ? ReadMIC(tape_ticks) : mic_low ^ 64;
             code = code ^ ear;
         }
 
+        // issue2/3 keyboard tests:
+        // - LOAD"" shall work for all issue2/3 models.
+        // - keys shall work in BASIC for all issue2/3 models.
+        // - AbuSimbelProfanation(Gremlin): issue2 can play the game
+        // - Rasputin48k: issue3 can play the game. issue2 sounds like game crashed.
+        // issue2/3 polarity tests:
+        // - Lonewolf3-Side128 (+) shall load only in 128 models (issue3)
+        // - Lonewolf3-Side48 (+) shall load only in 48 models (issue3 only)
+        // - ForbiddenPlanet (-), V1 (-) and V2 (-) (issue2 only)
+        // - Wizball.tap (+) (from PZXtools) shall load in 48/128 models (issue3)
+        // - Basil Mouse Detective (+) and MASK (+) shall load on 48/128 issue3 models only
+        // - Aforementioned games can still load if you toggle tape polarity; which is similar to switching issue2/3 behavior
 
-        if( !ZX_AUTOPLAY ) {
-            // just kick off the initial auto-start based on rom traps
-            // user will need to pause/resume tape manually (via F2 key) from this point
-            if( 0 && mic_has_tape && !mic_on ) {
-                if( PC(cpu) < 0x4000 && GET_MAPPED_ROMBANK() == GET_BASIC_ROMBANK() ) {
-                    // puts("auto-start tape (rom)");
-                    mic_on = 1;
-                }
-            }
-        } else {
+        // now that we have read tape, let's update autoplay/autostop heuristics
+
+        {
             // auto-tape tests [* issue]
             // [x] rom: pilot loader, acid killer.tzx
             // [x] full suite: gauntlet, *p-47 thunderbolt, munsters 48k, myth,
@@ -1439,6 +1665,7 @@ byte inport(word port) {
 
                 if( 0
                     || !memcmp(addr,  "\xDB\xFE\x1F", 3) // Common
+                    || !memcmp(addr,  "\xDB\xFE\xE6\x40", 4) // Abadia del crimen
                     || !memcmp(addr,  "\xDB\xFE\xA9\xE6\x40", 5) // P-47, BloodBrothers
                     || !memcmp(addr,  "\xDB\xFE\xA0\xC2\x88\xFD", 6) // lonewolf3 v1
                     || !memcmp(addr,  "\xDB\xFE\xA0\xCA\x48\xFD", 6) // lonewolf3 v2
@@ -1448,43 +1675,26 @@ byte inport(word port) {
                 )
                 autoplay_numreads++;
 
-                enum { SLICE = 1 };
+                // measure how large the slice of samples is. SLICE used to be 0.1, so it was a tenth (or slice) of a frame
+                // it is 1 second now, so autoplay/autostop variables get updated once per second
+                const float SLICE = 1.0; 
 
                 ++autoplay_freq;
 
-                if( (ticks - autoplay_last) > 69888/SLICE ) {
-                    tape_hz = autoplay_freq*SLICE;
+                if( (ticks - autoplay_last) > 69888*SLICE ) {
+                    tape_hz = autoplay_freq/SLICE;
                     autoplay_last = ticks, autoplay_freq = 0;
 
-    #if 0
-                    // auto-tape issues:
-                    // - not working well: turrican1
-                    // - wont stop tape: *viaje al centro de la tierra, p47 thunderbolt, *dynamite dux, *outrun europa
-
-                    if( mic_on ) {
-                        if( !autoplay_numreads ) {
-                            printf("auto-stop tape (%u Hz, %u reads)\n", tape_hz, autoplay_numreads);
-                            mic_on = 0;
-                        }
-                    } else {
-                        if( autoplay_numreads > 200 ) { // 273Hz turrican
-                            printf("auto-start tape (%u Hz, %u reads)\n", tape_hz, autoplay_numreads);
-                            mic_on = 1;
-                        }
-                    }
-    #else
-                    // fixes: turrican, p47,
-                    // pending: wont stop tape: *viaje al centro de la tierra, *dynamite dux, *outrun europa (stop:228Hz)
+                    // @fixme: wont stop tape or will burst CPU at max speed after load
+                    // *viaje al centro de la tierra, *dynamite dux, *outrun europa (stop:228Hz)
 
                     if( autoplay_numreads <= 9 ) { // 9Hz turrican, 228Hz outrun europa
-                        if(mic_on) printf("auto-stop tape (%u Hz, %u reads)\n", tape_hz, autoplay_numreads);
-                        mic_on = 0;
+                        ++autostop;
                     }
                     if( autoplay_numreads > 200 ) { // 273Hz turrican
-                        if(!mic_on) printf("auto-start tape (%u Hz, %u reads)\n", tape_hz, autoplay_numreads);
-                        mic_on = 1;
+                        ++autoplay;
                     }
-    #endif
+
                     autoplay_numreads = 0;
                 }
             }
@@ -1513,6 +1723,13 @@ byte inport(word port) {
     // return port & 1 ? 0xFF : 0x00;
 }
 
+byte inport(word port) {
+    byte v = inport_(port);
+#if NDEBUG <= 0
+    logport(port, v, 0);
+#endif
+    return v;
+}
 
 #include "zx_sav.h"
 
@@ -1553,16 +1770,16 @@ struct quicksave {
     rgba ZXPalette[64];
     // input
     int keymap[5][5];
+    int issue2;
     // joysticks
     byte kempston,fuller;
     // mouse
     byte kempston_mouse;
-    byte last_fe;
-    // vsync
-    byte zx_vsync;
-    // tape
-    int tape_hz;
-    uint64_t tape_ticks;
+    // ear
+    byte ear;
+    byte spk;
+    // int
+    byte zx_int;
     // ticks
     uint64_t ticks, TS;
     // plus3/2a
@@ -1588,6 +1805,9 @@ struct quicksave {
     // @todo: pointers needed?
     //#include "dsk.c"
 #if FULL_QUICKSAVES
+    WD1793 wd;
+    FDIDisk fdd[NUM_FDI_DRIVES];
+
     t_FDC fdc;
     struct t_drive driveA;
     struct t_drive driveB;
@@ -1601,14 +1821,19 @@ struct quicksave {
     //#include "tap.c"
     float       azimuth;
     int         mic,mic_on;
-    int         mic_low;
+//    int         mic_low;
     int         mic_polarity;
     int         RAW_tstate_prev;
     uint64_t    RAW_fsm;
     int         mic_queue_wr;
     int         mic_queue_has_turbo;
     byte        mic_byte2;
+    // tape
+    int tape_hz;
+    uint64_t tape_ticks;
     // autoplay
+    int autoplay;
+    int autostop;
     int autoplay_freq;
     uint64_t autoplay_last;
     unsigned autoplay_numreads;
@@ -1641,8 +1866,8 @@ void* quicksave(unsigned slot) {
 //  c->audio_pos = audio_pos;
 //  float audio_buffer[AUDIO_BUFFER];
     // memory
-//  byte *MEMr[4]; //solid block of 16*4 = 64kb for reading
-//  byte *MEMw[4]; //solid block of 16*4 = 64kb for writing
+    for( int i = 0; i < 4; ++i ) c->MEMr[i] = MEMr[i];
+    for( int i = 0; i < 4; ++i ) c->MEMw[i] = MEMw[i];
     c->vram_contended = vram_contended;
     c->vram_accesses = vram_accesses;
 #if FULL_QUICKSAVES
@@ -1659,18 +1884,17 @@ void* quicksave(unsigned slot) {
     memcpy(c->ZXPalette, ZXPalette, sizeof(rgba)*64);
     // input
     memcpy(c->keymap, keymap, sizeof(int)*5*5);
+    c->issue2 = issue2;
     // joysticks
     c->kempston = kempston;
     c->fuller = fuller;
     // mouse
     c->kempston_mouse = kempston_mouse;
     // beeper
-    c->last_fe = last_fe;
+    c->ear = ear;
+    c->spk = spk;
     // vsync
-    c->zx_vsync = zx_vsync;
-    // tape
-    c->tape_hz = tape_hz;
-    c->tape_ticks = tape_ticks;
+    c->zx_int = zx_int;
     // ticks
     c->ticks = ticks;
     c->TS = TS;
@@ -1696,6 +1920,9 @@ void* quicksave(unsigned slot) {
     // @todo
     //#include "dsk.c"
 #if FULL_QUICKSAVES
+    c->wd = wd;
+    memcpy(c->fdd, fdd, sizeof(fdd[0]) * 4); // sizeof(fdd));
+
     c->fdc = fdc;
     c->driveA = driveA;
     c->driveB = driveB;
@@ -1709,14 +1936,19 @@ void* quicksave(unsigned slot) {
     c->azimuth = azimuth;
     c->mic = mic;
     c->mic_on = mic_on;
-    c->mic_low = mic_low;
+//    c->mic_low = mic_low;
     c->mic_polarity = mic_polarity;
     c->RAW_tstate_prev = RAW_tstate_prev;
     c->RAW_fsm = RAW_fsm;
     c->mic_queue_wr = mic_queue_wr;
     c->mic_queue_has_turbo = mic_queue_has_turbo;
     c->mic_byte2 = mic_byte2;
+    // tape
+    c->tape_hz = tape_hz;
+    c->tape_ticks = tape_ticks;
     // autoplay
+    c->autoplay = autoplay;
+    c->autostop = autostop;
     c->autoplay_freq = autoplay_freq;
     c->autoplay_last = autoplay_last;
     c->autoplay_numreads = autoplay_numreads;
@@ -1755,8 +1987,8 @@ void* quickload(unsigned slot) {
 //  float audio_buffer[AUDIO_BUFFER];
 //  memset(audio_buffer, 0, sizeof(audio_buffer[0])*AUDIO_BUFFER);
     // memory
-//  byte *MEMr[4]; //solid block of 16*4 = 64kb for reading
-//  byte *MEMw[4]; //solid block of 16*4 = 64kb for writing
+    for( int i = 0; i < 4; ++i ) MEMr[i] = c->MEMr[i];
+    for( int i = 0; i < 4; ++i ) MEMw[i] = c->MEMw[i];
     vram_contended = c->vram_contended;
     vram_accesses = c->vram_accesses;
 #if FULL_QUICKSAVES
@@ -1772,18 +2004,17 @@ void* quickload(unsigned slot) {
     memcpy(ZXPalette, c->ZXPalette, sizeof(rgba)*64);
     // input
     memcpy(keymap, c->keymap, sizeof(int)*5*5);
+    issue2 = c->issue2;
     // joysticks
     kempston = c->kempston;
     fuller = c->fuller;
     // mouse
     kempston_mouse = c->kempston_mouse;
     // beeper
-    last_fe = c->last_fe;
+    ear = c->ear;
+    spk = c->spk;
     // vsync
-    zx_vsync = c->zx_vsync;
-    // tape
-    tape_hz = c->tape_hz;
-    tape_ticks = c->tape_ticks;
+    zx_int = c->zx_int;
     // ticks
     ticks = c->ticks;
     TS = c->TS;
@@ -1805,6 +2036,9 @@ void* quickload(unsigned slot) {
     // @todo
     //#include "dsk.c"
 #if FULL_QUICKSAVES
+    wd = c->wd;
+    memcpy(fdd, c->fdd, sizeof(fdd[0]) * 4); // sizeof(fdd));
+
     fdc = c->fdc;
     driveA = c->driveA;
     driveB = c->driveB;
@@ -1818,14 +2052,19 @@ void* quickload(unsigned slot) {
     azimuth = c->azimuth;
     mic = c->mic;
     mic_on = c->mic_on;
-    mic_low = c->mic_low;
+//    mic_low = c->mic_low;
     mic_polarity = c->mic_polarity;
     RAW_tstate_prev = c->RAW_tstate_prev;
     RAW_fsm = c->RAW_fsm;
     mic_queue_wr = c->mic_queue_wr;
     mic_queue_has_turbo = c->mic_queue_has_turbo;
     mic_byte2 = c->mic_byte2;
+    // tape
+    tape_hz = c->tape_hz;
+    tape_ticks = c->tape_ticks;
     // autoplay
+    autoplay = c->autoplay;
+    autostop = c->autostop;
     autoplay_freq = c->autoplay_freq;
     autoplay_last = c->autoplay_last;
     autoplay_numreads = c->autoplay_numreads;
@@ -1871,6 +2110,7 @@ void z80_quickreset(int warm) {
 }
 
 void eject() {
+    Reset1793(&wd,fdd,WD1793_EJECT);
     fdc_reset();
     mic_reset();
     media_reset();
@@ -1882,6 +2122,8 @@ void reset(unsigned FLAGS) {
 #else
     ZX_KLMODE = 0, ZX_KLMODE_PATCH_NEEDED = 0;
 #endif
+
+    if( ZX != 128 ) ZX_PENTAGON = 0;
 
     page2a = ZX < 210 ? 128 : 0; port_0x1ffd(page2a);
     page128 = ZX < 128 ? 32 : 0; port_0x7ffd(page128);
@@ -1897,27 +2139,35 @@ void reset(unsigned FLAGS) {
     //if(ZX>=128) port_0x7ffd(page128 = 0); // 128
     //if(ZX>=210) port_0x1ffd(page2a = 0); // +2a/+3
 
-    last_fe = 0;
+    ear = 0;
+    spk = 0;
     beeper_reset(&buzz);
 
     ay_reset();
     ayumi_reset(&ayumi);
     ay38910_reset(&ay);
 
+    mixer_reset();
+
     ula_reset();
 
     mouse_clip(0);
+    mouse_cursor(1);
     kempston_mouse = 0;
 
     azimuth = AZIMUTH_DEFAULT;
 
     tape_hz = 0;
     tape_ticks = 0;
+    autoplay = 0;
+    autostop = 0;
 
     if( ZX_AUTOPLAY ) voc_pos=0,mic_on=!!mic_has_tape; // @todo: reset tape polarity too?
 
-    if( !(FLAGS & KEEP_MEDIA ) ) {
+    if( !(FLAGS & KEEP_MEDIA) ) {
         eject();
+    } else {
+        Reset1793(&wd,fdd,WD1793_KEEP);
     }
 }
 
@@ -1927,6 +2177,8 @@ void boot(int model, unsigned FLAGS) {
     dum = (char*)realloc(dum, 16384);    // dummy page
     rom = (char*)realloc(rom, 16384*4);  // +3
     mem = (char*)realloc(mem, 16384*16); // scorpion
+
+    if( ZX != 128 ) ZX_PENTAGON = 0;
 
     config(ZX);
 
@@ -1970,12 +2222,15 @@ void boot(int model, unsigned FLAGS) {
     if (!ayumi_configure(&ayumi, is_ym, 2000000 * (2000000.0 / (ZX_FREQ / 2.0)), AUDIO_FREQUENCY)) { // ayumi is AtariST based, i guess. use 2mhz clock instead
         die("ayumi_configure error (wrong sample rate?)");
     }
-    const double *pan = pan_modes[0]; // MONO
+    const double *pan = pan_modes[0];   // @fixme: ACB, mono for now
+    if(ZX_PENTAGON) pan = pan_modes[0]; // @fixme: ABC, mono for now
     ayumi_set_pan(&ayumi, 0, pan[0], eqp_stereo_on);
     ayumi_set_pan(&ayumi, 1, pan[1], eqp_stereo_on);
     ayumi_set_pan(&ayumi, 2, pan[2], eqp_stereo_on);
 
     fdc_reset();
+
+    do_once Reset1793(&wd,fdd,WD1793_INIT);
 
     rom_restore();
 

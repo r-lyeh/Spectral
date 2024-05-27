@@ -30,8 +30,8 @@ void window_override_icons() {
 }
 
 #define warning(msg) warning("Warning", msg)
-void (warning)(const char *title, const char *msg) {
-    MessageBoxA(0,msg,title,MB_OK);
+int (warning)(const char *title, const char *msg) {
+    return MessageBoxA(0,msg,title,MB_OK), 1;
 }
 
 void die(const char *msg) {

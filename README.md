@@ -2,6 +2,7 @@
 Sinclair ZX Spectrum emulator from the 80s.
 
 ![image](https://github.com/r-lyeh/spectral/assets/35402248/8ae5f8d4-0a7c-41ee-9112-2e86bacdb262)
+![image](https://github.com/r-lyeh/Spectral/assets/35402248/2575bc40-d19d-43a3-81d3-6d638e9a94d1)
 
 ## About
 Spectral is an experimental emulator that I have been randomly assembling [since the pandemic days](https://twitter.com/r_rlyeh/status/1280964279903158273), inspired by my old fZX32 emulator. Accuracy and performance are long-term goals, but the primary focus is just having fun with this thing. Hardcore ZX users will find little value in this emulator right now, but I hope newbies may find its ease of use somehow appealing to try.
@@ -11,26 +12,26 @@ Code is highly experimental and prone to change in the future. I will keep alter
 ## Features and wishlist
 - [x] Single executable.
 - [x] Z80. Z80 Disassembler.
-- [x] 16, 48/128, +2, +2A, +3/FDC.
+- [x] 16, 48, 128, +2, +2A, +3/FDC, Pentagon128/Betadisk.
 - [x] Issue 2/3.
 - [x] ULA/ULA+.
 - [x] Beeper/AY.
 - [x] Kempston mouse. <!-- @todo: AMX mouse.-->
 - [x] Kempston/Fuller/Cursor/Sinclair joysticks.
 - [x] RF/CRT experience (not physically accurate though).
-- [x] TAP/TZX/DSK/Z80/SNA/ROM/IF2/SCR/ZIP support. <!-- @todo: tzx info on window title -->
+- [x] TAP/TZX/Z80/SNA/ROM/IF2/SCR/ZIP support. <!-- @todo: tzx info on window title -->
+- [x] DSK/EDSK/TRD/SCL/FDI/MGT/IMG/HOBETA support.
 - [x] SCR/PNG screenshots. <!-- ulaplus screenshots. video recording -->
 - [x] Load games easily. Turbo loads. Auto play/stop tape.
 - [x] Game browser. <!-- @todo: rewrite this -->
 - [x] Graphical tape browser.
-- [x] 50Hz fps lock.
+- [x] 50/60Hz fps lock.
 - [x] Run-a-head.
 - [x] POK support.  <!-- @todo: cheats finder --> 
 - [x] Gunstick, Lightgun. <!-- Cheetah Defender Lightgun, Magnum Light Phaser, Stack Light Rifle -->
 - [x] External shaders support.
 - [x] Internal savestates.
 - [x] Graphical User Interface.
-- [ ] Pentagon 128K + beta disk. SCL/TRD.
 - [ ] ZXDB integration.
 - [ ] Gallery marquee. <!-- Flex. Tape cases. ZX catalog on demand. -->
 - [ ] Extra accurate Z80 backend. <!-- @todo: contended mem, contended ports, memptr, snow, Q, floating bus (+2a/+3) -->
@@ -44,22 +45,23 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - [x] Unlicensed.
 
 ## Usage
-- esc: game browser
-- f1: speed boost (hold)
-- f2: start/stop tape
-- f3/f4: rewind/advance tape
-- f5: restart
-- f6: toggle input latency (runahead)
-- f7: toggle tape polarity
-- f8: toggle tape speed
-- f9: toggle tv/rf (4 modes)
-- f9+shift: toggle ay core (2 modes)
-- f11/f12: quick save/load
-- alt+enter: fullscreen
-- tab+cursors: joysticks
+You only need the mouse to configure Spectral. Here are some shortcuts, though:
+- ESC: game browser
+- F1: speed boost (hold)
+- F2: start/stop tape
+- F3/f4: rewind/advance tape
+- F5: restart
+- F6: toggle input latency (runahead)
+- F7: toggle issue 2/3
+- F8: toggle tape speed
+- F9: toggle tv/rf (4 modes)
+- F9+SHIFT: toggle ay core (2 modes)
+- F11/F12: quick save/load
+- ALT+ENTER: fullscreen
+- TAB+CURSORS: joysticks
 
 ## Credits
-Andre Weissflog, for their many single-header libraries! (Zlib licensed). Peter Sovietov, for their accurate AY chip emulator (MIT licensed). Ulrich Doewich and Colin Pitrat, for their uPD765A floppy disk controller (GPL licensed). lalaoopybee, for their lovely tube shader. Damian Vila for their BESCII truetype font (CC-1.0). Andrew Owen and Geoff Wearmouth for their custom ROMs. Santiago Romero, Philip Kendall, James McKay for their FOSS emulators. The ZX Spectrum Discord folks. All the ZX community!
+Andre Weissflog, for their many single-header libraries! (Zlib licensed). Peter Sovietov, for their accurate AY chip emulator (MIT licensed). Ulrich Doewich and Colin Pitrat, for their uPD765A floppy disk controller (GPL licensed). Marat Fayzullin for their WD1793/FDI controllers (Propietary). Potapov Vsevolod Viktorovich for their rusfaq website. Andrew Owen and Geoff Wearmouth for their custom ROMs. Simon Owen for their DSK technical websites. Santiago Romero, Philip Kendall, James McKay for their FOSS emulators. Damian Vila for their BESCII truetype font (CC-1.0). lalaoopybee, for their lovely tube shader. Günter Woigk, Juan Carlos González Amestoy and David Colmenero for their floppy sound recordings. The ZX Spectrum Discord folks. All the ZX community!
 
 ## Unlicense
 This software is released into the [public domain](https://unlicense.org/). Also dual-licensed as [0-BSD](https://opensource.org/licenses/0BSD) or [MIT (No Attribution)](https://github.com/aws/mit-0) for those countries where public domain is a concern (sigh). Any contribution to this repository is implicitly subjected to the same release conditions aforementioned.
@@ -67,7 +69,7 @@ This software is released into the [public domain](https://unlicense.org/). Also
 ## Links
 - [Introduction to the ZX](https://en.wikipedia.org/wiki/ZX_Spectrum), ZX entry on Wikipedia.
 - [SpecEmu](https://specemu.zxe.io/), my favourite ZX emulator on Windows.
-- [SpectrumComputing](https://spectrumcomputing.co.uk/), [WorldOfSpectrum](https://worldofspectrum.net/), [ZXArt](https://zxart.ee/) and [ZXInfo](https://zxinfo.dk/) are best online resources (imho).
+- [SpectrumComputing](https://spectrumcomputing.co.uk/), [WorldOfSpectrum](https://worldofspectrum.net/), [ZXArt](https://zxart.ee/), [Virtual TRDOS](https://vtrd.in/) and [ZXInfo](https://zxinfo.dk/) are best online resources (imho).
 - [Crash](https://archive.org/details/crash-magazine), [YourSinclair](https://archive.org/details/your-sinclair-magazine), [SinclairUser](https://archive.org/details/sinclair-user-magazine) and [MicroHobby(ES)](https://archive.org/details/microhobby-magazine) are great old paper magazines.
 - [ZX database](https://github.com/zxdb/ZXDB), [game maps](https://maps.speccy.cz/), [game cheats](https://www.the-tipshop.co.uk/) and [game longplays](https://www.youtube.com/@rzxarchive).
 - [Daily ZX videos](https://www.youtube.com/results?search_query=zx+spectrum&sp=CAI%253D), on YouTube.

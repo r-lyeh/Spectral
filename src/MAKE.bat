@@ -1,4 +1,4 @@
-cl zx.c sys_window.cc %* || exit /b && rem /link /SUBSYSTEM:WINDOWS
+cl zx.c sys_window.cc %* || MAKEerr && rem /link /SUBSYSTEM:WINDOWS
 
 @echo off
 rem mt.exe -manifest zx.exe.manifest -outputresource:zx.exe;1

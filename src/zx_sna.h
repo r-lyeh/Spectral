@@ -107,6 +107,8 @@ int sna_load(const byte *src, int size) {
             memcpy(RAM_BANK(i), mreadnum(16384), 16384);
         }
 
+        if( trdos128 ) MEMr[0] = rom + 0x4000 * 2;
+
 #if 0
         // amend some games that rely on AY, which cannot be not saved in .sna format
         // see: tai-pan 128k (title screen)
@@ -201,7 +203,7 @@ int z80_guess(const byte *source_, int len) {
     // common extended values (v2+v3)
     /**/ if(buffer[34]== 7) return buffer[37]&0x80 ? 210 : 300; //OK!
     else if(buffer[34]== 8) return buffer[37]&0x80 ? 210 : 300; //OK!
-    else if(buffer[34]== 9) return warning(va(".z80 submodel not supported: %d (Pentagon 128K)", buffer[34])), 128; // Pentagon 128k
+    else if(buffer[34]== 9) return -128; // Pentagon 128k
     else if(buffer[34]==10) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // Scorpion 256k
     else if(buffer[34]==11) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // Didaktik-Kompakt
     else if(buffer[34]==12) return 200; //OK!
@@ -425,6 +427,9 @@ int guess(byte *ptr, int size) { // guess required model type for given data
     if( size == 49179 ) return 48;
     if( size == 131103 ) return 128;
     if( size == 147487 ) return 128;
+
+    // at this point file is too large to be a snapshot. must be a disk instead (trd,scl,fdi,mgt,etc)
+    if( size > 147487 ) return -128;
 
     // headerless variable-size formats now
     if( *ptr == 'N' ) return ZX;

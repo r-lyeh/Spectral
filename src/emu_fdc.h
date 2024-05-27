@@ -80,36 +80,58 @@ typedef struct t_sector {
    unsigned char flags[4]; // ST1 and ST2 - reflects any possible error conditions
 
  //private:
-   unsigned int size_; // sector size in bytes
-   unsigned char *data_; // pointer to sector data
-   unsigned int total_size_; // total data size in bytes
-   unsigned int weak_versions_; // number of versions of this sector (should be 1 except for weak/random sectors)
-   unsigned int weak_read_version_; // version of the sector to return when reading
+   unsigned int size; // sector size in bytes
+   unsigned char *data; // pointer to sector data
+   unsigned int total_size; // total data size in bytes
+   unsigned int weak_versions; // number of versions of this sector (should be 1 except for weak/random sectors)
+   unsigned int weak_read_version; // version of the sector to return when reading
 } t_sector;
 
-void sector_setData(struct t_sector *self, unsigned char* data) {
-  self->data_ = data;
+void sector_setData(t_sector *s, unsigned char* data) {
+  s->data = data;
 }
 
-unsigned char* sector_getDataForWrite(t_sector *self) {
-  return self->data_;
+unsigned char* sector_getDataForWrite(t_sector *s) {
+  return s->data;
 }
 
-unsigned char* sector_getDataForRead(t_sector *self) {
-  self->weak_read_version_ = (self->weak_read_version_ + 1) % self->weak_versions_;
-  return &self->data_[self->weak_read_version_*self->size_];
+static t_sector *last_sector = 0; // for speedlock
+
+unsigned char* sector_getDataForRead(t_sector *s, int *checksum_ok) {
+  s->weak_read_version = (s->weak_read_version + 1) % s->weak_versions;
+#if 1 // speedlock
+   // disk images with the weak sector data recorded are rare, so if a program reads the same sector
+   // repeatedly then some emulators assume that this sector has weak data. (e.g. Fuse)
+   if( checksum_ok ) *checksum_ok = 1;
+   if( s->weak_versions == 1 ) {
+      static int hits = 0; hits += (last_sector == s); hits *= (last_sector == s); last_sector = s;
+#if NDEBUG <= 0
+      printf("%p %d %x %x\n", s, hits, *(uint32_t*)s->CHRN, *(uint32_t*)s->flags );
+#endif
+      if( *(uint32_t*)s->CHRN >= 0x2020000 )
+      if( *(uint32_t*)s->flags == 0x4000 || *(uint32_t*)s->flags == 0x2020 )
+      if( hits > 0 ) {
+         static byte buf[512]; assert(s->size <= 512);
+         memcpy(buf, &s->data[s->weak_read_version*s->size], s->size);
+         buf[s->size-1] = rand() & 0xff; // scramble crc
+         if( checksum_ok ) *checksum_ok = 0;
+         return buf;
+      }
+   }
+#endif
+  return &s->data[s->weak_read_version*s->size];
 }
 
-void sector_setSizes(t_sector *self, unsigned int size, unsigned int total_size) {
-  self->size_ = size;
-  self->total_size_ = total_size;
-  self->weak_read_version_ = 0;
-  self->weak_versions_ = 1;
-  if (self->size_ > 0 && self->size_ <= self->total_size_) self->weak_versions_ = self->total_size_ / self->size_;
+void sector_setSizes(t_sector *s, unsigned int size, unsigned int total_size) {
+  s->size = size;
+  s->total_size = total_size;
+  s->weak_read_version = 0;
+  s->weak_versions = 1;
+  if (s->size > 0 && s->size <= s->total_size) s->weak_versions = s->total_size / s->size;
 }
 
-unsigned int sector_getTotalSize(const t_sector *self) {
-  return self->total_size_;
+unsigned int sector_getTotalSize(const t_sector *s) {
+  return s->total_size;
 }
 
 typedef struct {
@@ -424,7 +446,7 @@ loop:
             sector_size = 128 << fdc.command[CMD_N]; // determine number of bytes from N value
          }
          fdc.buffer_count = sector_size; // init number of bytes to transfer
-         fdc.buffer_ptr = sector_getDataForRead(sector); // pointer to sector data
+         fdc.buffer_ptr = sector_getDataForRead(sector, NULL); // pointer to sector data
          fdc.buffer_endptr = active_track->data + active_track->size; // pointer beyond end of track data
          fdc.timeout = INITIAL_TIMEOUT;
          read_status_delay = 1;
@@ -464,7 +486,7 @@ inline void cmd_readtrk()
       sector_size = 128 << fdc.command[CMD_N]; // determine number of bytes from N value
    }
    fdc.buffer_count = sector_size; // init number of bytes to transfer
-   fdc.buffer_ptr = sector_getDataForRead(sector); // pointer to sector data
+   fdc.buffer_ptr = sector_getDataForRead(sector, NULL); // pointer to sector data
    fdc.buffer_endptr = active_track->data + active_track->size; // pointer beyond end of track data
    fdc.timeout = INITIAL_TIMEOUT;
    read_status_delay = 1;
@@ -502,10 +524,12 @@ loop:
          }
          sector_size = 128 << fdc.command[CMD_N]; // determine number of bytes from N value
          fdc.buffer_count = sector_size; // init number of bytes to transfer
-   fdc.buffer_ptr = sector_getDataForRead(sector); // pointer to sector data
+int checksum = 0;
+         fdc.buffer_ptr = sector_getDataForRead(sector, &checksum); // pointer to sector data
          fdc.buffer_endptr = active_track->data + active_track->size; // pointer beyond end of track data
-         fdc.flags &= ~SCANFAILED_flag; // reset scan failed flag
-         fdc.result[RES_ST2] |= 0x08; // assume data matches: set Scan Equal Hit
+if(checksum)
+      fdc.flags &= ~SCANFAILED_flag, // reset scan failed flag
+      fdc.result[RES_ST2] |= 0x08; // assume data matches: set Scan Equal Hit
          fdc.timeout = INITIAL_TIMEOUT;
          read_status_delay = 1;
       }
@@ -858,6 +882,8 @@ void fdc_recalib()
 {
    fdc.command[CMD_C] = 0; // seek to track 0
    fdc_seek();
+
+   play('seek', 1);
 }
 
 
@@ -1003,6 +1029,8 @@ void fdc_write()
 
 void fdc_read()
 {
+   play('read', 1);
+
    fdc.led = 1; // turn the drive LED on
    check_unit(); // switch to target drive
    if (init_status_regs() == 0) { // drive Ready?
@@ -1156,7 +1184,7 @@ void fdc_reset()
 
  fdc.motor = 0;
  fdc.phase = CMD_PHASE;
- fdc.flags = STATUSDRVA_flag | SKIP_flag | OVERRUN_flag; // | STATUSDRVB_flag;
+ fdc.flags = STATUSDRVA_flag; // | SKIP_flag | OVERRUN_flag; // | STATUSDRVB_flag;
 
  driveA.write_protected = 1; // is the image write protected?
  // driveA.random_DEs = 1; // sectors with Data Errors return random data?
@@ -1165,10 +1193,28 @@ void fdc_reset()
  active_track = NULL; // reference to the currently selected track, of the active_drive
 
  read_status_delay = 0;
+
+ last_sector = NULL;
 }
 
 void fdc_motor(unsigned char on)
 {
- fdc.motor=on;
+ fdc.motor = !!on;
  fdc.flags |= STATUSDRVA_flag; // | STATUSDRVB_flag;
+
+ play('moto', on ? ~0u : 0);
+}
+
+void fdc_tick(int TS) {
+   if( fdc.phase == EXEC_PHASE ) {
+      fdc.timeout -= TS;
+      if (fdc.timeout <= 0) {
+         fdc.flags |= OVERRUN_flag;
+         if (fdc.cmd_direction == FDC_TO_CPU) {
+            fdc_read_data();
+         } else {
+            fdc_write_data(0xff);
+         }
+      }
+   }
 }

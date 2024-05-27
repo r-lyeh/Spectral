@@ -1,0 +1,370 @@
+                    JGH Spectrum ROM Modifications
+                    ==============================
+                      J.G.Harston - jgh@mdfs.net
+               http://mdfs.net/Software/Spectrum/Harston
+
+This is a patched Spectrum 48K ROM which fixes many bugs and adds some
+useful extensions. JGHROM is the ROM image, and Patch/src is the source
+code, written in BBC BASIC Z80 assembler. The Spectrum ROM is copyright
+Amstrad. Amstrad have kindly given their permission for the redistribution
+of their copyrighted material but retain that copyright. The extra code is
+copyright J.G.Harston and may be redistributed, and may be extracted and
+used in other code, with attribution.
+
+This ROM is compatible with the Interface 1. As many entry points as
+possible are preserved, but it may not work with systems that depend on
+code being in particular places.
+
+
+Bugs fixed
+==========
+The following bugs listed in the Complete Spectrum ROM disassembly are
+fixed:
+
+  * NMI routine, CHR$8, CHR$9, scroll?/press any key, CLOSE#, SCREEN$,
+    "X"+STR$Y, -65536, Divide bit34.
+
+Note, the bugfix code in the CSRD for the -65536 bug is wrong. This ROM is
+patched with a correct bugfix.
+
+The following bugs are also fixed:
+
+  * SKIP_CONS writing to ROM, INKEY#0, screen scrolling writing to ROM.
+
+  * The 'Out of Memory' code at &1F15 now calls the ERROR restart. This
+    should allow the Interface 1 to switch off microdrives when it hits the
+    out of memory bug.
+
+  * DEC_TO_FP divides by 10 instead of multiplying by 1/10, as per Geoff
+    Wearmouth [http://www.wearmouth.demon.co.uk/Features.htm].
+
+  * The current line cursor error is fixed, as per Geoff Wearmouth
+    [http://www.wearmouth.demon.co.uk/gw03/gw03page.htm].
+
+  * Colour and drawing commands select channel "S" to avoid colour codes
+    being sent to microdrive channels, as per Geoff Wearmouth
+    [http://www.wearmouth.demon.co.uk/gw03/gw03page.htm].
+
+  * Colour print items clear carry on return so, eg PRINT PAPER 1 to non-
+    standard channels don't give an error if output return returns carry
+    set.
+
+  * STR$ and INKEY$#n save and restore ATTRT/MASKT/PFLAG as with other
+    code that switches between channels, discovered by Battle Bunny.
+    [http://www.worldofspectrum.org/forums/showthread.php?t=39497]
+
+
+Changed preferences
+===================
+On startup, the screen is set to black border and paper, and white ink and
+CAPS is on. The startup message says ", JGH" at the end.
+
+
+Extensions
+==========
+Once all the bugs were fixed, I added the following additional features:
+
+  * Lines entered character by character, and tokenised into Basic. As a
+    consequence of this, there is no extended mode. All symbols entered with
+    Symbol-Shift, the copyright symbol is Symbol-Shift-I. By default, tokens
+    must be in upper case, and may be abbreviated with a '.'. This can be
+    changed by changing FLAGS2 at &5C6A.
+
+  * When CAPS is on, pressing Shift produces lower case.
+
+  * An additional ASCII keyboard on port &FD/&F9 is scanned.
+
+  * New "P" and "C" channels that write to a Centronics port on port &FB.
+    If b1 of FLAGS at &5C3B is zero, then channel "P" expands tokens and
+    sends <lf> after <cr>. If b1 of FLAGS is set, channel "P" acts like
+    channel "C". Channel "C" writes raw data to the Centronics port without
+    interpreting it as text. By default stream 4 is attached to channel "C"
+    and closing stream 4 will reattach it to channel "C".
+
+  * INK/PAPER/BRIGHT/INVERSE/AT/TAB/BORDER out of range is ignored. BORDER
+    0-7 selects bright, BORDER 8-15 select no bright.
+
+  * CHR$12 performs a CLS, CLS sends CHR$12 to stream 2.
+
+  * CHR$10 and CHR$11 move down and up.
+
+  * Integers can be entered in hexadecimal with &, ie PRINT &4000, and can
+    be output in hexadecimal with PRINT~ and STR$~.
+
+  * CAT[#s] will catalogue from tape, ended by pressing SPACE or an error.
+    The display lists the file information in the format:
+        TT NNNNNNNNNN SSSS+LLLL EEEE
+
+    listing the file type, name, start address, length, and extra address,
+    with numbers in hex.
+
+  * SAVE s$ CODE extended to SAVE s$ CODE start,length[,extra[,reload[,type]]]
+
+  * CALL numeric will call an address. The CALL token replaces the COPY token.
+
+  * Replacement font, based on the BBC font.
+
+  * INPUT can use channel "S", but the effects are rather strange at the moment.
+
+  * RUN s$ or *filename will load and execute a CODE file from tape or
+    microdrive as machine code, for instance RUN "MDump" or *MDump. The code
+    is entered at the address in the 'extra' field, with DE pointing to any
+    command line parameters. When running from tape a temporary stack is
+    used, so code that never returns can safely overwrite the existing stack
+    without CLEAR having to be used first. Running from microdrive should
+    also use a temporary stack and may do in future.
+
+  * RUN "d:" or *d: will set the default device for running machine code to
+    the specified device, T: for tape or 1: to 8: for microdrive. If an
+    Interface 1 is present 1: is initially selected on NEW/RESET, otherwise
+    T: is selected.
+
+  * RST &08 out of range gives "Unknown command" error, so using Interface 1
+    hook codes without the Interface 1 present gives a sensible error
+    message.
+
+  * Calculator literal &3C which calls e_to_fp is unusable as e_to_fp
+    expects a parameter in the A register, and calling it via the calculator
+    corrupts A. Consequently, e_to_fp is only ever called directly. Literal
+    &3C has been used to give STR$~.
+
+  * OPEN can attach a stream to any non-extended channel. You can even open
+    a stream to channel "R"! An extended channel is detected by it not being
+    one of the first four entries in the CHANS area. If you create new
+    channels they must be in the following format similar to Interface 1
+    channels:
+        entry+0,1 : output address - must not be &xx80.
+        entry+2,3 : input address
+        entry+4   : channel character
+        entry+5,6 : ignored
+        entry+7,8 : ignored - Toni Baker channels store the CLOSE address here
+        entry+9,10: channel length, eg 11 for this example.
+
+    The output address is always entered with the carry flag set when called
+    from RST &10 PRINTA, this allows future use of carry clear on entry.
+
+    The input routine must return with:
+        Cy=1, A=character
+        Cy=0, Z=1, no character returned
+        Cy=0, Z=0, end of file
+
+  * RAMTOP defaults to &F7FF to reserve memory for transient commands to be
+    loaded at &F800.
+
+  * On RESET, if Symbol-Shift is pressed, extra memory for transient
+    commands and channel "C" is not claimed.
+
+
+Entry points to new routines
+============================
+Some of the additional routines are accessible through extra fixed entry
+points in zero page.
+
+&0005 RESTART - Restart spectrum with specified maximum memory
+--------------------------------------------------------------
+On entry:  DE=highest memory location to use
+           A must be zero and INTs disabled before calling
+On exit:   never exits
+Not really an additional entry, but documented for completeness.
+
+&0013 PRHEX0 - Print byte in B with leading zero
+-------------------------------------------------
+On entry:  B=byte to print
+On exit:   A,B,D corrupted
+
+&0015 PRHEX - Print byte in B
+-------------------------------
+On entry:  B=byte to print
+           D=0 for no leading characters, D<>0 specifies leading character
+On exit:   A,B,D corrupted
+
+&0025 SCANHEX - Scan hexadecimal
+--------------------------------
+On entry:  DE=>first character of hexadecimal string
+On exit:   DE=>first non-hex character
+           HL=hex value
+           A =terminating character
+           BC=preserved
+
+&002B PR2HEX0 - Print word in BC with leading zeros
+---------------------------------------------------
+On entry:  BC=word to print
+On exit:   A,B,C,D corrupted
+
+&002D PR2HEX  - Print word in BC
+--------------------------------
+On entry:  BC=word to print
+           D=0 for no leading characters, D<>0 specifies leading character
+On exit:   A,B,C,D corrupted
+
+&0060 SRCHTABLE - Search a token table
+--------------------------------------
+On entry:  DE=table start (no prefix byte)
+           HL=string to decode
+           C=token value to start with. Stops when C=0
+           B=flags, b7=IgnoreCase b6=NoAbbrs b5=Termination type
+             If b7=0, the case must match
+             If b7=1, case is ignored
+             If b6=0, tokens can be abbreviated with '.'
+             If b6=1, tokens must be entered in full
+             If b5=0, tokens don't need to be seperated by, eg spaces
+             If b5=1, tokens must be followed by nonalphanumeric character
+           When lines are entered in command mode, the default settings of
+           b7-b5 are taken from b7-b5 of FLAGS2 at &5C6A.
+On exit:   If token found, A=token value, F=NC
+           If not found, A=first byte of string, F=C
+           BC,DE,HL corrupted
+
+&0063 TOKENISE - Tokenise a BASIC line
+--------------------------------------
+On entry:  HL=source string
+           DE=destination
+           B=flags to pass to SRCHTABLE
+On exit:   Source string has been tokenised
+           AF,BC,DE,HL corrupted
+
+
+Access to new hardware
+======================
+The modified ROM allows access to extra hardware.
+
+New printer port at &FB
+-----------------------
+The "P" printer stream and "C" Centronics channels access a Centronics
+parallel printer on port &FB. OUT &FB,n writes data and strobes the printer.
+IN &FB returns a busy/ready signal in bit 7. If b7=1, printer is ready (or
+absent). If b7=0, printer is not ready. This also releases &5B00-&5BFF for
+other uses, such as loading transient *commands.
+
+Additional ASCII keyboard port at &F9/&FD
+-----------------------------------------
+The keyboard routines scan for an external ASCII keyboard as well as the
+Spectrum ULA matrix keyboard. IN &FD should return the ASCII data and IN &F9
+should return the keyboard status, b0=shift, b1=control, b4=control codes
+need translating. The ASCII codes are translated to Spectrum keypresses:
+  Ctrl-letter -> UDG characters
+  Ctrl-@      -> CHR$127 for copyright
+  ASCII 127   -> CHR$12 for delete
+  &80+        -> (key AND &8F)+16*shift+32*ctrl
+
+
+Memory locations
+================
+&5C3B   FLAGS   b1=0 Text output, b1=1 raw output on printer channel "P".
+                Was flag for ZX Printer, but the ZX Printer has been
+                replaced.
+&5C6A   FLAGS2  b7/b6/b5 holds tokeniser flags, zero by default. b1 was
+                "Printer buffer not empty", now always zero to prevent
+                nonexistant printer buffer code being called.
+&5C7F   CURDRV  Current default device, ie "T" for tape or "1"-"8" for
+                microdrive. Was P_POSN, but the ZX Printer has been replaced.
+&5C80/1 NMIADD  As the Interface 1 uses the old NMIADD at &5CB0, the NMI now
+                uses &5C80 instead. This used to be PR_CC, used by the ZX
+                printer routines. The ZX printer had been replaced by the
+                parallel printer code, so PR_CC is now free
+&5CB0   PRCOL   This was NMIADD, but is now used by the Interface 1 to hold
+                the current RS232 text output column.
+&5CB1   WIDTH   Width of RS232 text output channel.
+
+The following memory locations are spare:
+&5C3B   FLAGS   b4 - Indicates 128K mode on Spectrum 128.
+&5C3C   TVFLAG  b7,b6,b2,b1 - spare
+&5C71   FLAGX   b4,b3,b2 - spare
+
+
+Executing machine code
+======================
+When machine code is run with *command or RUN s$, it is loaded to it's load
+address, and entered at its execution address, stored in the 'extra' field.
+If the 'extra' field is &FFFF, then the code is entered at its load address.
+
+Code is entered with registers set to the following:
+If Cy=0
+  Entered via USR x or CALL x. BC=entry address, A, DE, HL undefined.
+If Cy=1
+  Entered via *command or RUN s$. BC=entry address, DE points to command
+  tail, A, HL undefined.
+
+*commands have stream 2 selected. CALL/USR have whichever previously
+selected stream selected, so if called from the direct mode, will have
+stream 0 (Keyboard) selected.
+
+The code should finish with a RET. The contents of BC will be returned to
+the user if called with USR. *command and CALL can trash all registers, but
+USR must preserve HL' to return successfully.
+
+Short transient *commands can be written to run in the ZX Printer buffer at
+&5B00-&5BFF as this is no longer used.
+
+
+Customisation
+=============
+There are some customisations you can easily do to the ROM image:
+
+Startup colours:
+11CD 3E 38+nn D3 FE   Set nn to border colour
+1265 3E nn            Set nn to screen attributes, eg &38 for black on white
+
+
+History
+=======
+08-Feb-2015 v0.77 Implemented CHR$10,CHR$11, PRINT colour items ensure carry
+                  clear on return.
+11-Jun-2012 v0.76 Bugfix to STR$ and INKEY$#n to preserve ATTRT/MASKT/PFLAG,
+                  combined code with other preserve/restore code. SCANHEX
+                  has better parameters so *commands can call direct. CLS
+                  sends CHR$12 to stream 2.
+03-Oct-2004 v0.75 CAT displays 'start+length extra', PrHex correctly outputs
+                  "0" when no leading character specified.
+28-Sep-2004 v0.74 Running machine code from tape is silent.
+26-Sep-2004 v0.73 Running machine code from microdrive finally works! Needs
+                  tidying up a little bit. CHR$12 gives CLS, RST &08 out of
+                  range trapped. Sets default drive if Interface 1 present.
+18-Sep-2004 v0.72 Channel "C" causing Interface 1 to fall over, added length
+                  to channel information. NEW was forgetting channel "C"
+                  and Interface 1 was clearing #4 and channel "C". Added
+                  Geoff Wearmouth's changes to make INPUT use stream 1, fix
+                  current line cursor bug, colours select stream &FE.
+15-Sep-2004 v0.71 Added Geoff Wearmouth's DEC_TO_FP bugfix and scrolling to
+                  ROM bugfix. RUN was incorrrectly calling SYNTAX_Z instead
+                  of CHECK_END. Added "C" channel, OPEN and CLOSE deal with
+                  any short channel. "P" and "C" actually act on BREAK.
+18-Nov-2003 v0.70 RUN "filename" and *command. Fixed tokeniser bug where
+                  PRINT INK 2 became PRINT IN K 2. "P" printer channel
+                  defaults to "text" output, where tokens are expanded and a
+                  <lf> is added after a <cr>. Calculator literal &3C used
+                  for STR$~.
+27-Oct-2003 v0.60 Fixed bugs where CAT d would catalogue from tape, and then
+                  from microdrive, and SAVE "x"CODE s,l,e tried to save
+                  during syntax check phase.
+02-Sep-2003 v0.50 Rewrote the source code. The original source was a text
+                  file of hand-assembled code, cut up into pieces and glued
+                  into place, and modifications written over. The code was
+                  'assembled' by poking the byte values into the ROM image
+                  in memory. This worked, but was very difficult to extend,
+                  so the source now exists as the file 'Patch/src'. By doing
+                  this I managed to get STR$~ working. The startup message
+                  has been returned to the original as per Amstrad
+                  requirements, with "JGH" at the end to indicate the
+                  modified ROM.
+13-May-1985 v0.41 Started trying to get STR$~ working.
+xx-xxx-1985 v0.40 Fixed entry points for additional routines. Hex input with
+                  &xxxx and output with PRINT~. CAT from tape and extended
+                  SAVE.
+xx-xxx-1985 v0.30 Looks for Ascii keyboard, "P" stream goes to parallel
+                  printer.
+xx-xxx-1985 v0.20 -65536 bugfix corrected. Lines tokenised.
+12-Jan-1985 v0.10 Bugs fixed, new startup colours and message, but -65536
+                  bugfix wrong.
+
+
+Future extensions
+=================
+When I get around to it, I intend to add the following additional features:
+
+  * Extend LOAD/SAVE to allow "d:filename", auto-translating
+    LOAD "1:filename" to LOAD *"m";1;"filename", etc.
+
+  * Check Shift on RESET and do something with it.
+
+  * Fix INPUT from "S" problems.

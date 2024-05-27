@@ -243,26 +243,28 @@ float azimuth = AZIMUTH_DEFAULT;
 
 int         mic,mic_on;
 char        mic_preview[_320+1];
-int         mic_low = 64; // polarity(+:64) or (-:0)
+const int   mic_low = 64; // polarity(+:64) or (-:0)
 
 int         RAW_tstate_prev;
 uint64_t    RAW_fsm;
 
 enum polarity_t { FLIP, KEEP, LOW, HIGH } mic_polarity;
 
+#pragma pack(push, 1) // pragma packed, so it's more mem-efficent now (5 vs 8 bytes)
 struct mic_queue_type {
-    unsigned count : 15;
-    unsigned pulse : 15;
-    unsigned level : 2; // polarity level: flip(0), keep(1), low(2), high(3)
-    char debug;
+    unsigned count : 12; // 4096 max seems ok. pilots use 2168, and turbo loaders tend to shorten this value
+    unsigned pulse : 18; // usually specifies pulses. pa(u)se, pause(1), st(o)p blocks use millisecond units though
+    unsigned level : 2;  // polarity level: flip(0), keep(1), low(2), high(3)
+    char debug; // could be packed into 3 bits
 } *mic_queue, *mic_turbo;
 int mic_queue_wr, mic_queue_has_turbo;
+#pragma pack(pop)
 
 byte mic_byte2;
 
 byte *voc; // do not free
-unsigned int voc_len;
-unsigned int voccap = 1;
+unsigned voc_len;
+unsigned voccap = 1;
 
 void voc_init(int reserve) {
     voc = realloc(voc, voccap = reserve);
@@ -270,7 +272,7 @@ void voc_init(int reserve) {
 }
 void voc_push(byte x, int count) {
     if( (voc_len+count) >= voccap ) {
-        voccap = (voc_len+count) * 1.75;
+        voccap = (voc_len+count) * 1.5;
         voc = realloc(voc, voccap);
         if (!voc) die(va("voc_push(): Out of mem %d bytes\n", voccap));
     }
@@ -316,34 +318,50 @@ void mic_render_pause(unsigned pause_ms) {
     // at least 1ms pulse as specified in TZX 1.13
     // if(!pause_ms) pause_ms = 1;
 
+#if 0
     // fix a few .tap files that should be .tzx instead: jmeno ruze.tap, moon and the pirates.tap ...
     // .tap files have a fixed pause length of 1000ms (1s). some games need some more time than 1s
     // to process the last loaded block (like when decompressing). thus, during this processing, real
     // speccies will keep their tapes running, and for when CPU is ready, tape may have advanced over
     // the next leading tones too much as to break the loading process.
-    // note: emulators with rom trap loading will never issue this.
+    // note: emulators with rom trap loading or edgeload will never issue this.
     pause_ms += (pause_ms == END_MS) ? 1500 : 0; // give extra time to some .tap files; this gap could belong to .tzx files too, but it wont matter in this case
 
     // fix hijack (EDS) 128, italy 1990 winners, dogfight 2187
     pause_ms *= 1.03; // 70908 vs 69888
+#endif
 
     // END PILOT
     if(pause_ms) {
     mic_queue[mic_queue_wr].debug = '1'; // pause(1)
     mic_queue[mic_queue_wr].level = mic_polarity;
-    mic_queue[mic_queue_wr].count = 1;
-    mic_queue[mic_queue_wr++].pulse = DELAY_PER_MS;
+#if 0 // removed on v06
+    mic_queue[mic_queue_wr].count = DELAY_PER_MS;
+#else
+    mic_queue[mic_queue_wr].count = 1; // DELAY_PER_MS;
+#endif
+    mic_queue[mic_queue_wr++].pulse = 1; // ;
 
     mic_queue[mic_queue_wr].debug = 'u'; // pa(u)se
     mic_queue[mic_queue_wr].level = mic_polarity;
-    mic_queue[mic_queue_wr].count = 1;
-    mic_queue[mic_queue_wr++].pulse = pause_ms * DELAY_PER_MS;
+    mic_queue[mic_queue_wr].count = DELAY_PER_MS;
+    mic_queue[mic_queue_wr++].pulse = pause_ms; // * DELAY_PER_MS;
     }
 }
 
 void mic_render_stop(void) { // REV
+
+#if 0 // removed on v06
     mic_render_pause(1);
-//    return;
+#else 
+    // not following the canonical mic_render_pause() to shorten block time
+    // this version is shorter, keeps FASTTAPE happy and retains the desired polarity flag
+    // so loaders do not complain at end of final tape block (see: parapshock+turborom)
+    mic_queue[mic_queue_wr].debug = 'u'; // pa(u)se
+    mic_queue[mic_queue_wr].level = mic_polarity;
+    mic_queue[mic_queue_wr].count = 1;
+    mic_queue[mic_queue_wr++].pulse = DELAY_PER_MS;
+#endif
 
     // oddi the viking
     // untouchables hitsquad
@@ -352,8 +370,8 @@ void mic_render_stop(void) { // REV
 
     mic_queue[mic_queue_wr].debug = 'o'; // st(o)p
     mic_queue[mic_queue_wr].level = mic_polarity;
-    mic_queue[mic_queue_wr].count = 1;
-    mic_queue[mic_queue_wr++].pulse = DELAY_PER_MS; //0;
+    mic_queue[mic_queue_wr].count = DELAY_PER_MS;
+    mic_queue[mic_queue_wr++].pulse = 1; // DELAY_PER_MS; //0;
 }
 
 void mic_render_full(byte *data, unsigned bytes, unsigned bits, float pilot_len, unsigned pilot, unsigned sync1, unsigned sync2, unsigned zero, unsigned one, unsigned pause) {
@@ -389,10 +407,9 @@ repeat:;
     for( int i = 0; i < mic_queue_wr; ++i ) {
         int count = queue[i].count;
 
-        // longer pauses if turborom is enabled. see: 1942.tzx + turborom (valid combo?)
-        // see: custardthekid(48) + bestialwarrior(lightgun) + turborom
-        if( queue == mic_turbo && queue[i].debug == 'u' )
-            count *= 8; // should be x6 in theory
+        // @fixme:
+        // retrovm: "When you read a TZX/PZX on a 128k/+2/+2a/+3, multiply all pulses by (3.5469/3.5); this will make them approximately 1% longer and use those values."
+        // needed?
 
         for( int j = 0; j < count; ++j ) {
 
@@ -406,11 +423,11 @@ repeat:;
 
             if( queue[i].debug == 'u' ) mic = mic_low; // pa(u)se
 
-            int pulse = queue[i].pulse; // * (rom_turbo ? 1.0 : azimuth);
-//if( queue[i].debug == 'l') ) pulse *= 1.0250; // longer pilots: breaks: italy90, fixes: untouchables (hitsquad), dogfight 2187, lightforce, ATF, TT Racer
-//if( queue[i].debug == 'n') ) pulse -= 2; // shorter syncs: fix italy 1990 (winners), hijack (1986)(electric dreams software)
-            assert(pulse > 0);
+            int pulse = queue[i].pulse;
+            //if( queue[i].debug == 'l') ) pulse *= 1.0250; // longer pilots: breaks: italy90, fixes: untouchables (hitsquad), dogfight 2187, lightforce, ATF, TT Racer
+            //if( queue[i].debug == 'n') ) pulse -= 2; // shorter syncs: fix italy 1990 (winners), hijack (1986)(electric dreams software)
 
+            assert(pulse > 0);
             voc_push( mic<<1 | queue[i].debug, (pulse / 4) + !!(pulse % 4));
         }
         // if( (i+1)==mic_queue_wr || !(i%100000) ) printf("%d/%d,%d bytes\r", i, mic_queue_wr, voc_len);
@@ -452,7 +469,7 @@ repeat:;
 
     printf("%5.2fs tape render (preview)\n", (time_ns() - then) / 1e9 ); then = time_ns();
 
-    printf("%d last mic\n", mic);
+    printf("%d last mic, voc_len %u samples\n", mic, voc_len);
 
     if(tstates < 0) return mic;
 
@@ -472,6 +489,18 @@ if(diff < 0) diff = 0;
         mic = mic_on ? (voc[RAW_fsm/4]>>1)&64 : mic; // 0
     }
 
+#if 0 // verify the length of rendered pause blocks
+    {
+        static uint64_t ts = 0;
+        static int logger = 0;
+        if( !logger && (voc[RAW_fsm/4]&0x7f) == 'u') { logger = 1; ts = time_ns(); }
+        if(  logger && ((voc[RAW_fsm/4]&0x7f) != 'u' || !mic_on)) { logger = 0; 
+            double len = (time_ns() - ts) / 1e9;
+            printf("pause block took %5.2fms\n", len*1000);
+        }
+    }
+#endif
+
     // stop tape if needed.
     if( mic_on && (voc[RAW_fsm/4]&0x7f) == 'o') { // pa(u)se st(o)p
         puts("auto-stop tape block found");
@@ -482,12 +511,25 @@ if(diff < 0) diff = 0;
 }
 
 void mic_finish() {
+
+    // trim ending silences. see: abusimbelprofanation(gremlin) 16000ms nipper2(kixx) 23910ms
+    for( int i = mic_queue_wr; --i >= 0; )
+        if( !strchr("uo1", mic_queue[i].debug ) ) break;
+        else mic_queue[i].pulse = 1;
+
+    // @todo
+    // should we also trim silences >5s in mid blocks? see nipper2(kixx) 15s 7s 13s etc.
+    // they're clearly wrong by *10 factor
+
 #if 0
     mic_render_stop();
     mic_queue[mic_queue_wr].debug = '\0';
     mic_queue[mic_queue_wr].pulse = 0;
 #else
-    mic_render_pause(1000);
+    //mic_render_pause(1000);
+
+    mic_render_stop();
+
 #endif
 
     // convert normal to turbo
@@ -508,7 +550,9 @@ void mic_finish() {
         }
         else if( mic_turbo[i].debug == 'u' ) { // pa(u)se
             //commented because of spirits.tzx
+#if 0 // removed on v06
             IF_TURBOROM_FASTER_EDGES(mic_turbo[i].pulse -= 358);          // ROMHACK $5e7 x16 faster edges (OK)
+#endif
             IF_TURBOROM_FASTER_PILOTS_AND_PAUSES(mic_turbo[i].pulse /= 6); // ROMHACK $571 x6 faster pilots/pauses (OK)
         }
     }
@@ -555,7 +599,7 @@ void mic_prev() { // @fixme: requires rendered tape (voc[])
 }
 
 char mic_peek(uint64_t targetbit) {
-    return voc && targetbit/4 < voc_len ? voc[targetbit/4] & 0x7f & ~32 : ' ';
+    return voc && targetbit/4 < voc_len ? toupper(voc[targetbit/4] & 0x7f) : ' ';
 }
 void mic_seekf(float pct) {
     if( pct >= 0 && pct <= 1 ) {
@@ -581,15 +625,16 @@ int tap_load(void *fp, int siz) {
         unsigned bytes = ((pos[1]<<8) | pos[0]);
         if(bytes <= 2) break; // fix bad jet-pac.tap
 
+        // redo checksum. usually, this is not needed at all, but many times I've hot patched
+        // the tape bits beforehand and need the ROM to cleanly load the block without errors.
+        byte *checksum = pos + 2 + bytes - 1; *checksum = 0;
+        for( unsigned i = 0; i < (bytes - 1); ++i ) *checksum ^= pos[2+i];
+
         printf("tap.block %003d (%s) %u bytes\n",block,pos[2] ? "HEAD":"DATA", bytes - 2);
 
         //data(2s) or header(5s) block?
         mic_render_standard(pos+2, bytes, pos[2] < 128 ? DELAY_HEADER : DELAY_DATA);
         pos += 2 + bytes;
-
-        // create tape preview
-        unsigned pct = (1.f * _320 * (unsigned)(pos - begin)) / ((unsigned)(end - begin));
-        mic_preview[pct] |= 1;
     }
 
     mic_finish();

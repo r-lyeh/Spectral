@@ -167,12 +167,17 @@ int dsk_load(const void *data, int datalen)
 
                      pbDataPtr = drive->track[track][side].data; // pointer to start of memory buffer
                      pbTempPtr = pbDataPtr; // keep a pointer to the beginning of the buffer for the current track
-            pbPtr += 0x18;
+            //pbPtr += 0x18;
                      for (sector = 0; sector < dwSectors; sector++) { // loop for all sectors
-                        memcpy(drive->track[track][side].sector[sector].CHRN, pbPtr, 4); // copy CHRN
-                        memcpy(drive->track[track][side].sector[sector].flags, (pbPtr + 0x04), 2); // copy ST1 & ST2
-                        dword dwRealSize = 0x80 << *(pbPtr+0x03);
-                        dwSectorSize = *(pbPtr + 0x6) + (*(pbPtr + 0x7) << 8); // sector size in bytes
+                        memcpy(drive->track[track][side].sector[sector].CHRN, (pbPtr + 0x18), 4); // copy CHRN
+                        memcpy(drive->track[track][side].sector[sector].flags, (pbPtr + 0x1c), 2); // copy ST1 & ST2
+#if 0
+                        uint32_t dwRealSize = 0x80 << *(pbPtr + 0x1b);
+#else
+                        uint32_t N = *(pbPtr + 0x1b); N += !N;
+                        uint32_t dwRealSize = 256 << (N - 1); //opera 32kib sector. needs "Offset-Info\r\n" extension, though
+#endif
+                        dwSectorSize = *(pbPtr + 0x1e) + (*(pbPtr + 0x1f) << 8); // sector size in bytes
                         sector_setSizes( &drive->track[track][side].sector[sector], dwRealSize, dwSectorSize);
                         sector_setData( &drive->track[track][side].sector[sector], pbDataPtr); // store pointer to sector data
                         pbDataPtr += dwSectorSize;

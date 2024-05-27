@@ -1,0 +1,65 @@
+[DOCS] MR GLUK RESET SERVICE - menu explained
+Post by JamesH » Wed May 24, 2023 3:08 pm
+
+TL;DR: exit GLUK menu via S – to TR-DOS menu, I – for 48k mode or U – for 128k mode. P or C for built-in file management.
+
+Just to keep it documented, while I was exploring all the ROM options available I realised that I had no idea what that GLUK RESET SERVICE does. But now I do :)
+
+I did not understand the built-in docs supplied along with the ROM in that RAR archive file, it’s filled with jargon and obscure references and Google Translate doesn’t help much. Here is what I was able to grasp from a random document I found online. To be honest, I do not understand much there, either. I guess most of these aren't supposed to work on MiSTer because those features were made to support various extra hardware for Russian clones. Anyway, short summary in English follows. It is a shortened translation of the original document with my comments.
+
+Navigation:
+
+Q/Cursor UP – move up
+A/Cursor DOWN – move down
+Cursor RIGHT – last menu item
+Cursor LEFT – first menu item
+SPACE, ENTER – activate menu item
+
+BREAK, EDIT – return to the previous window [J: menu popup]. Cancel in general.
+
+1,2,3,4 – set default disk drive
+8 – force enable/disable mouse
+9 – force enable/disable RTC clock
+
+W – Pentagon turbo Fast/Slow [J: does it work for MiSTer?]
+M – change memory size [J: ???]: ALL/128/48. ALL/128 latch via bit D2, port #EFF7
+
+Any key not assigned specifically was supposed to bring up built-in help, but I guess that was trimmed due to the ROM size constraints.
+
+If mouse [erroneously, in case of MiSTer?] detected, it overrides the keyboard input, effectively disabling the keyboard.
+
+GLUK BOOT – actual boot code, there is disk change detection, may be possible to “get back to the firmware” with some [unknown] keys, launch works similar to “perfect’s” [J: ???]. However, you don’t need to understand any of those, this is the menu item you are looking for 🙂
+hdd0 Boot – “Nemo [IDE] master sec loader according to Zet9”. Loads #6000 bytes from 3rd sector, head 0, cylinder 0 at address #6000 and jumps there.
+cd boot – “CD boot following the standard of Time Gal / ACNews #45 / IG #9” [J: have no idea]
+P.c. – the legendary PERFECT COMMANDER [J: you need to mount a disk image first. Help seems to be missing, size constraints? zxart.ee page seems to have a screenshot of the help]
+p.C.512 – the same, with access to the extended RAM [J: same as above, make sure disk image is mounted]
+trdoS – exit to TR-DOS bypassing resident [J: ???]
+48k basIc – self-explanatory :)
+128k menU – self-explanatory :)
+cacHe #66 – exit to cache [J: ???] at address #0066
+R.c.#17 – exit to Real Commander on RAM page 7
+sTs #57 – exit to STS on page #57 (#7FFD)
+Xas #51 – exit to XAS or ALASM on page #51 (#7FFD)
+Kills - opens sub-menu
+Low mem – clears 48k memory, except GLUK’s own area [J: ???]
+Pages – clears 128k pages
+ALL PAGES – clears megabyte [J: ???]
+cacHe 0-#65 – clears the starting addresses of the cache [J: ???]
+R/D CODE 512k – creates a RAM disk of the required [J: ???] size (starts from 10-th page from the end of the memory, addressed via port #f7f7)
+R/D Game 768k – see previous description
+R/D Fido 896k – see previous description
+copY disk – simple TR-DOS copier, 160 tracks from the current disk to selected (e.g. RAM disk, no formatting required for the RAM disk). Destroys data in the 0th page – uses it as a buffer.
+saVe scr. – extracts a screen shot at the moment of reset [???] and saves it to disk. Works with both 5th and 7th screens. File name “‘@-SCREEN”. Does not check if the file exists already, simply writes the second one with the same name. After saving, the pictures from [J: all?] screens are downscaled 2x and placed in the corners of the screen [J: I do not understand that at all]
+TR.KEEPER – ability to view the 1st and the 161st [J: tracks?] and write there and back [J: ???]. Even if track 161 does not exist, the catalogue won’t be damaged. The tracks will be formatted before writing.
+Reset buttons [J: neither one works as described]:
+
+Space – to DOS [J: doesn work? SPACE just activates the chosen menu item, doesn't it?]
+C – COLOR TABLE [J: that seems to conflict with the p.C.512 menu item]
+D – to DEMO “Grass” [J: look like no-op for MiSTer]
+S – CMOS setup [J: just resets to TR-DOS]
+Used memory regions (changed during operations):
+#5c00-#5d4a – except 23582-23605 – system variables
+#5fdx-#9bd3 – GLUK itself and its stack
+#9bd4-#9bff – the state of the stack and registers during reset [J: ???]
+#9c00-#a4ff – catalogue buffer and screen downscaling buffer
+#a500-#bfff – captured [???] 5th screen [J: RAM page?]

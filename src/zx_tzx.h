@@ -2,6 +2,8 @@
 // [ref] https://www.alessandrogrussu.it/loading/schemes/Schemes.html
 //
 // @todo
+// find 1bas-then-1code pairs within tapes. provide a prompt() call if there are more than 1 pair in the tape
+//     then, deprecate 0x28 block
 // csw starbike1, starbike2
 // tzx(gdb) basil great mouse, bc quest for tires, book of the dead part 1 (crl), dan dare 2 mekon, world cup carnival
 // tzx(flow) hollywood poker, bubble bobble (the hit squad)

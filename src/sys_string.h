@@ -21,10 +21,11 @@ char *replace( char *copy, const char *target, const char *replacement ) {
     }
     return copy;
 }
-char *strstri(const char *a, const char *b) {
-    for(char *p = (char*)(a = va("%s",a)); *p; ++p) *p = toupper(*p);
-    for(char *p = (char*)(b = va("%s",b)); *p; ++p) *p = toupper(*p);
-    return strstr(a, b);
+const char *strstri(const char *a, const char *b) {
+    char *A, *B, *M;
+    for(char *p = (char*)(A = va("%s",a)); *p; ++p) *p = toupper(*p);
+    for(char *p = (char*)(B = va("%s",b)); *p; ++p) *p = toupper(*p);
+    return M = strstr(A, B), M ? a + (M - A) : NULL;
 }
 bool strendi(const char *src, const char *sub) { // returns true if both strings match at end. case insensitive
     int srclen = strlen(src);
@@ -46,14 +47,18 @@ int qsort_strcmp(const void * a, const void * b ) {
 }
 
 // find a mem blob in a mem section; similar to strstr()
-const void *memmem(const void *stack, size_t stack_len, const void * const blob, const size_t blob_len) {
-    if((uintptr_t)stack * stack_len * (uintptr_t)blob * blob_len)
-    for (const char *h = stack; stack_len >= blob_len; ++h, --stack_len) {
-        if (!memcmp(h, blob, blob_len)) {
+const void *memmem(const void *block, size_t blocklen, const void * const bits, const size_t bitslen) {
+    if((uintptr_t)block * blocklen * (uintptr_t)bits * bitslen)
+    for (const char *h = block; blocklen >= bitslen; ++h, --blocklen) {
+        if (!memcmp(h, bits, bitslen)) {
             return h;
         }
     }
     return NULL;
+}
+
+const void *memstr(const void *block, size_t blocklen, const char* str) {
+    return memmem(block, blocklen, str, strlen(str));
 }
 
 // memset words instead of chars

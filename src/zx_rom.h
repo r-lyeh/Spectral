@@ -3,10 +3,16 @@
 #include "res/roms/plus2"
 #include "res/roms/plus3"
 #include "res/roms/pentagon128"
+#include "res/roms/trdos503"
+//#include "res/roms/trdos505"
+//#include "res/roms/trdos611e"
+//#include "res/roms/trdos604"
+//#include "res/roms/gluk663pen"
 
 //#include "res/roms/plus2c"    // https://speccy4ever.speccy.org/_CMS.htm
 #include "res/roms/lg18v07"     // https://speccy4ever.speccy.org/_CMS.htm
 //#include "res/roms/gw03v33"   // https://speccy4ever.speccy.org/_CMS.htm
+//#include "res/roms/jgh077"    // https://speccy4ever.speccy.org/_CMS.htm
 
 #include "res/snaps/ld16bas"
 #include "res/snaps/ld16bin"
@@ -25,10 +31,10 @@
 //#include "res/snaps/ldusr0bin"
 
 #define ROMHACK_TURBO 2.6 // x2 ok; x4,x6,x8 modes not working anymore :(
-#define IF_TURBOROM_FASTER_EDGES(...)             __VA_ARGS__ // can be enabled
-#define IF_TURBOROM_FASTER_PILOTS_AND_PAUSES(...) __VA_ARGS__ // can be enabled
-#define IF_TURBOROM_HALF_BITS(...)              //__VA_ARGS__ // not working anymore :(
-#define IF_TURBOROM_TURBO(...)                    __VA_ARGS__ // can be enabled
+#define IF_TURBOROM_FASTER_EDGES(...)               __VA_ARGS__ // can be enabled ugh
+#define IF_TURBOROM_FASTER_PILOTS_AND_PAUSES(...)   __VA_ARGS__ // can be enabled
+#define IF_TURBOROM_HALF_BITS(...)               // __VA_ARGS__ // not working anymore :(
+#define IF_TURBOROM_TURBO(...)                      __VA_ARGS__ // can be enabled
 
 // turborom stats
 // parapshock: 232s (normal)
@@ -38,7 +44,7 @@
 enum { TURBO_PATCH = 1, ALT_PATCH = 2, SCROLL_PATCH = 4 };
 int rom_patches;
 
-void patch(byte *from, byte *to, int len, byte *src, const byte *dst) {
+int patch(byte *from, byte *to, byte *src, const byte *dst, int len) {
     int hits = 0;
     while( (to - from) > len ) {
         if( memcmp(from, src, len) == 0 )
@@ -46,7 +52,7 @@ void patch(byte *from, byte *to, int len, byte *src, const byte *dst) {
         else
             ++from;
     }
-    printf("%d patch(es) found\n", hits);
+    return hits;
 }
 
 void rom_patch_scroll() {
@@ -66,10 +72,19 @@ void rom_restore() {
     else if( ZX >= 128) memcpy(rom, rom128,    0x4000*2);
     else if( ZX >=  16) memcpy(rom, rom48,     0x4000*1);
 
+    // install pentagon rom on 128 model :o)
+    if( ZX == 128 )
+    if( ZX_PENTAGON ) {
+        memcpy(rom+0x4000*0, rompentagon128, 0x4000*2);
+    }
+
+    // install shadow trdos rom in unused slot
+    if( ZX == 128 || ZX == 200 ) {
+        memcpy(rom+0x4000*2, romtrdos503, 0x4000);
+    }
+
     if(ZX_ALTROMS)
     {
-    // install pentagon rom on 128 model :o)
-    // if( ZX == 128) memcpy(rom+0x0000, pentagon128, 0x4000*2);
 #if 0
     // install plus2c on 128/+2 models
     if( ZX <= 200) memcpy(rom+0x0000, romplus2c, 0x4000), memcpy(rom+0x4000, rom128+0x4000, 0x4000);
@@ -82,7 +97,15 @@ void rom_restore() {
     if( ZX <= 200) rom[0x1B2B+13] = 0x03; // fix error msg on plus2c+gw03/lg18+SPECTRUM command combo; (BORDER q#PI instead of 0 OK) ; $0013 -> $0003 Address of a $FF byte within ROM 1, used to generate error report "0 OK".
 
     // install gw03
-    if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48), romgw03v33/*romjgh077/*romgw03v33/*romlg18v07/*rom48*/, 0x4000);
+    // if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48), romgw03v33/*romjgh077/*romgw03v33/*romlg18v07/*rom48*/, 0x4000);
+
+    // install jgh where possible
+    if(ZX<=200) memcpy(ROM_BASIC(), ZX==16 ? rom48 : romjgh, 0x4000);
+    if(ZX<=200) memcpy(ROM_BASIC()+0x3D00, rom48+0x3D00, (0x7F-0x20)*8); // restore charset
+    if(ZX<=200) ROM_BASIC()[0x11CD+1] = 0x38 + 7; // border 7
+    if(ZX<=200) ROM_BASIC()[0x1265+1] = 0x38; // paper 7: ink 0
+    if(ZX==128||ZX==200) memset(rom+0x4000*0+0x240, 0x00, 3);
+
 #endif
 
     // note: rom48, contains a vector FF table in the [0x386E..0x3D00) region
@@ -93,8 +116,7 @@ void rom_restore() {
     // 04 3C    DEFW TEST_SCREEN  ; $3C04. Will return if BREAK is not being pressed.
     // if(ZX==128||ZX==200) memset(rom+0x4000*0+0x240, 0x00, 3);
 
-    // [0x3D00..0x3FFF] = charset [0x20..0x7f], 8 bytes each
-    // Groot: 0x11CD [border], 0x1265 [paper], 0x1539 [(c) 1982 Sinclair Research Ltd]
+    // Groot: 0x1539 [(c) 1982 Sinclair Research Ltd]
     // Groot: New NMI routine: Quick start basic without memory erase!
     // memcpy(rom+0x4000 * (ZX > 48)+0x66, "\xF3\xAF\xD3\xFE\x3E\x3F\xED\x47\x2A\xB2\x5C\xC3\x19\x12", 14);
 
@@ -104,13 +126,13 @@ void rom_restore() {
         // patch x3 nop as described in plus2c.txt (aowen)
         if(ZX==128||ZX==200) memset(rom+0x4000*0+0x240, 0x00, 3);
         // update token tables from TOKENS=$95 to TOKENS=$a9
-        patch(rom,rom+0x4000,3,"\x21\x96\x00","\x21\xAA\x00");  // LD   HL,TOKENS+$0001 ; $0096. Token table entry "RND" in ROM 1.
-        patch(rom,rom+0x4000,3,"\x21\xCF\x00","\x21\xE2\x00");  // LD   HL,TOKENS+$003A ; $00CF. Token table entry "ASN" in ROM 1.
-        patch(rom,rom+0x4000,3,"\x21\x00\x01","\x21\x13\x01");  // LD   HL,TOKENS+$006B ; $0100. Token table entry "OR" in ROM 1.
-        patch(rom,rom+0x4000,3,"\x21\x3E\x01","\x21\x51\x01");  // LD   HL,TOKENS+$00A9 ; $013E. Token table entry "MERGE" in ROM 1.
-        patch(rom,rom+0x4000,3,"\x21\x8B\x01","\x21\x9E\x01");  // LD   HL,TOKENS+$00F6 ; $018B. Token table entry "RESTORE" in ROM 1.
-        patch(rom,rom+0x4000,3,"\x21\xD4\x01","\x21\xE5\x01");  // LD   HL,TOKENS+$013F ; $01D4. Token table entry "PRINT" in ROM 1.
-        patch(rom,rom+0x4000,3,"\x21\x96\x00","\x21\xAA\x00");  // LD   HL,TOKENS+1     ; $0096. Address of token table in ROM 1.
+        patch(rom,rom+0x4000,"\x21\x96\x00","\x21\xAA\x00",3);  // LD   HL,TOKENS+$0001 ; $0096. Token table entry "RND" in ROM 1.
+        patch(rom,rom+0x4000,"\x21\xCF\x00","\x21\xE2\x00",3);  // LD   HL,TOKENS+$003A ; $00CF. Token table entry "ASN" in ROM 1.
+        patch(rom,rom+0x4000,"\x21\x00\x01","\x21\x13\x01",3);  // LD   HL,TOKENS+$006B ; $0100. Token table entry "OR" in ROM 1.
+        patch(rom,rom+0x4000,"\x21\x3E\x01","\x21\x51\x01",3);  // LD   HL,TOKENS+$00A9 ; $013E. Token table entry "MERGE" in ROM 1.
+        patch(rom,rom+0x4000,"\x21\x8B\x01","\x21\x9E\x01",3);  // LD   HL,TOKENS+$00F6 ; $018B. Token table entry "RESTORE" in ROM 1.
+        patch(rom,rom+0x4000,"\x21\xD4\x01","\x21\xE5\x01",3);  // LD   HL,TOKENS+$013F ; $01D4. Token table entry "PRINT" in ROM 1.
+        patch(rom,rom+0x4000,"\x21\x96\x00","\x21\xAA\x00",3);  // LD   HL,TOKENS+1     ; $0096. Address of token table in ROM 1.
     }
     if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48), romsebasic/*romgw03v33/*romlg18v07/*rom48*/, 0x4000);
 #endif
@@ -213,4 +235,62 @@ void rom_patch_klmode() {
             keymap[3][2] &= 0xFE;
         }
     }
+}
+
+
+int translate(char *ptr, int size, int locale) { 
+    if( !(!!ptr * size) )
+        return 0;
+
+    // @todo: provide more translations in both ways en<-->ru<-->es<-->cz
+    // @todo: move these definitions to a .ini file
+
+    // if( locale != 'en' ) return;
+
+    // es2en
+    const char* tx[][2] = { // important: list must be sorted
+        {"ABAJO","DOWN"},
+        {"ABORTA","ABORT"},
+        {"ABORTAR","ABORT"},
+        {"ARRIBA","UP"},
+        {"BOMBA","BOMB"},
+        {"COGER","PICK"},
+        {"CONTROLES","CONTROLS"},
+        {"CURSORES","CURSOR"},
+        {"DEFINIR","DEFINE"},
+        {"DERECHA","RIGHT"},
+        {"DISPARO","FIRE"},
+        {"EMPEZAR","START"},
+        {"FUEGO","FIRE"},
+        {"INSTRUCCIONES","INSTRUCTIONS"},
+        {"IZQUIERDA", "LEFT"},
+        {"JUGAR","PLAY"},
+        {"PAUSA","PAUSE"},
+        {"REDEFINIR", "DEFINE"},
+        {"REINICIA","RESET"},
+        {"REINICIAR", "RESET"},
+        {"SALTAR","JUMP"},
+        {"SALTO","JUMP"},
+        {"TECLADO","KEYPAD"}, // cant use 'keyboard', since it is longer than 'teclado'
+        {"TECLAS","KEYS"},
+        {"VIDAS","LIFES"},
+    };
+    int patches = 0;
+    for( int i = (sizeof(tx) / sizeof(tx[0])); --i >= 0; ) { // important: patch in reverse order
+        char *t1 = va("%s", tx[i][0]);
+        char *t2 = va("%s%*.s", tx[i][1], strlen(tx[i][0]) - strlen(tx[i][1]), "");
+        if( strlen(t1) == strlen(t2) ) {
+            // patch regular text
+            patches += patch( ptr, ptr + size, t1, t2, strlen(t2) );
+            // same than above, but 0x80 ended now 
+            // (this is a common ZX practise to signal end of string)
+            t1[strlen(t1)-1] |= 0x80,
+            t2[strlen(t2)-1] |= 0x80,
+            patches += patch( ptr, ptr + size, t1, t2, strlen(t2) );
+        } else {
+            warning(va("Error: %s/%s translation length mismatch",t1,t2));
+        }
+    }
+    printf("%d translation patch(es) found\n", patches);
+    return patches;
 }
