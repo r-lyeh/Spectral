@@ -1,5 +1,301 @@
+enum { PILOT = 2168, DELAY_HEADER = 8063, DELAY_DATA = 3223, SYNC1 = 667, SYNC2 = 735, ZERO = 855, ONE = 1710, END_MS = 1000, 
+COUNT_PER_MS = 3547}; // 3500 };
+
+enum { LEVEL_FLIP, LEVEL_KEEP, LEVEL_LOW, LEVEL_HIGH }; // polarity
+
+#pragma pack(push, 1)    // mem fit
+struct tape_block {
+    unsigned count : 12; // 4096 max seems ok. pilots use 2168, and turbo loaders tend to shorten this value. we use it for pauses too, which are 3500 Ts long.
+    unsigned units : 18; // most blocks specifies pulses. pa(u)se, st(o)p blocks use millisecond units though
+    unsigned level : 2;  // polarity level: flip(0), keep(1), low(2), high(3)
+    unsigned offset;     // accumulated offset within the linear array. useful to know where we are
+    char debug;          // could be packed into 3 bits: l,n,t,u,o
+};
+#pragma pack(pop)
+
+#define VOC_DEFINES \
+int             mic,mic_on; /* these two belong to zx.h */ \
+byte            tape_type; \
+uint64_t        tape_tstate; \
+int             tape_level; \
+int             tape_has_turbo, voc_len, voc_pos, voc_count, voc_units; \
+struct tape_block q;
+VOC_DEFINES
+
+char tape_preview[_320+1];
+struct tape_block* voc;
+
+// --- voc rendering
+
+void tape_reset(void) {
+    memset(tape_preview, 0, sizeof(tape_preview));
+
+    voc = realloc(voc, sizeof(struct tape_block) * 0x1800000);
+    voc_len = 0;
+    tape_has_turbo = 0;
+    voc_pos = voc_count = voc_units = 0;
+
+    mic = 0;
+    mic_on = 0;
+    tape_type = 0xFF;
+
+    tape_level = LEVEL_FLIP;
+    tape_tstate = 0;
+
+    memset(&q, 0, sizeof(q));
+}
+
+#define tape_push(d,l,c,u) do { assert((u)>0); \
+    struct tape_block *prev = voc_len ? &voc[voc_len-1] : NULL; \
+    voc[voc_len++] = ((struct tape_block){c,u,l,prev?prev->offset+prev->count*prev->units:0,2[d] }); } while(0)
+
+void tape_render_polarity(unsigned level) {
+    // MASK(+), Basil(+), ForbiddenPlanetV1(-), ForbiddenPlanetV2(-), Wizball(pzxtools).tap(+), LoneWolf3SideA128(+), LoneWolf3SideB48(+), KoronisRift48(+)
+    tape_level = level;
+}
+void tape_render_pilot(float count, float pulse) { // Used to be x1.0250 for longer pilots
+    // Untouchables(Hitsquad), Lightforce, ATF, TT Racer, Explorer(EDS)
+    // pulse *= 1.0250;
+    tape_push("pilot", tape_level, count, pulse); // pi(l)ot
+}
+void tape_render_sync(float pulse) {
+    // Italy 1990 (Winners Edition)
+    tape_push("sync", tape_level, 1, pulse); // sy(n)c1 or sy(n)c2
+}
+void tape_render_pause(unsigned pause_ms) { // Used to be x1.03 for longer pauses
+    // Barbarian(Melbourne), Hijack128(EDS), Italy1990(Winners), Dogfight2187, HudsonHawk, JmenoRuze.tap, MoonAndThePirates.tap
+    // pause_ms *= (pause_ms == END_MS) * 1.5;
+    // pause_ms *= 1.03;
+    if(pause_ms) tape_push("pause", LEVEL_LOW, COUNT_PER_MS, pause_ms); // pa(u)se
+}
+void tape_render_stop(void) {
+    // OddiTheViking, Untouchables(Hitsquad), BatmanTheMovie, ExpressRaider
+    tape_push("stop", LEVEL_LOW, COUNT_PER_MS, 1); // st(o)p
+}
+void tape_render_data(byte *data, unsigned bytes, unsigned bits, unsigned zero, unsigned one, int bitrepeat) {
+    // keep 2nd byte in safe place
+    if(tape_type == 0xFF && bytes > 1) tape_type = data[1];
+    // render bits
+    for( ; bytes-- > 0; ++data ) for( int i = 0; i < 8; ++i ) {
+        tape_push("data", tape_level, bitrepeat, ((*data) & (1<<(7-i)) ? one : zero)); // da(t)a
+    }
+    // truncate bits within last byte if needed
+    voc_len -= 8 - bits;
+}
+
+void tape_render_full(byte *data, unsigned bytes, unsigned bits, float pilot_len, unsigned pilot, unsigned sync1, unsigned sync2, unsigned zero, unsigned one, unsigned pause) {
+    tape_render_pilot(pilot_len, pilot);
+    tape_render_sync(sync1);
+    tape_render_sync(sync2);
+    tape_render_data(data, bytes, bits, zero, one, 2);
+    tape_render_pause(pause);
+}
+void tape_render_standard(byte *data, unsigned bytes, float pilot_len) {
+    tape_render_full(data, bytes, 8, pilot_len, PILOT, SYNC1, SYNC2, ZERO, ONE, END_MS);
+}
+
+void tape_finish() {
+    // trim ending silences. see: abusimbelprofanation(gremlin) 16000ms nipper2(kixx) 23910ms
+    for( int i = voc_len; --i >= 0; )
+        if( !strchr("uo", voc[i].debug) ) break; // pa(u)se st(o)p
+            else voc[i].units = 1, voc[i].debug = 'o';
+
+    // write a terminator
+    tape_render_stop();
+
+    // trim extremely large gaps now. they're between code blocks and without multiload most of the times
+    // (see nipper2(kixx): 13s, 15s, 23s, etc).
+    // I suspect these blocks were manually authored and never tested on real hw (probably just tested
+    // on emulators with flashload enabled). they're clearly wrong by a x10 factor at least.
+    // in any case, the automatic tape loader will pause/resume on these blocks for us, so there is no
+    // sense to keep such large gaps within the blocks. for the end-users that use manual tape buttons
+    // on multiload games, i think 5s pause should suffice them.
+    if(0) // if( automatic_tape )
+    for( int i = 0; i < voc_len; ++i )
+        if( voc[i].debug == 'u' && voc[i].units > 5000 )
+            voc[i].units = 5000;
+
+    // create tape preview in 2 steps
+    // 1) any kind of noise is a dotted line.
+    // 2) ensure silences are clearly blank over dots from step 1.
+    for( int i = 0; i <= _320; ++i ) tape_preview[i] = (i & 1);
+    for( unsigned pos = 0; pos < voc_len; ++pos ) {
+        unsigned pct = (float)pos * _320 / (voc_len - 1);
+        int silence = 5 * !!strchr("uo", voc[pos].debug); // pa(u)se, st(o)p
+        for( int i = 0; i < silence; ++i ) tape_preview[pct - i * (pct >= i)] = 0;
+    }
+}
+
+// --- mic reading
+
+struct tape_block mic_read_tapeblock(int voc_pos) {
+    struct tape_block q = voc[ voc_pos ];
+
+    // convert normal to turbo block, if needed
+    bool loading_from_rom = PC(cpu) < 0x4000; // && GET_MAPPED_ROMBANK() == GET_BASIC_ROMBANK();
+    bool turbo_rom = rom_patches & TURBO_PATCH;
+    if( loading_from_rom && turbo_rom ) {
+        /**/ if( q.debug == 'l' ) { // pi(l)ot
+            IF_TURBOROM_FASTER_EDGES(q.units -= 358);          // ROMHACK $5e7 x16 faster edges (OK)
+            IF_TURBOROM_FASTER_PILOTS_AND_PAUSES(q.count /= 6); // ROMHACK $571 x6 faster pilots/pauses (OK)
+        }
+        else if( q.debug == 'n' ) { // sy(n)c
+            IF_TURBOROM_FASTER_EDGES(q.units -= 358);  // ROMHACK $5e7 x16 faster edges (OK)
+        }
+        else if( q.debug == 't' ) { // da(t)a
+            IF_TURBOROM_HALF_BITS(q.count /= 2);           // ROMHACK $5ca 50% eliminate dupe bits of data
+            IF_TURBOROM_FASTER_EDGES(q.units -= 358);  // ROMHACK $5e7 x16 faster edges (OK)
+            IF_TURBOROM_TURBO(q.units /= ROMHACK_TURBO);  // ROMHACK $5a5 turbo loader (OK)
+        }
+        else if( q.debug == 'u' ) { // pa(u)se
+            //commented because of spirits.tzx
+            #if 0 // removed on v06/v07
+            IF_TURBOROM_FASTER_EDGES(q.units -= 358);          // ROMHACK $5e7 x16 faster edges (OK)
+            #endif
+            IF_TURBOROM_FASTER_PILOTS_AND_PAUSES(q.units /= 6); // ROMHACK $571 x6 faster pilots/pauses (OK)
+        }
+    }
+
+    // Tape compensation for 128k/+2/+2a/+3 models. Canonical value would be 70908/69888 (1%)
+    // Used to be 1.025 or 1.03 for me, though. not turborom friendly
+    float scale = 1; // 1.03; // = ZX > 48 ? 70908 / 69888. : 1.0;
+    //q.count *= scale;
+    q.units *= scale;
+
+    return q;
+}
+
+byte mic_read(uint64_t tstates) {
+    mic_on *= voc_pos < voc_len; // stop tape at end of tape
+
+#if 0
+    if( mic_on ) { // if tape not stopped
+        int diff = tstates - tape_tstate;
+        if( ZX_AUTOPLAY && diff > 69888 ) diff = /*69888*/4; // fix games with animated intros or pauses: cauldron2.tap, EggThe, diver, doctum, coliseum.tap+turborom, barbarian(melbourne)
+        if( diff < 0 ) diff = 0;
+        tape_tstate = tstates;
+#else
+    // 1942.tzx(with trainer) and Barbarian(MelbourneHouse).tzx are two different problems on this block
+    // test also: cauldron2.tap, EggThe, doctum, coliseum.tap+turborom, wizball.tap(pzxtools)
+    extern uint64_t ticks;
+    tstates = ticks;
+    int diff = tstates - tape_tstate;
+    if( mic_on ) tape_tstate = tstates;
+    if( diff < 0 ) diff = 0;
+    if( diff > 69888 ) {
+        diff = 4;
+        // bypass datas from a missed pilot. would take ages to read otherwise
+        if( PC(cpu) < 0x4000 ) // && GET_MAPPED_ROMBANK() == GET_BASIC_ROMBANK() )
+        while( voc[voc_pos].debug == 't' ) {
+            voc_pos++, voc_pos -= (voc_pos >= voc_len), voc_count = 0, voc_units = 0, mic;
+        }
+    }
+    if( mic_on ) { // if tape not stopped
+#endif
+
+        // debug
+        // printf("%c [%d / %d][%d / %d][%d / %d] += %d\n", voc[voc_pos].debug,voc_pos,voc_len, voc_count,q.count, voc_units,q.units, diff);
+
+        // fsm0, reset line
+        enum { LEVEL = 64 }; // low(0), high(64)
+        if( !q.units ) {
+            mic = LEVEL ^ 64;
+            q = mic_read_tapeblock(voc_pos);
+        }
+
+        // fsm2, advance clock. the three counters do work like a clock cycle hh:mm:ss
+        // hh:position in voc[], mm:sub-count, ss:sub-units
+        voc_units += diff;
+        if( voc_units >= q.units ) {
+            voc_units -= q.units;
+
+            /**/ if( q.level == LEVEL_FLIP ) mic ^= 64;
+            else if( q.level == LEVEL_HIGH ) mic = LEVEL;
+            else if( q.level == LEVEL_LOW )  mic = LEVEL ^ 64;
+
+            if( ++voc_count >= q.count ) {
+                voc_count = 0;
+                voc_pos ++;
+                voc_pos -= voc_pos >= voc_len;
+
+                // transfer new block
+                q = mic_read_tapeblock(voc_pos);
+
+                if( voc[voc_pos].debug == 'o' ) return mic; // st(o)p
+            }
+        }
+    }
+
+    return mic;
+}
+
+// --- tap loading
+
+int tap_load(void *fp, int siz) {
+    if( memcmp(fp, "\x13\x00", 2) ) return 0;
+
+    tape_reset();
+
+    byte *begin=(byte *)fp, *pos = begin, *end=begin+siz;
+    for( int block = 0; pos < end; ++block ) {
+        //length in bytes
+        unsigned bytes = ((pos[1]<<8) | pos[0]);
+        if(bytes <= 2) break; // fix bad jet-pac.tap
+
+        // redo checksum. not needed unless tape contents have been hot patched (we do).
+        byte *checksum = pos + 2 + bytes - 1; *checksum = 0;
+        for( unsigned i = 0; i < (bytes - 1); ++i ) *checksum ^= pos[2+i];
+
+        printf("tap.block %003d (%s) %u bytes\n",block,pos[2] ? "HEAD":"DATA", bytes - 2);
+
+        // data(2s) or header(5s) block?
+        tape_render_standard(pos+2, bytes, pos[2] < 128 ? DELAY_HEADER : DELAY_DATA);
+        pos += 2 + bytes;
+    }
+
+    tape_finish();
+    return 1;
+}
+
+// --- tape utils
+
+#define tape_level() (!!mic)
+#define tape_inserted() (!!voc_len)
+#define tape_seekf(at) ( voc_pos = voc && voc_len && at >= 0 && at <= 1 ? at * (voc_len - 1) : voc_pos )
+#define tape_peek() ( voc_pos < voc_len ? voc[voc_pos].debug : ' ' )
+#define tape_tellf() ( voc_pos / (float)(voc_len+!voc_len) )
+#define tape_play(on) ( mic_on = !!(on) )
+#define tape_playing() (mic_on && voc_len)
+#define tape_stop() tape_play(0)
+
+void tape_next() {
+    if( voc_len ) {
+        while(voc_pos < voc_len && 'l' == voc[voc_pos].debug) voc_pos++; // skip pi(l)ot; current, if any
+        while(voc_pos < voc_len && 'l' != voc[voc_pos].debug) voc_pos++; // find pi(l)ot
+        voc_pos -= (voc_pos >= voc_len), voc_count = voc_units = 0;
+        tape_tstate = 0;
+    }
+}
+void tape_prev() {
+    if( voc_len ) {
+        while((unsigned)voc_pos < voc_len && 'l' == voc[voc_pos].debug) voc_pos--; // skip pi(l)ot; current, if any
+        while((unsigned)voc_pos < voc_len && 'l' != voc[voc_pos].debug) voc_pos--; // find pi(l)ot
+        while((unsigned)voc_pos < voc_len && 'l' == voc[voc_pos].debug) voc_pos--; // skip pi(l)ot
+        voc_pos += (voc_pos < 0), voc_count = voc_units = 0;
+        tape_tstate = 0;
+    }
+}
+void tape_rewind() {
+    mic = 0;
+    mic_on = tape_inserted();
+
+    voc_pos = voc_count = voc_units = 0;
+    tape_level = LEVEL_FLIP;
+    tape_tstate = 0;
+}
+
+
 // @fixme
-// - [ ] voc renderer is mem hungry
 // - [ ] tape errors: express raider,
 // - [ ] devices: enterprise,
 // - [ ] rom: macadam bumper,
@@ -222,421 +518,31 @@
 
 // no: bloodwych
 
-#define voc_pos RAW_fsm
-#define mic_has_tape (!!voc_len)
-
-float DELAY_PER_MS = 3500; // 69888/20; // 3500; // (ZX_TS*50.06/1000) // (ZX_TS*50.6/1000)
-enum { PILOT = 2168, DELAY_HEADER = 8063, DELAY_DATA = 3223, SYNC1 = 667, SYNC2 = 735, ZERO = 855, ONE = 1710, END_MS = 1000 };
-
-#if 0 // try: tk90x turbo timings (R.G.)
-    PILOT = 1408,
-    SYNC1 = 397,
-    SYNC2 = 317,
-    ZERO = 325,
-    ONE = 649,
-    n_pilot = 4835,
-    END_MS = 318,
-#endif
-
-#define AZIMUTH_DEFAULT 1.002501 // + 1.02631; // + 1.0450; // 0.9950; // 0.9950; // 0.9937f; // 0.9937 1.05 both fixes lonewolf+hijack(1986)(electric dreams software).tzx
-float azimuth = AZIMUTH_DEFAULT;
-
-int         mic,mic_on;
-char        mic_preview[_320+1];
-const int   mic_low = 64; // polarity(+:64) or (-:0)
-
-int         RAW_tstate_prev;
-uint64_t    RAW_fsm;
-
-enum polarity_t { FLIP, KEEP, LOW, HIGH } mic_polarity;
-
-#pragma pack(push, 1) // pragma packed, so it's more mem-efficent now (5 vs 8 bytes)
-struct mic_queue_type {
-    unsigned count : 12; // 4096 max seems ok. pilots use 2168, and turbo loaders tend to shorten this value
-    unsigned pulse : 18; // usually specifies pulses. pa(u)se, pause(1), st(o)p blocks use millisecond units though
-    unsigned level : 2;  // polarity level: flip(0), keep(1), low(2), high(3)
-    char debug; // could be packed into 3 bits
-} *mic_queue, *mic_turbo;
-int mic_queue_wr, mic_queue_has_turbo;
-#pragma pack(pop)
-
-byte mic_byte2;
-
-byte *voc; // do not free
-unsigned voc_len;
-unsigned voccap = 1;
-
-void voc_init(int reserve) {
-    voc = realloc(voc, voccap = reserve);
-    voc_len = 0;
-}
-void voc_push(byte x, int count) {
-    if( (voc_len+count) >= voccap ) {
-        voccap = (voc_len+count) * 1.5;
-        voc = realloc(voc, voccap);
-        if (!voc) die(va("voc_push(): Out of mem %d bytes\n", voccap));
-    }
-    memset(&voc[voc_len], x, count);
-    voc_len += count;
-}
-
-void mic_render_polarity(unsigned polarity) {
-    mic_polarity = polarity;
-}
-
-void mic_render_pilot(float count, float pulse) {
-    // longer pilots (x1.0250) fixes: untouchables (hitsquad), lightforce, ATF, TT Racer, Explorer (EDS)...
-    pulse *= 1.0250;
-    // PILOT
-    mic_queue[mic_queue_wr].debug = 'l'; // pi(l)ot
-    mic_queue[mic_queue_wr].level = mic_polarity;
-    mic_queue[mic_queue_wr].count = count;
-    mic_queue[mic_queue_wr++].pulse = pulse; assert(pulse > 0);
-}
-void mic_render_sync(float pulse) {
-    // SYNC1 or SYNC2 (usually)
-    mic_queue[mic_queue_wr].debug = 'n'; // sy(n)c
-    mic_queue[mic_queue_wr].level = mic_polarity;
-    mic_queue[mic_queue_wr].count = 1;
-    mic_queue[mic_queue_wr++].pulse = pulse; assert(pulse > 0);
-}
-void mic_render_data(byte *data, unsigned bytes, unsigned bits, unsigned zero, unsigned one, int bitrepeat) {
-    // COPY 2nd byte
-    if(mic_byte2 == 0xFF && bytes > 1) mic_byte2 = data[1];
-    // DATA
-    for( ; bytes-- > 0; ++data ) for( int i = 0; i < 8; ++i ) {
-        mic_queue[mic_queue_wr].debug = 't'; // da(t)a
-        mic_queue[mic_queue_wr].level = mic_polarity;
-        mic_queue[mic_queue_wr].count = bitrepeat;
-        mic_queue[mic_queue_wr++].pulse = ((*data) & (1<<(7-i)) ? one : zero);
-    }
-    // truncate last bits
-    mic_queue_wr -= 8 - bits;
-}
-
-void mic_render_pause(unsigned pause_ms) {
-    // at least 1ms pulse as specified in TZX 1.13
-    // if(!pause_ms) pause_ms = 1;
-
-#if 0
-    // fix a few .tap files that should be .tzx instead: jmeno ruze.tap, moon and the pirates.tap ...
-    // .tap files have a fixed pause length of 1000ms (1s). some games need some more time than 1s
-    // to process the last loaded block (like when decompressing). thus, during this processing, real
-    // speccies will keep their tapes running, and for when CPU is ready, tape may have advanced over
-    // the next leading tones too much as to break the loading process.
-    // note: emulators with rom trap loading or edgeload will never issue this.
-    pause_ms += (pause_ms == END_MS) ? 1500 : 0; // give extra time to some .tap files; this gap could belong to .tzx files too, but it wont matter in this case
-
-    // fix hijack (EDS) 128, italy 1990 winners, dogfight 2187
-    pause_ms *= 1.03; // 70908 vs 69888
-#endif
-
-    // END PILOT
-    if(pause_ms) {
-    mic_queue[mic_queue_wr].debug = '1'; // pause(1)
-    mic_queue[mic_queue_wr].level = mic_polarity;
-#if 0 // removed on v06
-    mic_queue[mic_queue_wr].count = DELAY_PER_MS;
-#else
-    mic_queue[mic_queue_wr].count = 1; // DELAY_PER_MS;
-#endif
-    mic_queue[mic_queue_wr++].pulse = 1; // ;
-
-    mic_queue[mic_queue_wr].debug = 'u'; // pa(u)se
-    mic_queue[mic_queue_wr].level = mic_polarity;
-    mic_queue[mic_queue_wr].count = DELAY_PER_MS;
-    mic_queue[mic_queue_wr++].pulse = pause_ms; // * DELAY_PER_MS;
-    }
-}
-
-void mic_render_stop(void) { // REV
-
-#if 0 // removed on v06
-    mic_render_pause(1);
-#else 
-    // not following the canonical mic_render_pause() to shorten block time
-    // this version is shorter, keeps FASTTAPE happy and retains the desired polarity flag
-    // so loaders do not complain at end of final tape block (see: parapshock+turborom)
-    mic_queue[mic_queue_wr].debug = 'u'; // pa(u)se
-    mic_queue[mic_queue_wr].level = mic_polarity;
-    mic_queue[mic_queue_wr].count = 1;
-    mic_queue[mic_queue_wr++].pulse = DELAY_PER_MS;
-#endif
-
-    // oddi the viking
-    // untouchables hitsquad
-    // batman the movie
-    // express raider
-
-    mic_queue[mic_queue_wr].debug = 'o'; // st(o)p
-    mic_queue[mic_queue_wr].level = mic_polarity;
-    mic_queue[mic_queue_wr].count = DELAY_PER_MS;
-    mic_queue[mic_queue_wr++].pulse = 1; // DELAY_PER_MS; //0;
-}
-
-void mic_render_full(byte *data, unsigned bytes, unsigned bits, float pilot_len, unsigned pilot, unsigned sync1, unsigned sync2, unsigned zero, unsigned one, unsigned pause) {
-    mic_render_pilot(pilot_len, pilot);
-    mic_render_sync(sync1);
-    mic_render_sync(sync2);
-    mic_render_data(data, bytes, bits, zero, one, 2);
-    mic_render_pause(pause);
-}
-
-void mic_render_standard(byte *data, unsigned bytes, float pilot_len) {
-    mic_render_full(data, bytes, 8, pilot_len, PILOT, SYNC1, SYNC2, ZERO, ONE, END_MS);
-}
-
-
-byte ReadMIC(int tstates) {
-//    if(voc && (RAW_fsm/4) >= voc_len) return mic_on = 0, mic; // end of tape
-    if(RAW_fsm && (RAW_fsm/4) >= voc_len) return mic_on = 0, mic; // end of tape
-
-repeat:;
-    if( RAW_fsm == 0 || tstates < 0 ) {
-
-    uint64_t then = time_ns();
-
-    // @fixme: this heuristic cant be used anymore since ReadMIC(-1) is called during snapshot restore. see: .sav code
-    bool loading_from_rom = 1; // PC(cpu) < 0x4000 && GET_MAPPED_ROMBANK() == GET_BASIC_ROMBANK();
-
-    bool turbo_rom = rom_patches & TURBO_PATCH;
-    struct mic_queue_type *queue = turbo_rom && loading_from_rom ? mic_turbo : mic_queue;
-
-    mic = mic_low;
-    voc_init(128 * 1024 * 1024); // @fixme: 128 mib seems excessive
-    for( int i = 0; i < mic_queue_wr; ++i ) {
-        int count = queue[i].count;
-
-        // @fixme:
-        // retrovm: "When you read a TZX/PZX on a 128k/+2/+2a/+3, multiply all pulses by (3.5469/3.5); this will make them approximately 1% longer and use those values."
-        // needed?
-
-        for( int j = 0; j < count; ++j ) {
-
-            if( j == 0 ) {
-            if( queue[i].level == FLIP ) mic ^= 64;
-            if( queue[i].level == HIGH ) mic = mic_low ^ 64;
-            if( queue[i].level == LOW )  mic = mic_low;
-            }
-            else
-            mic ^= 64;
-
-            if( queue[i].debug == 'u' ) mic = mic_low; // pa(u)se
-
-            int pulse = queue[i].pulse;
-            //if( queue[i].debug == 'l') ) pulse *= 1.0250; // longer pilots: breaks: italy90, fixes: untouchables (hitsquad), dogfight 2187, lightforce, ATF, TT Racer
-            //if( queue[i].debug == 'n') ) pulse -= 2; // shorter syncs: fix italy 1990 (winners), hijack (1986)(electric dreams software)
-
-            assert(pulse > 0);
-            voc_push( mic<<1 | queue[i].debug, (pulse / 4) + !!(pulse % 4));
-        }
-        // if( (i+1)==mic_queue_wr || !(i%100000) ) printf("%d/%d,%d bytes\r", i, mic_queue_wr, voc_len);
-    }
-
-    printf("%5.2fs tape render\n", (time_ns() - then) / 1e9 ); then = time_ns();
-
-#if 0
-    // create tape preview in 3 steps
-    // 1) clear preview
-    // 2) datas or pilots as dotted line
-    // 3) ensure pauses and gaps are clearly blank over dots from step 2
-    memset(mic_preview, 0, sizeof(mic_preview));
-    if( voc_len )
-    for( int i = 0; i <= _320; ++i ) {
-        float pct = (float)i / _320;
-        unsigned pos = (voc_len-1) * pct;
-        int has_data = 't' == (voc[pos] & 0x7f); // da(t)a
-        int has_pilot = 'l' == (voc[pos] & 0x7f); // pi(l)ot
-        mic_preview[i] |= has_data || has_pilot ? (i & 1) : 0;
-    }
-    if( voc_len )
-    for( int pos = 0; pos < voc_len; ++pos ) {
-        unsigned pct = (float)pos * _320 / (voc_len - 1);
-        int has_pause = 'u' == (voc[pos] & 0x7f); // pa(u)se, st(o)p
-        if( has_pause ) mic_preview[pct] = 0, mic_preview[pct - (pct > 0)] = 0;
-    }
-#else
-    // create tape preview in 2 steps
-    // 1) any kind of data is a dotted line
-    // 2) ensure pauses and gaps are clearly blank over dots from step 1
-    for( int i = 0; i <= _320; ++i ) mic_preview[i] = (i & 1);
-    for( unsigned pos = 0; pos < voc_len; pos += 64 ) {
-        unsigned pct = (float)pos * _320 / (voc_len - 1);
-        int has_pause = 'u' == (voc[pos] & 0x7f); // pa(u)se, st(o)p
-        if( has_pause ) mic_preview[pct] = 0, mic_preview[pct - (pct > 0)] = 0;
-    }
-#endif
-
-    printf("%5.2fs tape render (preview)\n", (time_ns() - then) / 1e9 ); then = time_ns();
-
-    printf("%d last mic, voc_len %u samples\n", mic, voc_len);
-
-    if(tstates < 0) return mic;
-
-        RAW_fsm = 4;
-        RAW_tstate_prev = tstates;
-    }
-    if( RAW_fsm ) {
-        int diff=tstates-RAW_tstate_prev;
-#if 1
-if(ZX_AUTOPLAY && diff>69888) diff = /*69888*/4; // fix games with animated intros or pauses: cauldron2.tap, EggThe, diver, doctum, coliseum.tap+turborom, barbarian(melbourne)
-if(diff < 0) diff = 0;
-#endif
-        RAW_tstate_prev=tstates;
-        RAW_fsm+=diff>=0?diff:69888-diff; // ZX_TS, max tstates
-
-//        mic_on = (RAW_fsm/4) < voc_len;
-        mic = mic_on ? (voc[RAW_fsm/4]>>1)&64 : mic; // 0
-    }
-
-#if 0 // verify the length of rendered pause blocks
-    {
-        static uint64_t ts = 0;
-        static int logger = 0;
-        if( !logger && (voc[RAW_fsm/4]&0x7f) == 'u') { logger = 1; ts = time_ns(); }
-        if(  logger && ((voc[RAW_fsm/4]&0x7f) != 'u' || !mic_on)) { logger = 0; 
-            double len = (time_ns() - ts) / 1e9;
-            printf("pause block took %5.2fms\n", len*1000);
-        }
-    }
-#endif
-
-    // stop tape if needed.
-    if( mic_on && (voc[RAW_fsm/4]&0x7f) == 'o') { // pa(u)se st(o)p
-        puts("auto-stop tape block found");
-        mic_on = 0;
-    }
-
-    return mic;
-}
-
-void mic_finish() {
-
-    // trim ending silences. see: abusimbelprofanation(gremlin) 16000ms nipper2(kixx) 23910ms
-    for( int i = mic_queue_wr; --i >= 0; )
-        if( !strchr("uo1", mic_queue[i].debug ) ) break;
-        else mic_queue[i].pulse = 1;
-
-    // @todo
-    // should we also trim silences >5s in mid blocks? see nipper2(kixx) 15s 7s 13s etc.
-    // they're clearly wrong by *10 factor
-
-#if 0
-    mic_render_stop();
-    mic_queue[mic_queue_wr].debug = '\0';
-    mic_queue[mic_queue_wr].pulse = 0;
-#else
-    //mic_render_pause(1000);
-
-    mic_render_stop();
-
-#endif
-
-    // convert normal to turbo
-    for( int i = 0; i < mic_queue_wr; ++i ) {
-        mic_turbo[i] = mic_queue[i];
-
-        /**/ if( mic_turbo[i].debug == 'l' ) { // pi(l)ot
-            IF_TURBOROM_FASTER_EDGES(mic_turbo[i].pulse -= 358);          // ROMHACK $5e7 x16 faster edges (OK)
-            IF_TURBOROM_FASTER_PILOTS_AND_PAUSES(mic_turbo[i].count /= 6); // ROMHACK $571 x6 faster pilots/pauses (OK)
-        }
-        else if( mic_turbo[i].debug == 'n' ) { // sy(n)c
-            IF_TURBOROM_FASTER_EDGES(mic_turbo[i].pulse -= 358);  // ROMHACK $5e7 x16 faster edges (OK)
-        }
-        else if( mic_turbo[i].debug == 't' ) { // da(t)a
-            IF_TURBOROM_HALF_BITS(mic_turbo[i].count /= 2);           // ROMHACK $5ca 50% eliminate dupe bits of data
-            IF_TURBOROM_FASTER_EDGES(mic_turbo[i].pulse -= 358);  // ROMHACK $5e7 x16 faster edges (OK)
-            IF_TURBOROM_TURBO(mic_turbo[i].pulse /= ROMHACK_TURBO);  // ROMHACK $5a5 turbo loader (OK)
-        }
-        else if( mic_turbo[i].debug == 'u' ) { // pa(u)se
-            //commented because of spirits.tzx
-#if 0 // removed on v06
-            IF_TURBOROM_FASTER_EDGES(mic_turbo[i].pulse -= 358);          // ROMHACK $5e7 x16 faster edges (OK)
-#endif
-            IF_TURBOROM_FASTER_PILOTS_AND_PAUSES(mic_turbo[i].pulse /= 6); // ROMHACK $571 x6 faster pilots/pauses (OK)
-        }
-    }
-}
-
-void mic_reset(void) {
-    mic_queue = realloc(mic_queue, sizeof(struct mic_queue_type) * (0x180000 * 8 + 4) );
-    mic_turbo = realloc(mic_turbo, sizeof(struct mic_queue_type) * (0x180000 * 8 + 4) );
-    mic_queue_wr = 0;
-    mic_queue_has_turbo = 0;
-
-    mic_on=0;
-    mic=0;
-
-    RAW_fsm = 0;
-    RAW_tstate_prev = 0;
-
-    mic_byte2 = 0xFF;
-
-    memset(mic_preview, 0, sizeof(mic_preview));
-
-    // do not reset polarity: let user decide
-    // mic_low = 64;
-}
-
-void mic_next() { // @fixme: requires rendered tape (voc[])
-    if( mic_has_tape ) {
-        voc_pos /= 4;
-        while(voc_pos < voc_len &&                'l' == (voc[voc_pos] & 0x7f)) voc_pos++; // pa(u)se st(o)p pi(l)ot sy(n)c da(t)a
-        while(voc_pos < voc_len &&                'l' != (voc[voc_pos] & 0x7f)) voc_pos++; // pa(u)se st(o)p pi(l)ot sy(n)c da(t)a
-        voc_pos = 4 * (voc_pos - (voc_pos >= voc_len));
-        RAW_tstate_prev = 0;
-    }
-}
-void mic_prev() { // @fixme: requires rendered tape (voc[])
-    if( mic_has_tape ) {
-        voc_pos /= 4;
-        while(voc_pos < voc_len && voc_pos > 0 && 'l' == (voc[voc_pos] & 0x7f)) voc_pos--; // pa(u)se st(o)p pi(l)ot sy(n)c da(t)a
-        while(voc_pos < voc_len && voc_pos > 0 && 'l' != (voc[voc_pos] & 0x7f)) voc_pos--; // pa(u)se st(o)p pi(l)ot sy(n)c da(t)a
-        while(voc_pos < voc_len && voc_pos > 0 && 'l' == (voc[voc_pos] & 0x7f)) voc_pos--; // pa(u)se st(o)p pi(l)ot sy(n)c da(t)a
-        voc_pos = 4 * (voc_pos);
-        RAW_tstate_prev = 0;
-    }
-}
-
-char mic_peek(uint64_t targetbit) {
-    return voc && targetbit/4 < voc_len ? toupper(voc[targetbit/4] & 0x7f) : ' ';
-}
-void mic_seekf(float pct) {
-    if( pct >= 0 && pct <= 1 ) {
-        if( voc && voc_len ) {
-            voc_pos = pct * (voc_len - 1);
-            voc_pos *= 4;
-        }
-    }
-}
-float mic_tellf() {
-    return (voc_pos/4) / (float)(voc_len+!voc_len);
-}
-
-
-int tap_load(void *fp, int siz) {
-    mic_reset();
-
-    if( memcmp(fp, "\x13\x00", 2) ) return 0;
-
-    byte *begin=(byte *)fp, *pos = begin, *end=begin+siz;
-    for( int block = 0; pos < end; ++block ) {
-        //length in bytes
-        unsigned bytes = ((pos[1]<<8) | pos[0]);
-        if(bytes <= 2) break; // fix bad jet-pac.tap
-
-        // redo checksum. usually, this is not needed at all, but many times I've hot patched
-        // the tape bits beforehand and need the ROM to cleanly load the block without errors.
-        byte *checksum = pos + 2 + bytes - 1; *checksum = 0;
-        for( unsigned i = 0; i < (bytes - 1); ++i ) *checksum ^= pos[2+i];
-
-        printf("tap.block %003d (%s) %u bytes\n",block,pos[2] ? "HEAD":"DATA", bytes - 2);
-
-        //data(2s) or header(5s) block?
-        mic_render_standard(pos+2, bytes, pos[2] < 128 ? DELAY_HEADER : DELAY_DATA);
-        pos += 2 + bytes;
-    }
-
-    mic_finish();
-    return 1;
-}
+// try: tk90x turbo timings (R.G.)
+// PILOT = 1408, n_pilot = 4835, guess = 4835 / (5/2) = 1934, SYNC1 = 397, SYNC2 = 317, ZERO = 325, ONE = 649, END_MS = 318,
+
+#define VOC_IMPORT \
+    IMPORT(mic); \
+    IMPORT(mic_on); \
+    IMPORT(tape_type); \
+    IMPORT(tape_tstate); \
+    IMPORT(tape_level); \
+    IMPORT(voc_len); \
+    IMPORT(tape_has_turbo); \
+    IMPORT(voc_pos); \
+    IMPORT(voc_count); \
+    IMPORT(voc_units); \
+    IMPORT(q);
+
+#define VOC_EXPORT \
+    EXPORT(mic); \
+    EXPORT(mic_on); \
+    EXPORT(tape_type); \
+    EXPORT(tape_tstate); \
+    EXPORT(tape_level); \
+    EXPORT(voc_len); \
+    EXPORT(tape_has_turbo); \
+    EXPORT(voc_pos); \
+    EXPORT(voc_count); \
+    EXPORT(voc_units); \
+    EXPORT(q);

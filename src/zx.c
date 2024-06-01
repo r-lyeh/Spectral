@@ -1,4 +1,21 @@
-#define SPECTRAL "v0.6"
+#define SPECTRAL "v0.7 wip+"
+
+#define README \
+"Spectral can be configured with a mouse.\n" \
+"Here are some keyboard shortcuts, though:\n" \
+"- ESC: Game browser\n" \
+"- F1: CPU throttle (hold)\n" \
+"- F2: Start/stop tape\n" \
+"- F3/F4: Rewind/advance tape\n" \
+"- F5: Reload game\n" \
+"- F6: Toggle input latency (Run-a-head)\n" \
+"- F7: Toggle keyboard issue 2/3\n" \
+"- F8: Toggle tape speed\n" \
+"- F9: Toggle TV/RF (4 modes)\n" \
+"- F9+SHIFT: Toggle AY core (2 modes)\n" \
+"- F11/F12: Quick save/load\n" \
+"- ALT+ENTER: Fullscreen\n" \
+"- TAB+CURSORS: Joysticks\n"
 
 // # build (windows)
 // cl run.c /O2 /MT /DNDEBUG /GL /GF /arch:AVX2
@@ -6,22 +23,6 @@
 // # build (linux)
 // sudo apt-get install mesa-common-dev libx11-dev gcc libgl1-mesa-dev
 // gcc run.c -Wno-unused-result -Wno-format -lm -ldl -lX11 -lpthread -lGL -O3
-//
-// # usage
-// You only need the mouse to configure Spectral. Here are some shortcuts, though:
-// - ESC: game browser
-// - F1: speed boost (hold)
-// - F2: start/stop tape
-// - F3/F4: rewind/advance tape
-// - F5: restart
-// - F6: toggle input latency (runahead)
-// - F7: toggle issue 2/3
-// - F8: toggle tape speed
-// - F9: toggle rf/crt (4 modes)
-// - F9+SHIFT: toggle ay core (2 modes)
-// - F11/F12: quick save/load
-// - ALT+ENTER: fullscreen
-// - TAB+CURSORS: joysticks
 //
 // ref: http://www.zxdesign.info/vidparam.shtml
 // https://worldofspectrum.org/faq/reference/48kreference.htm
@@ -40,7 +41,7 @@
 // [ ] ui_inputbox()
 // [ ] widescreen fake borders
 // [ ] animated states
-// [ ] auto-saves, then F11 to rewind. use bottom azimuth bar
+// [ ] auto-saves, then F11 to rewind. use bottom bar
 // [ ] scan folder if dropped or supplied via cmdline
 // [ ] live coding disasm (like bonzomatic)
 // [ ] convert side-b/mp3s into voc/pulses
@@ -491,8 +492,8 @@ void input() {
     if( window_trigger(app, TK_ESCAPE) ) cmdkey = 'ESC';
     if( window_pressed(app, TK_F1) )     cmdkey = 'F1';
     if( window_trigger(app, TK_F2) )     cmdkey = 'F2';
-    if( window_trigger(app, TK_F3) )     cmdkey = 'F3';
-    if( window_trigger(app, TK_F4) )     cmdkey = 'F4';
+    if( window_trigger(app, TK_F3) )     cmdkey = 'prev';
+    if( window_trigger(app, TK_F4) )     cmdkey = 'next';
     if( window_trigger(app, TK_F5) )     cmdkey = 'F5';
     if( window_trigger(app, TK_F6) )     cmdkey = 'RUN';
     if( window_trigger(app, TK_F7) )     cmdkey = 'ISSU';
@@ -503,7 +504,7 @@ void input() {
 
     static int prev = 0;
     int key = !!(GetAsyncKeyState(VK_SNAPSHOT) & 0x8000);
-    if( key ^ prev ) cmdkey = 'SCR';
+    if( key ^ prev ) cmdkey = 'PIC1';
     prev = key;
 }
 
@@ -885,7 +886,8 @@ int game_browser() { // returns true if loaded
         if( must_turbo ) rom_patch_turbo();
 
         if( loadfile(games[selected],use_preloader) ) {
-            window_title(app, va("Spectral%s %s%d - %s", DEV ? " DEV" : "", ZX > 128 ? "+":"", ZX > 128 ? ZX/100:ZX, 1+strrchr(games[selected], DIR_SEP)));
+            void titlebar(const char *);
+            titlebar(games[selected]);
 
             // clear window keys so the current key presses are not being sent to the 
             // next emulation frame. @fixme: use ZXKeyUpdate(); instead
@@ -901,10 +903,22 @@ int game_browser() { // returns true if loaded
 
 
 
-const char* about() {
+void help() {
     int total = numok+numwarn+numerr;
-    return va("Spectral " SPECTRAL " (Public Domain).\nhttps://github.com/r-lyeh/Spectral\n\n%d games found (%d%%)", numgames, 100 - (numerr * 100 / (total + !total)));
+    char *help = va(
+        "Spectral " SPECTRAL " (Public Domain).\n"
+        "https://github.com/r-lyeh/Spectral\n\n"
+        "Library: %d games found (%d%%)\n\n"
+        README "\n", numgames, 100 - (numerr * 100 / (total + !total)));
+    (warning)("Spectral " SPECTRAL, help);
 }
+
+void titlebar(const char *filename) {
+    const char *models[] = { [1]="16",[3]="48",[8]="128",[12]="+2",[13]="+2A",[18]="+3" };
+    const char *title = filename ? 1+strrchr(filename, DIR_SEP) : "";
+    window_title(app, va("Spectral%s %s%s%s", DEV ? " DEV" : "", models[ZX/16], title[0] ? " - " : "", title));
+}
+
 
 void draw_ui() {
 
@@ -1028,27 +1042,27 @@ void draw_ui() {
             }
 
             ui_at(ui,chr_x - 8,chr_y-11);
-            if( ui_click("-Screenshot-", "") ) cmdkey = 'SCR'; // send screenshot command
+            if( ui_click("-Take Picture-", "%c", SNAP_CHR) ) cmdkey = 'PIC1'; // send screenshot command
 
             ui_at(ui,chr_x,chr_y-11);
-            if( ui_press("-Full Throttle-", PLAY_ICON"\b\b\b"PLAY_ICON"\b\b\b"PLAY_ICON"%d\n\n",(int)fps) ) cmdkey = 'F1';
+            if( ui_press("-Full Throttle-", "%c\b\b\b%c\b\b\b%c%d\n\n", PLAY_CHR,PLAY_CHR,PLAY_CHR,(int)fps) ) cmdkey = 'F1';
 
             const char *models[] = { [1]="16",[3]="48",[8]="128",[12]="+2",[13]="+2A",[18]="+3" };
             if( ui_click("-Reload Model-", "\f%s%s",models[ZX/16],ZX_ALTROMS ? "!":"") ) cmdkey = 'SWAP';
             //if( ui_click("-NMI-", "") ) cmdkey = 'NMI';
-            if( ui_click("-Reset-", "\n") ) cmdkey = 'RST';
+            if( ui_click("-Reset-", "\n") ) cmdkey = 'BOMB';
 
             if( ui_click("-Toggle TV mode-", "▒\f%d\n", 1+(ZX_CRT << 1 | ZX_RF)) ) cmdkey = 'F9';
             if( ui_click("-Toggle AY core-", "♬\f%d\n",ZX_AY) ) cmdkey = 'AY';
-            if( ui_click("-Toggle ULAplus-", "%c\f%d\n", ZX_ULAPLUS ? 'U':'u', ZX_ULAPLUS) ) cmdkey = 'PLUS';
+            if( ui_click("-Toggle ULAplus-", "%c\f%d\n", ZX_ULAPLUS ? 'U':'u'/*CHIP_CHR '+'*/, ZX_ULAPLUS) ) cmdkey = 'PLUS';
 
-            if( ui_click("-Toggle Joysticks-", JOYSTICK_ICON "\f%d\n", ZX_JOYSTICK)) cmdkey = 'JOY';
+            if( ui_click("-Toggle Joysticks-", "%c\f%d\n", JOYSTICK_CHR, ZX_JOYSTICK)) cmdkey = 'JOY';
             if( ui_click("-Toggle Mouse-", "\x9\f%d\n", ZX_MOUSE) ) cmdkey = 'MICE';
             if( ui_click("-Toggle Lightgun-", "\xB\f%d\n", ZX_GUNSTICK) ) cmdkey = 'GUNS';
 
             if( ui_click("-Toggle RunAHead-", !ZX_RUNAHEAD ? "🯆\f0\n" : "🯇\f1\n") ) cmdkey = 'RUN';
             if( ui_click("-Toggle TurboROM-", !ZX_TURBOROM ? "\f0\n" : "\f1\n")) cmdkey = 'TROM';
-            if( ui_click("-Toggle AutoTape-", PLAY_ICON"\f%d\n", ZX_AUTOPLAY) ) cmdkey = 'AUTO';
+            if( ui_click("-Toggle AutoTape-", "%c\f%d\n", PLAY_CHR,ZX_AUTOPLAY) ) cmdkey = 'AUTO';
 
             if( ui_click("-Translate game menus-", "T\f%d\n", ZX_AUTOLOCALE)) cmdkey = 'ALOC';
 
@@ -1058,21 +1072,21 @@ void draw_ui() {
             if( ui_click("-Toggle letter mode-", "~%c~\f%d\n", ZX_KLMODE ? 'L' : 'K', ZX_KLMODE) ) cmdkey = 'KL';
 
             //if( ui_click("-Toggle TapePolarity-", "%c\f%d\n", mic_low ? '+':'-', !mic_low) ) cmdkey = 'POLR';
-            //if( ZX < 128 )
-            if( ui_click("-Toggle Issue2/3-", "i\f%d\n", issue2 ? 2 : 3)) cmdkey = 'ISSU';
+            // if( ZX < 128 )
+            if( ui_click("-Toggle Keyboard Issue 2/3-", "i\f%d\n", issue2 ? 2 : 3)) cmdkey = 'ISSU';
 
-            //if( ZX == 128 )
-            if( ui_click("-Toggle Pentagon-", "P\f%d\n", /*beta128+*/ZX_PENTAGON)) {
+            if( ZX == 128 )
+            if( ui_click("-Toggle Pentagon-", "%c\f%d\n", ZX_PENTAGON ? 'P':'p',/*beta128+*/ZX_PENTAGON)) {
                 ZX_PENTAGON ^= 1;
                 rom_restore();
-                if(PC(cpu) < 0x4000 && !mic_on) reset(ZX);
+                if(PC(cpu) < 0x4000 && !tape_playing()) reset(ZX);
             }
 
             int right = chr_x+8*4-4;
             int bottom = chr_y+8*31.0-1;
 
             ui_at(ui,chr_x - 8,bottom+1);
-            if( ui_click(NULL, "") ) (warning)("About", about());
+            if( ui_click(NULL, "") ) cmdkey = 'HELP';
 
             ui_at(ui,right,bottom);
             if( ui_click("-Debug-", "") ) cmdkey = 'DEV'; // send disassemble command
@@ -1081,29 +1095,33 @@ void draw_ui() {
         // manual tape handling
         ui_at(ui,1*11, 1*11);
         if( ZX_AUTOPLAY ) {
-            if( ui_click(NULL, !active ? PLAY_ICON : PAUSE_ICON) )
-                active ^= 1;
+            if( ui_click(NULL, "%c", !active ? PLAY_CHR : PAUSE_CHR) ) active ^= 1;
         } else {
-            if( ui_click(NULL, !mic_on ? PLAY_ICON : PAUSE_ICON) ) mic_on ^= !!mic_has_tape;
-            if( ui_click(NULL, "\xf\b\b\b\xf") ) mic_prev();
-            if( ui_click(NULL, PLAY_ICON "\b\b\b" PLAY_ICON) ) mic_next();
-            if( ui_click(NULL, "■") ) mic_on = 0, voc_pos = 0;
+            if( ui_click(NULL, "%c", !tape_playing() ? PLAY_CHR : PAUSE_CHR) ) tape_play(!tape_playing());
+            if( ui_click(NULL, "\xf\b\b\b\xf") ) cmdkey = 'prev';
+            if( ui_click(NULL, "%c\b\b\b%c", PLAY_CHR, PLAY_CHR) ) cmdkey = 'next';
+            if( ui_click(NULL, "■") ) cmdkey = 'stop';
             ui_x += 2;
             if( ui_click(NULL, "\xe") ) active ^= 1;
             ui_x += 1;
         }
 
         // tape progress
-        float pct = mic_tellf();
+        float pct = tape_tellf();
+#if DEV
+        if( mic_on )
+#else
+        if( ZX_AUTOPLAY ? tape_inserted() : 1 )
+#endif
         if( pct <= 1.00f )
-        if( ZX_AUTOPLAY ? mic_on : 1 ) {
+        {
             TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + UI_LINE1 * _320];
 
             // bars & progress
             unsigned mark = pct * _320;
             for( int x = 0; x < _320; ++x ) bar[x] = bar[x+2*_320] = white;
             for( int x = 0; x<=mark; ++x ) bar[x+_320] = white; bar[_320-1+_320] = white;
-            for( int x = 0; x < _320; ++x ) if(mic_preview[x]) bar[x+1*_320] = white;
+            for( int x = 0; x < _320; ++x ) if(tape_preview[x]) bar[x+1*_320] = white;
             // triangle marker (top)
             bar[mark+4*_320] = white;
             for(int i = -1; i <= +1; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+5*_320] = white;
@@ -1113,16 +1131,18 @@ void draw_ui() {
                 mouse_cursor(2);
                 if( m.buttons ) {
                     m.x = m.x < 0 ? 0 : m.x > _320 ? _320 : m.x;
-                    mic_seekf(m.x / (float)_320);
+                    tape_seekf(m.x / (float)_320);
                 }
             }
         }
 
-        // azimuth slider. @todo: rewrite this into a RZX player/recorder
+        // bottom slider. @todo: rewrite this into a RZX player/recorder
         if( ZX_DEBUG )
         if( !active ) {
+            static float my_var = 0; // [-2,2]
+
             TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + (_240-7) * _320];
-            unsigned mark = REMAP(azimuth, 0.98,1.2, 0,1) * _320;
+            unsigned mark = REMAP(my_var, -2,2, 0,1) * _320;
             // triangle marker (bottom)
             for(int i = -2; i <= +2; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+0*_320] = white;
             for(int i = -1; i <= +1; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+1*_320] = white;
@@ -1137,9 +1157,9 @@ void draw_ui() {
                 if( m.buttons/*&4*/ ) {
                     m.x = m.x < 0 ? 0 : m.x > _320 ? _320 : m.x;
                     float target = REMAP(m.x, 0,_320, 0.98,1.2);
-                    azimuth = azimuth * 0.50f + target * 0.50f ; // animate seeking
-                    // print azimuth value
-                    char text[32]; sprintf(text, "%.4f", azimuth);
+                    my_var = my_var * 0.50f + target * 0.50f ; // animate seeking
+                    // print my_var value
+                    char text[32]; sprintf(text, "%.4f", my_var);
                     window_printxy(ui, text, (mark+5)/11.f,(_240-12.0)/11);
                 }
             }
@@ -1195,9 +1215,10 @@ int main() {
     boot(128, 0);
 
     // import state
-    for( FILE *state = fopen("spectral.sav","rb"); state; fclose(state), state = 0) {
+    for( FILE *state = fopen("Spectral.sav","rb"); state; fclose(state), state = 0) {
         if( import_state(state) )
-            pins = z80_prefetch(&cpu, cpu.pc);
+            pins = z80_prefetch(&cpu, cpu.pc),
+            titlebar(0);
     }
 
     // main loop
@@ -1205,7 +1226,8 @@ int main() {
         ui_frame();
         input();
 
-        int tape_accelerated = ZX_FASTTAPE ? ZX_FASTCPU || (mic_on && voc_len) : 0;
+        int tape_accelerated = tape_inserted() && tape_peek() == 'o' ? 0 
+            : tape_playing() && (ZX_FASTTAPE || ZX_FASTCPU);
         if( tape_accelerated && active ) tape_accelerated = 0;
 
         // z80, ula, audio, etc
@@ -1267,24 +1289,30 @@ if( do_runahead == 0 ) {
 }
 
         // screenshots: after drawn frame, before UI
-        if( cmdkey == 'SCR2' )
+        if( cmdkey == 'PIC2' )
         {
             char buffer[128];
             GetWindowTextA((HWND)((app)->handle), buffer, 128);
             screenshot( buffer );
+            play('cam', 1);
         }
+
+        static char status[128] = "";
+        char *ptr = status;
+        ptr += sprintf(ptr, "%dm%02ds ", (unsigned)(timer) / 60, (unsigned)(timer) % 60);
+        ptr += sprintf(ptr, "%5.2ffps%s %d mem%s%d%d%d%d ", fps, do_runahead ? "!":"", ZX, rom_patches ? "!":"", GET_MAPPED_ROMBANK(), (page128&8?7:5), 2, page128&7);
+        ptr += sprintf(ptr, "%02X%c%02X %04X ", page128, page128&32?'!':' ', page2a, PC(cpu));
+        ptr += sprintf(ptr, "%c%c %4dHz ", "  +-"[tape_inserted()*2+tape_level()], toupper(tape_peek()), tape_hz);
 
         tigrClear(ui, !active ? tigrRGBA(0,0,0,0) : tigrRGBA(0,0,0,128));
 
-        if( ZX_DEBUG || DEV ) {
-            tigrClear(dbg, tigrRGBA(0,0,0,128));
+        if( DEV ) {
+            float x = 0.5, y = 25.5;
+            ui_print(ui,  x*11, y*11, ui_colors, status);
+        }
 
-            static char status[128] = "";
-            char *ptr = status;
-            ptr += sprintf(ptr, "%dm%02ds ", (unsigned)(timer) / 60, (unsigned)(timer) % 60);
-            ptr += sprintf(ptr, "%5.2ffps%s %d mem%d%d%d%d%s ", fps, do_runahead ? "!":"", ZX, GET_MAPPED_ROMBANK(), (page128&8?7:5), 2, page128&7, page128&32?"!":"");
-            ptr += sprintf(ptr, "%02X %02X %04X ", page128, page2a, PC(cpu));
-            ptr += sprintf(ptr, "%c%c %4dHz ", "  +-"[mic_has_tape*2+!mic_low], mic_peek(voc_pos), tape_hz);
+        if( ZX_DEBUG ) {
+            tigrClear(dbg, tigrRGBA(0,0,0,128));
 
             float x = 0.5, y = 2;
 
@@ -1293,9 +1321,6 @@ if( do_runahead == 0 ) {
             ui_print(dbg, x*11, y*11, ui_colors, regs(0)), y += 5;
 
             ui_print(dbg, x*11, y*11, ui_colors, dis(PC(cpu), 22)), y += 22;
-
-            if( DEV ) y -= 5,
-            ui_print(ui,  x*11, y*11, ui_colors, status), y += 1.5;
         }
             
         // game browser
@@ -1337,7 +1362,7 @@ if( do_runahead == 0 ) {
         if( time_now >= 1 ) { fps = frames / time_now; time_now = frames = 0; }
 
         // tape timer
-        if(mic_on && voc_len) timer += dt;
+        if(tape_playing()) timer += dt;
 
         // stats & debug
         draw_ui();
@@ -1381,7 +1406,7 @@ if( do_runahead == 0 ) {
             LOAD(ZX,ZX_TURBOROM,__argv[i]);
             #endif
         }
-        else if( __argv[i][1] == 'v' ) warning(about());
+        else if( __argv[i][1] == 'v' ) cmdkey = 'HELP';
 
 
         // clear command
@@ -1393,9 +1418,10 @@ if( do_runahead == 0 ) {
         switch(cmd) { default:
             break; case 'ESC':   active ^= 1;
             break; case  'F1':   ZX_FASTCPU = 1; // fast-forward cpu
-            break; case  'F2':   { if( !voc_len ) active ^= 1; else mic_on ^= 1; } // open browser if start_tape is requested but no tape has been ever inserted
-            break; case  'F3':   mic_prev();
-            break; case  'F4':   mic_next();
+            break; case  'F2':   if(!tape_inserted()) active ^= 1; else tape_play(!tape_playing()); // open browser if start_tape is requested but no tape has been ever inserted
+            break; case 'prev':  tape_prev();
+            break; case 'next':  tape_next();
+            break; case 'stop':  tape_stop();
             break; case  'F8':   ZX_FASTTAPE ^= 1;
             // cycle tv modes
             break; case  'F9':   { static int mode = 0; do_once mode = ZX_CRT << 1 | ZX_RF; mode = (mode + 1) & 3; ZX_RF = mode & 1; crt( ZX_CRT = !!(mode & 2) ); }
@@ -1405,12 +1431,12 @@ if( do_runahead == 0 ) {
             // cycle AY cores
             break; case  'AY':   { const int table[] = { 1,2,0,0 }; ZX_AY = table[ZX_AY]; }
 
-            break; case 'SCR':   cmdkey = 'SCR2'; // resend screenshot cmd
+            break; case 'PIC1':   cmdkey = 'PIC2'; // resend screenshot cmd
 
             break; case 'TROM':  ZX_TURBOROM ^= 1; boot(ZX, 0); loadfile(last_load,1); // toggle turborom and reload
             break; case 'F5':    reset(0); loadfile(last_load, 1);
             break; case 'NMI':   if( pins & Z80_NMI ) pins &= ~Z80_NMI; else pins |= Z80_NMI; // @todo: verify
-            break; case 'RST':   reset(KEEP_MEDIA/*|QUICK_RESET*/); // if(last_load) free(last_load), last_load = 0;
+            break; case 'BOMB':  reset(KEEP_MEDIA/*|QUICK_RESET*/); // if(last_load) free(last_load), last_load = 0;
             break; case 'SWAP':  // toggle model and reload
             {
                 static int modes[] = { 128, 48, 200, 210, 300, 16 };
@@ -1420,6 +1446,7 @@ if( do_runahead == 0 ) {
                 mode = (mode + 1) % 6;
                 ZX = modes[ mode ];
                 boot(ZX, 0); loadfile(last_load,1); // toggle rom
+                titlebar(last_load); // refresh titlebar
             }
             break; case 'JOY':   ZX_JOYSTICK--; ZX_JOYSTICK += (ZX_JOYSTICK<0)*4; if(ZX_JOYSTICK) ZX_GUNSTICK = 0; // cycle Cursor/Kempston/Fuller,Sinclair1,Sinclair2
             break; case 'GUNS':  ZX_GUNSTICK ^= 1;   if(ZX_GUNSTICK) ZX_MOUSE = 0, ZX_JOYSTICK = 0; // cycle guns
@@ -1431,12 +1458,13 @@ if( do_runahead == 0 ) {
             break; case 'KL':    ZX_KLMODE ^= 1, ZX_KLMODE_PATCH_NEEDED = 1;
 
             // break; case 'POLR':  mic_low ^= 64;
-            break; case 'ISSU':  issue2 ^=1;
+            break; case 'ISSU':  issue2 ^=1; reset(KEEP_MEDIA); loadfile(last_load,1); // toggle rom
 
             //break; case 'FPS':   { const float table[] = { [0]=1,[10]=1.2,[12]=2,[20]=4,[40]=0 }; ZX_FPS = table[(int)(ZX_FPS*10)]; }
             break; case 'FPS':   { const float table[] = { [10]=1.2,[12]=1 }; ZX_FPS = table[(int)(ZX_FPS*10)]; }
 
             break; case 'ALOC':  ZX_AUTOLOCALE ^= 1; if(ZX_AUTOLOCALE) translate(mem, 0x4000*16, 'en');
+            break; case 'HELP':  help();
         }
 
     } while( window_alive(app) );
@@ -1448,7 +1476,7 @@ if( do_runahead == 0 ) {
     // while(IFF1(cpu));
 #endif
     if(medias) media[0].pos = voc_pos / (double)(voc_len+!voc_len);
-    for( FILE *state = fopen("spectral.sav","wb"); state; fclose(state), state = 0) {
+    for( FILE *state = fopen("Spectral.sav","wb"); state; fclose(state), state = 0) {
         if( !export_state(state) )
             warning("Error exporting state");
     }

@@ -57,7 +57,7 @@ char *regs(const char *title) {
     ptr += sprintf(ptr, "%02x", ay_registers[i]);
     ptr += sprintf(ptr, "\nmem%d%d%d%d%s", !!(page128&16), (page128&8?7:5), 2, page128&7, page128&32?"!":" "); 
     for( int i = 0; i < 16; ++i ) 
-    ptr += sprintf(ptr, "%02x", ( crc32(0,RAM_BANK(i), 0x4000) ^ 0xab54d286) >> 24 );
+    ptr += sprintf(ptr, "%02x", (byte)( ( fnv1a(RAM_BANK(i), 0x4000) ^ 0x9c1bda7f8c872325ULL ) >> 56ULL ));
     extern int rom_patches;
     ptr += sprintf(ptr, "\nFE:%02x 2A:%02x 128:%02x LED:%d MOD:%02x\n", ZXBorderColor, page2a, page128, !!fdc.led, rom_patches);
 

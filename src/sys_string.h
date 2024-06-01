@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <stdarg.h>
 char* va(const char *fmt, ...) {
-    static char buf[16][256];
+    static char buf[16][1024];
     static int l = 0; l = (l+1) % 16;
     va_list vl;
     va_start(vl,fmt);
-    int rc = vsnprintf(buf[l], 256-1, fmt, vl);
+    int rc = vsnprintf(buf[l], 1024-1, fmt, vl);
     va_end(vl);
     buf[l][rc<0?0:rc] = 0;
     return buf[l];
@@ -75,6 +75,13 @@ void *memset32(void *dst, unsigned ch, unsigned bytes) {
         if( bytes-- ) *ptr++ = ch1;
     }
     return dst;
+}
+
+uint64_t fnv1a(const void* ptr_, unsigned len) {
+    const uint8_t *ptr = (const uint8_t *)ptr_;
+    uint64_t hash = 14695981039346656037ULL; // hash(0),mul(131) faster than fnv1a, a few more collisions though
+    while( len-- ) hash = ( *ptr++ ^ hash ) * 0x100000001b3ULL;
+    return hash;
 }
 
 unsigned crc32(unsigned h, const void *ptr_, unsigned len) {

@@ -8,116 +8,13 @@
 // tzx(gdb) basil great mouse, bc quest for tires, book of the dead part 1 (crl), dan dare 2 mekon, world cup carnival
 // tzx(flow) hollywood poker, bubble bobble (the hit squad)
 // tzx(noise) leaderboard par 3, tai-pan, wizball
-// tzx(voc) catacombs of balachor
 // tzx(???) bathyscape
 
-#include <stdbool.h>
-
-int csw_load(byte *fp, int len) {
-    return 0;
-
-    mic_reset();
-
-    if( len < 0x20 || memcmp(fp, "Compressed Square Wave\x1a", 0x17) )
-        return 0;
-
-    byte *eot = fp + len;
-
-    fp += 0x17;
-
-    byte major = *fp++;
-    byte minor = *fp++;
-    int version = major * 100 + minor;
-
-    dword rate = 0, pulses = 0;
-    byte comp = 0, flags = 0;
-
-    /**/ if( version == 101 ) {
-        rate  = (*fp++); rate |= (*fp++)*0x100;
-        comp = *fp++; // 1 rle
-        flags = *fp++;
-        fp += 3; // reserved
-    }
-    else if( version = 200 ) {
-        rate  = (*fp++);
-        rate |= (*fp++)*0x100;
-        rate |= (*fp++)*0x10000;
-        rate |= (*fp++)*0x1000000;
-
-        pulses  = (*fp++);
-        pulses |= (*fp++)*0x100;
-        pulses |= (*fp++)*0x10000;
-        pulses |= (*fp++)*0x1000000;
-
-        comp = *fp++; // 1 rle, 2 zrle
-        flags = *fp++;
-
-        byte hdr = *fp++;
-        fp += 16; // skip application description
-        fp += hdr; // skip header
-    }
-    else {
-        warning("error: unknown .csw version");
-        return 0;
-    }
-
-    if( comp != 0x1 ) {
-        warning("error: unsupported compression method");
-        return 0;
-    }
-
-    printf("rate:%u\n", rate);
-
-    int level = 0;
-
-    if( comp == 0x1 )
-    while( fp < eot ) {
-        unsigned p = *fp++;
-        if( p == 0 ) {
-            p  = (*fp++);
-            p |= (*fp++)*0x100;
-            p |= (*fp++)*0x10000;
-            p |= (*fp++)*0x1000000;
-        }
-
-        // '0' saved as a x2 pulses of 855 T. since 1T = 1/3500 ms
-        // '0' is saved in 2*0.244ms
-
-        // 22050 or 44100 Hz (158 or 79 T-states/sample)
-
-        // 5s DELAY_HEADER = 8063
-        // 2s DELAY_DATA = 3223
-
-        // normalize pulse to 69888 ticks
-        int64_t pulses = ( 69888 * p ) / rate;
-        int limit = PILOT * 1.5;
-
-        pulses += !pulses;
-
-        static int i = 0; if(++i < 1000) printf("%u->%u,",p,(unsigned)pulses);
-
-        while(pulses > 0) {
-            mic_render_polarity(level ? HIGH : LOW), level ^= 1;
-            mic_render_sync(limit);
-            pulses -= limit;
-        }
-        if(pulses) {
-            mic_render_polarity(level ? HIGH : LOW), level ^= 1;
-            mic_render_sync(-pulses);
-        }
-    }
-
-    // ... data
-
-    mic_finish();
-    return 1;
-}
-
 int tzx_load(byte *fp, int len) {
-    mic_reset();
-
     // verify tzx
     if( memcmp(fp, "ZXTape!\x1a", 8) ) return 0;
+
+    tape_reset();
 
     // skip header & check version
     int major=fp[8];
@@ -155,7 +52,7 @@ int tzx_load(byte *fp, int len) {
                 pause  = (*src++); pause  |= (*src++)*0x100;
                 bytes  = (*src++); bytes  |= (*src++)*0x100;
                 pulses = src[0] < 128 ? DELAY_HEADER : DELAY_DATA; // < 4 ?
-                mic_render_full(src, bytes, 8, pulses, PILOT, SYNC1, SYNC2, ZERO, ONE, pause);
+                tape_render_full(src, bytes, 8, pulses, PILOT, SYNC1, SYNC2, ZERO, ONE, pause);
                 debug = va("%ums %.*s", pause, src[0] < 128 ? 10 : 0, bytes >= 12 ? src+1+!src[1] : (byte*)"");
                 src += bytes;
 
@@ -170,8 +67,8 @@ int tzx_load(byte *fp, int len) {
                 bits   = (*src++);
                 pause  = (*src++); pause  |= (*src++)*0x100;
                 bytes  = (*src++); bytes  |= (*src++)*0x100; bytes |= (*src++)*0x10000;
-                mic_render_full(src, bytes, bits, pulses, pilot, sync1, sync2, zero, one, pause);
-mic_queue_has_turbo = 1;
+                tape_render_full(src, bytes, bits, pulses, pilot, sync1, sync2, zero, one, pause);
+                tape_has_turbo = 1;
                 debug = va("bits:%u N:%u P:%u S1:%u S2:%u 0:%u 1:%u %ums %.*s", bits, pulses, pilot, sync1, sync2, zero, one, pause, src[0] < 128 ? 10 : 0, bytes >= 12 ? src+1+!src[1] : (byte*)"");
                 src += bytes;
 
@@ -179,8 +76,8 @@ mic_queue_has_turbo = 1;
                 blockname = "Pilot";
                 pilot  = (*src++); pilot  |= (*src++)*0x100;
                 pulses = (*src++); pulses |= (*src++)*0x100;
-                mic_render_pilot(pulses, pilot);
-mic_queue_has_turbo = 1;
+                tape_render_pilot(pulses, pilot);
+                tape_has_turbo = 1;
                 debug = va("pulses:%u, pilot:%u", pulses, pilot);
                 src += 0;
 
@@ -189,10 +86,10 @@ mic_queue_has_turbo = 1;
                 pulses = (*src++);
                 for( unsigned i = 0; i < pulses; ++i ) {
                     sync1  = (*src++); sync1  |= (*src++)*0x100;
-                    mic_render_sync(sync1);
+                    tape_render_sync(sync1);
                     if(i==0) debug = va("pulses:%u, sync:%u [...]", pulses, sync1);
                 }
-mic_queue_has_turbo = 1;
+                tape_has_turbo = 1;
                 src += 0;
 
             break; case 0x14: // OK(1)
@@ -202,13 +99,15 @@ mic_queue_has_turbo = 1;
                 bits   = (*src++);
                 pause  = (*src++); pause  |= (*src++)*0x100;
                 bytes  = (*src++); bytes  |= (*src++)*0x100; bytes |= (*src++)*0x10000;
-                mic_render_data(src, bytes, bits, zero, one, 2);
-                mic_render_pause(pause);
-mic_queue_has_turbo = 1;
+                tape_render_data(src, bytes, bits, zero, one, 2);
+                tape_render_pause(pause);
+                tape_has_turbo = 1;
                 debug = va("bytes:%5u pause:%3ums 0:%3u 1:%4u bits:%u", bytes, pause, zero, one, bits);
                 src += bytes;
 
-            break; case 0x15: // @todo: Catacombs of Balachor, Dead by Dawn, zombo, amnesia, Terrahawks(48K),   Super Cold War Simulator, Touch My Spectrum, elfen, Overtake the Pope, Overtake the POPE 2, route66, boulder jumper, DreddOverEels, Thanatos(Erbe)
+            break; case 0x15: // OK: Catacombs of Balachor, Dead by Dawn, zombo, amnesia, Terrahawks(48K), 
+                // Super Cold War Simulator, Touch My Spectrum, elfen, Overtake the Pope, Overtake the POPE 2, 
+                // route66, boulder jumper, DreddOverEels, Thanatos(Erbe)
                 blockname = "VOC";
 
                 // spec says freq is 22050 or 44100 Hz (158 or 79 states/sample)
@@ -221,19 +120,16 @@ mic_queue_has_turbo = 1;
 
                 debug = va("bytes:%u pause:%ums states/sample:%u bits:%u", bytes, pause, states, bits);
 
-                // our current mic code puts a sample on EAR every 4 t-states
-                // this freq is feeding 80 states/sample though. x20 times faster
+                for( int len = 0; len < bytes; ++len, ++src )
+                    for( int i = 0; i < 8; ++i)
+                        tape_push("pilot", ((*src) & (1<<(7-i))) ? LEVEL_HIGH : LEVEL_LOW, 1, 1);
 
-                // mic_render_data(src, bytes/10, bits, ZERO, ONE, 1);
-                for( int i = 0; i < bytes/10; ++i) {
+                voc_len -= 8 - bits; // trim ending excess bits
 
-                }
+                tape_render_stop();
+                tape_has_turbo = 1;
 
-                mic_render_pause(pause);
-
-                src += bytes;
-
-            break; case 0x18: // ignored. see all cases: OlimpoEnGuerra(Part2), CaseOfMurderA, AdvancedGretaThunbergSimulator
+            break; case 0x18: // OK, ignored. see all cases: OlimpoEnGuerra(Part2), CaseOfMurderA, AdvancedGretaThunbergSimulator
                 blockname = "CSW";
                 bytes  = (*src++); bytes  |= (*src++)*0x100; bytes |= (*src++)*0x10000; bytes |= (*src++)*0x1000000;
                 #if 0
@@ -291,8 +187,8 @@ mic_queue_has_turbo = 1;
 
                     for( int j = 0; j < npp; ++j) {
                         if( s->pulses[j] ) {
-                            mic_render_polarity(s->polarity);
-                            mic_render_pilot(reps, s->pulses[j]);
+                            tape_render_polarity(s->polarity);
+                            tape_render_pilot(reps, s->pulses[j]);
                         }
                     }
                 }
@@ -319,23 +215,18 @@ mic_queue_has_turbo = 1;
                     int one = symdef_asd[1].pulses[0];
 
                     // @fixme: apply polarity per bit, not byte
-                    mic_render_polarity(symdef_asd[0].polarity);
-                    mic_render_data(&data, 1, NB > 8 ? 8 : NB, zero, one, 2);
+                    tape_render_polarity(symdef_asd[0].polarity);
+                    tape_render_data(&data, 1, NB > 8 ? 8 : NB, zero, one, 2);
 
                     NB -= 8;
                 }
 
-            break; case 0x20: // OK(0) // TheMunsters
+            break; case 0x20: // OK(0) // TheMunsters, Untouchables(HitSquad)
                 blockname = "pauseOrStop";
                 pause  = (*src++); pause  |= (*src++)*0x100; 
                 debug = va("%ums", pause);
-#if 0
-                if(ZX < 128) mic_render_stop();      // added ZX<128 for munsters
-                else mic_render_pause(pause+!pause); // added for Untouchables(HitSquad) ??? // tzx 1.13 says: if(pause==0)pause=1;
-#else
-                if(!pause) mic_render_stop();
-                else mic_render_pause(pause);
-#endif
+                if(!pause) tape_render_stop();
+                else tape_render_pause(pause);
 
             break; case 0x21: // IGNORED (see: BleepLoad)
                 blockname = "groupStart";
@@ -441,10 +332,10 @@ mic_queue_has_turbo = 1;
 #endif
 
             break; case 0x2A: // OK(0)
-                blockname = "48KStopTape"; 
+                blockname = "48KStopTape";
                 count  = (*src++); count  |= (*src++)*0x100; count  |= (*src++)*0x10000; count  |= (*src++)*0x1000000;
                 // src += count; // batman the movie has count(0), oddi the viking has count(4). i rather ignore the count value
-                if(ZX < 128) mic_render_stop(); // @fixme: || page128 & 16
+                if(ZX < 128) tape_render_stop(); // @fixme: || page128 & 16
 
             break; case 0x2b: // REV: Cybermania, CASIO-DIGIT-INVADERS-v3
                 blockname = "signalLevel";
@@ -479,9 +370,9 @@ mic_queue_has_turbo = 1;
             break; case 0x5a: // OK
                 blockname = "+glue";
                 src += 9;
-                // if(ZX < 128) mic_render_stop(); // note: custom modification to handle consecutive glued tapes
-                mic_render_pause(1000);
-                mic_render_stop(); //< probably a good idea
+                // if(ZX < 128) tape_render_stop(); // note: custom modification to handle consecutive glued tapes
+                tape_render_pause(1000);
+                tape_render_stop(); //< probably a good idea
 
             break; case 0x16: // DEPRECATED
                 blockname = "c64Data (deprecated)";
@@ -519,6 +410,88 @@ mic_queue_has_turbo = 1;
 
 //  puts(brief_description);
 
-    mic_finish();
+    tape_finish();
     return valid;
+}
+
+int csw_load(byte *fp, int len) {
+    if( len < 0x20 || memcmp(fp, "Compressed Square Wave\x1a", 0x17) )
+        return 0;
+
+    byte *eot = fp + len;
+
+    fp += 0x17;
+
+    byte major = *fp++;
+    byte minor = *fp++;
+    int version = major * 100 + minor;
+
+    dword rate = 0, pulses = 0;
+    byte comp = 0, flags = 0;
+
+    /**/ if( version == 101 ) {
+        rate  = (*fp++); rate |= (*fp++)*0x100;
+        comp = *fp++; // 1 rle
+        flags = *fp++;
+        fp += 3; // reserved
+    }
+    else if( version = 200 ) {
+        rate  = (*fp++);
+        rate |= (*fp++)*0x100;
+        rate |= (*fp++)*0x10000;
+        rate |= (*fp++)*0x1000000;
+
+        pulses  = (*fp++);
+        pulses |= (*fp++)*0x100;
+        pulses |= (*fp++)*0x10000;
+        pulses |= (*fp++)*0x1000000;
+
+        comp = *fp++; // 1 rle, 2 zrle
+        flags = *fp++;
+
+        byte hdr = *fp++;
+        fp += 16; // skip application description
+        fp += hdr; // skip header
+    }
+    else {
+        warning("error: unknown .csw version");
+        return 0;
+    }
+
+    if( comp != 0x1 ) {
+        warning("error: unsupported compression method");
+        return 0;
+    }
+
+    // 22050 or 44100 Hz (158 or 79 T-states/sample)
+    printf("rate:%u, polarity:%d\n", rate, flags);
+
+    tape_reset();
+    //tape_render_polarity(flags ? LEVEL_HIGH : LEVEL_LOW);
+    int level = !!flags;
+
+    if( comp == 0x1 )
+    while( fp < eot ) {
+        unsigned p = *fp++;
+        if( p == 0 ) {
+            p  = (*fp++);
+            p |= (*fp++)*0x100;
+            p |= (*fp++)*0x10000;
+            p |= (*fp++)*0x1000000;
+        }
+
+#if 0
+        // normalize pulse to 69888 ticks
+        int64_t pulses = ( p * 69888 ) / rate;
+        pulses += !pulses;
+#else
+        int64_t pulses = p; // * 1.03;
+#endif
+
+        // tape_render_pilot(pulses);
+        tape_push("pilot", level ? LEVEL_HIGH : LEVEL_LOW, pulses, 1); level ^= 1;
+    }
+
+    tape_finish();
+    return 1;
 }

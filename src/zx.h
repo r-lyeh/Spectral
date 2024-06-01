@@ -1,20 +1,81 @@
 // known issues:
 
-// tape not ticking (w AUTOPLAY=ON):
-// - 1942.tzx
-// - nosferatu(alternativeltd) (issue2 can load it right now; may be a (-) tape)
-
 // runahead
 // - bonanza bros.dsk
-// 
 
-// tape
-// - abadiadelcrimen.tzx crashes towards end of tape
+// buzz
+// - P47Thunderbolt
+// - OddiTheViking128
 
-// wont stop tape at eof
-// - hijack
-// - dogfight
-// error: bad ./games/x/tests/input_keyboard/Rasputin48-issue3.tap.zip zip
+// auto-stop is broken
+// [ ] basil
+// [ ] abadia
+// [ ] untouchables(hitsquad)
+// [ ] jack2(kixx)
+// idea: when stop-block is off
+// - turn autoplay=off
+// - wait silently for any key to be pressed, then turn autoplay=on again
+
+// 70908/69888 compensation
+// La Abadia del Crimen (5ExitosOpera)
+
+    // tape not ticking (w AUTOPLAY=ON):
+    // - 1942.tzx
+    // - nosferatu(alternativeltd) (issue2 can load it right now; may be a (-) tape)
+    // Wizball(pzxtools).tap(+)
+    // ForbiddenPlanet(-)
+    // express raider
+
+    // issue2/3 keyboard issues
+    // [ ] spynads issue2
+    // [ ] rasputin 48k issue2
+
+    // issue2/3 loading issues
+    // [ ] abusimbel(gremlin) i2 + final stop level
+    // [ ] lonewolf i3 (48/128)
+    // [ ] 
+
+    // extra polarity (issue2 vs 3)
+    // ForbiddenPlanetV1(-), ForbiddenPlanetV2(-)
+    // LoneWolf3SideA128(+), LoneWolf3SideB48(+)
+    // Wizball(pzxtools).tap(+)
+    // MASK(+), Basil(+)
+    // KoronisRift(+)
+
+    // pauses
+    // [ ] hudson hawk sensitive to pauses before loading screen
+    // Hijack128(EDS), Italy1990(Winners), Dogfight2187, JmenoRuze.tap, MoonAndThePirates.tap
+
+    // [ ] parapshock + turborom
+    // error: bad ./games/x/tests/input_keyboard/Rasputin48-issue3.tap.zip zip
+
+    // wont stop tape at eof or crash
+    // [ ] hijack (final stop)
+    // [ ] dogfight
+
+    // Crashes
+    // [x] abadiadelcrimen.tzx crashes towards end of tape
+    // Untouchables (hitsquad)
+
+    // pilots
+    // Untouchables (hitsquad)
+    // Lightforce
+// ATF
+// TT Racer
+    // Explorer (EDS)...
+
+    // pause
+    // hijack (EDS) 128
+    // italy 1990 winners
+    // dogfight 2187
+    // hudson hawk
+    // jmeno ruze.tap
+    // moon and the pirates.tap
+
+    // stop
+    // oddi the viking
+    // untouchables hitsquad
+    // batman the movie
 
 // .ay files:
 // - could use ay2sna again in the future
@@ -287,24 +348,21 @@ int loadbin_(byte *ptr, int size, int preloader) {
     // tapes first
     if(tzx_load(ptr, (int)size)) {
         int slots[] = { [1]=0,[3]=1,[8]=2,[12]=3,[13]=4,[18]=5 };
-        int is_bin = mic_byte2 == 3, choose = slots[ZX/16] + 6 * is_bin;
+        int is_bin = tape_type == 3, choose = slots[ZX/16] + 6 * is_bin;
         if(preloader) preload_snap(bins[choose], lens[choose]);
-        if(mic_queue_has_turbo) rom_restore(); // rom_restore(), rom_patch(mic_queue_has_turbo ? 0 : do_rompatch);
-        ReadMIC(-1);
+        if(tape_has_turbo) rom_restore(); // rom_restore(), rom_patch(tape_has_turbo ? 0 : do_rompatch);
         return 2;
     }
     if(tap_load(ptr,(int)size)) {
         int slots[] = { [1]=0,[3]=1,[8]=2,[12]=3,[13]=4,[18]=5 };
-        int is_bin = mic_byte2 == 3, choose = slots[ZX/16] + 6 * is_bin;
+        int is_bin = tape_type == 3, choose = slots[ZX/16] + 6 * is_bin;
         if(preloader) preload_snap(bins[choose], lens[choose]);
-        ReadMIC(-1);
         return 2;
     }
     if(csw_load(ptr,(int)size)) {
         int slots[] = { [1]=0,[3]=1,[8]=2,[12]=3,[13]=4,[18]=5 };
-        int is_bin = mic_byte2 == 3, choose = slots[ZX/16] + 6 * is_bin;
+        int is_bin = tape_type == 3, choose = slots[ZX/16] + 6 * is_bin;
         if(preloader) preload_snap(bins[choose], lens[choose]);
-        ReadMIC(-1);
         return 2;
     }
 
@@ -712,12 +770,13 @@ void config(int ZX) {
     }
 
     if(ZX >= 48) {
+        issue2=0; // can be =1 as well
         MEMr[3]=RAM_BANK(0);
         MEMr[2]=RAM_BANK(2);
     }
 
     if( ZX >= 128) {
-        issue2=0;
+        issue2=0; // cant be 1
         page128=0;
         port_0x7ffd(page128);
 
@@ -997,11 +1056,12 @@ void sim_frame() {
         zx_int = 1;
 
         // auto-play tape. this one has x50 faster rate than stopping tape.
-        if( autoplay && !mic_on ) {
+        if( autoplay && !tape_playing() ) {
             ZX_FASTTAPE = 1;
 
             if( ZX_AUTOPLAY ) {
-                mic_on = 1, printf("auto-play tape (%u Hz, %u reads)\n", tape_hz, autoplay_numreads);
+                printf("auto-play tape (%u Hz, %u reads)\n", tape_hz, autoplay_numreads);
+                tape_play(1);
             }
         }
 
@@ -1012,28 +1072,29 @@ void sim_frame() {
     // if( !((ticks) % (ZX_TS*50)) ) {
     static int frame = 0; ++frame;
     if( !(frame % 50) ) {
-        // auto-stop tape. stopping a tape is a risky action and load will be canceled if not done at the right moment.
+        // auto-stop tape. stopping a tape is a risky action and load will fail if not done at the right moment.
         // so, the thinking for this block has a x50 slower rate than playing a tape. we have to be sure.
         if( autostop && mic_on ) {
             ZX_FASTTAPE = 0;
 
             if( ZX_AUTOPLAY ) {
-                mic_on = 0, printf("auto-stop tape (%u Hz, %u reads)\n", tape_hz, autoplay_numreads);
+                printf("auto-stop tape (%u Hz, %u reads)\n", tape_hz, autoplay_numreads);
+                tape_stop();
             }
         }
 
         if( /*autoplay &&*/ !ZX_AUTOPLAY ) {
             // kick off the initial tape playing automatically. since AUTOPLAY is OFF,
             // user will need to pause/resume tape manually (via F2 key) from this point.
-            if( mic_has_tape && !mic_on ) {
+            if( tape_inserted() && !tape_playing() ) {
                 if( (PC(cpu) & 0xff00) == 0x0500 && GET_MAPPED_ROMBANK() == GET_BASIC_ROMBANK() ) {
                     puts("auto-play tape (rom)");
-                    mic_on = 1;
+                    tape_play(1);
                 }
             }
         }
 
-        autoplay = 0;
+//        autoplay = 0;
         autostop = 0;
     }
 }
@@ -1076,9 +1137,12 @@ void sim(unsigned TS) {
 }
 
 void sys_audio() {
+    // tick the beeper (full frequency)
+    bool sample_ready = beeper_tick(&buzz);
+    // queue next sample
+    if( sample_ready ) {
 #if 1
     // mic/ear speaker
-
     // ref: https://piters.tripod.com/cassport.htm
     // ref: https://retrocomputing.stackexchange.com/a/27539
     // The threshold voltage for reading the input state (at the pin) of the ULA is 0.7V (*)
@@ -1088,6 +1152,11 @@ void sys_audio() {
     //        1            0               3.56             1
     //        1            1               3.70             1
     //
+
+    // test: ensure that: SAVE "P" : BEEP 1,1 : LOAD "" shall output sound
+    // test: Cobra's Arc has menu music and in-game speech
+    // test: Parapshock has menu music
+
     const float beeper_volumes[] = {
         TAPE_VOLUME, // rest volume
         TAPE_VOLUME, // tape volume (??%) see diagram above (*)
@@ -1102,21 +1171,15 @@ void sys_audio() {
     int beeper = !!(spk & 0x10);
     int combined = !!beeper * 2 + !!tape;
 
-    // ensure that: SAVE "P" : BEEP 1,1 : LOAD "p" shall output sound
-    // Cobra's Arc has menu music and in-game speech
-    // Parapshock has menu music
-
     beeper_set_volume(&buzz, beeper_volumes[combined]);
     beeper_set(&buzz, beeper | tape );
 #endif
-
-    // tick the beeper (full frequency)
-    bool sample_ready = beeper_tick(&buzz);
+    }
 
     // tick the AY (half frequency)
-    static float ay_sample1 = 0, ay_sample2 = 0;
+    static float ay_sample1 = 0, ay_sample2 = 0; enum { ayumi_fast = 0 };
     static byte even = ~0u; ++even;
-    if( ZX_AY & 1 ) if(!(even & 0x7F)) ay_sample1 = ayumi_render(&ayumi, ay_registers, 1) * 2; // 2/256 freq. even == 0 || even == 0x80
+    if( ZX_AY & 1 ) if(!(even & 0x7F)) ay_sample1 = ayumi_render(&ayumi, ayumi_fast, 1) * 2; // 2/256 freq. even == 0 || even == 0x80
     if( ZX_AY & 2 ) if( even & 1 ) ay38910_tick(&ay), ay_sample2 = ay.sample; // half frequency
 
     if( ZX_AY == 0 ) ay_sample1 = ay_sample2 = 0; // no ay
@@ -1129,7 +1192,7 @@ void sys_audio() {
         float sample = (buzz.sample * 0.75f + ay_sample * 0.25f) * master;
 
         float digital = mix(0.5); // 70908/44100. 69888/44100. // ZX_TS/s); 22050 11025 44100
-        sample += digital * 5; // increase volume
+        sample += digital * 1; // increase volume
 
         audio_queue(sample);
     }
@@ -1493,7 +1556,7 @@ byte inport_(word port) {
         if(!(port & (0xFF^0xDF))) return /*puts("gunstick kempston"),*/ gunstick(0xFF);
 
         // kempston joystick
-        if(!(port & (0xFF^0xDF))) return /*mic_on = 0,*/ kempston; //bit 5 low = reading kempston (as told pera putnik)
+        if(!(port & (0xFF^0xDF))) return kempston; //bit 5 low = reading kempston (as told pera putnik)
         //if(!(port & 0xE0)) return kempston;          //bit 7,6,5 low = reading kempston (as floooh)
     }
 
@@ -1541,7 +1604,7 @@ byte inport_(word port) {
     if(!(port & (0xFFFF^0xFFFD))) return inport_0xfffd();
 
     // fuller joystick
-    if(!(port & (0xFF^0x7F))) return /*mic_on = 0,*/ fuller;
+    if(!(port & (0xFF^0x7F))) return fuller;
 
     // keyboard
     if(!(port & (0xFF^0xFE))) {
@@ -1589,7 +1652,7 @@ byte inport_(word port) {
         // See: AbuSimbelProfanation(Gremlin) + polarity of ending TZX pause/stop blocks.
 
         if( 1 ) {
-            ear = mic_on ? ReadMIC(tape_ticks) : mic_low ^ 64;
+            ear = mic_read(tape_ticks);
             code = code ^ ear;
         }
 
@@ -1634,7 +1697,7 @@ byte inport_(word port) {
             // stable tape heuristics I used for a long time:
             // - hint play if loading from rom && mic has tape
             // newer heuristics that worked ok-ish:
-            // - hint stop if strchr("uo",voc[voc_pos/4] & 0x7f) ; pa(u)se st(o)p
+            // - hint stop if strchr("uo",voc[voc_pos].debug) ; pa(u)se st(o)p
             // - hints based on IN FE port activity
             //   - 70908 ts/s / 8 ts/portread = 8863 portreads/s. theory limit of 8863 Hz.
             //     very high frequency polling are press-any-key pollings (>1700 Hz)
@@ -1658,7 +1721,7 @@ byte inport_(word port) {
             // inspect how the game processes the IN FE byte. if byte is RRA or checked against 0x20 then byte is a loading one.
             // count the amount of loading bytes within a second: hint stop if count == 0; hint play if count > 200.
 
-            if( mic_has_tape )
+            if( tape_inserted() )
             {
                 unsigned pc = PC(cpu) - 2;
                 byte *addr = ADDR8(pc);
@@ -1804,30 +1867,14 @@ struct quicksave {
 
     // @todo: pointers needed?
     //#include "dsk.c"
+    FDC_DEFINES
 #if FULL_QUICKSAVES
     WD1793 wd;
     FDIDisk fdd[NUM_FDI_DRIVES];
-
-    t_FDC fdc;
-    struct t_drive driveA;
-    struct t_drive driveB;
 #endif
-    struct t_drive *active_drive; // reference to the currently selected drive
-    t_track *active_track; // reference to the currently selected track, of the active_drive
-    dword read_status_delay;
-    byte *pbGPBuffer;
 
-    // @todo: complete all missing
-    //#include "tap.c"
-    float       azimuth;
-    int         mic,mic_on;
-//    int         mic_low;
-    int         mic_polarity;
-    int         RAW_tstate_prev;
-    uint64_t    RAW_fsm;
-    int         mic_queue_wr;
-    int         mic_queue_has_turbo;
-    byte        mic_byte2;
+    VOC_DEFINES
+
     // tape
     int tape_hz;
     uint64_t tape_ticks;
@@ -1841,6 +1888,9 @@ struct quicksave {
 } quicksaves[10+1] = {0}; // user[0..9], sys/run-ahead reserved[10]
 
 enum { quicksave_len = sizeof(struct quicksave) };
+
+#define EXPORT(f) (c->f = f)
+#define IMPORT(f) (f = c->f)
 
 void* quicksave(unsigned slot) {
     if( slot >= 11) return 0;
@@ -1919,30 +1969,16 @@ void* quicksave(unsigned slot) {
     memcpy(c->ulaplus_registers, ulaplus_registers, sizeof(ulaplus_registers[0])*(64+1));
     // @todo
     //#include "dsk.c"
+    FDC_EXPORT
 #if FULL_QUICKSAVES
     c->wd = wd;
     memcpy(c->fdd, fdd, sizeof(fdd[0]) * 4); // sizeof(fdd));
-
-    c->fdc = fdc;
-    c->driveA = driveA;
-    c->driveB = driveB;
 #endif
-    c->active_drive = active_drive;
-    c->active_track = active_track;
-    c->read_status_delay = read_status_delay;
-    c->pbGPBuffer = pbGPBuffer;
+
     // @todo
     //#include "tap.c"
-    c->azimuth = azimuth;
-    c->mic = mic;
-    c->mic_on = mic_on;
-//    c->mic_low = mic_low;
-    c->mic_polarity = mic_polarity;
-    c->RAW_tstate_prev = RAW_tstate_prev;
-    c->RAW_fsm = RAW_fsm;
-    c->mic_queue_wr = mic_queue_wr;
-    c->mic_queue_has_turbo = mic_queue_has_turbo;
-    c->mic_byte2 = mic_byte2;
+    VOC_EXPORT
+
     // tape
     c->tape_hz = tape_hz;
     c->tape_ticks = tape_ticks;
@@ -2035,30 +2071,15 @@ void* quickload(unsigned slot) {
     memcpy(ulaplus_registers, c->ulaplus_registers, sizeof(ulaplus_registers[0])*(64+1));
     // @todo
     //#include "dsk.c"
+    FDC_IMPORT
 #if FULL_QUICKSAVES
     wd = c->wd;
     memcpy(fdd, c->fdd, sizeof(fdd[0]) * 4); // sizeof(fdd));
-
-    fdc = c->fdc;
-    driveA = c->driveA;
-    driveB = c->driveB;
 #endif
-    active_drive = c->active_drive;
-    active_track = c->active_track;
-    read_status_delay = c->read_status_delay;
-    pbGPBuffer = c->pbGPBuffer;
-    // @todo
+
     //#include "tap.c"
-    azimuth = c->azimuth;
-    mic = c->mic;
-    mic_on = c->mic_on;
-//    mic_low = c->mic_low;
-    mic_polarity = c->mic_polarity;
-    RAW_tstate_prev = c->RAW_tstate_prev;
-    RAW_fsm = c->RAW_fsm;
-    mic_queue_wr = c->mic_queue_wr;
-    mic_queue_has_turbo = c->mic_queue_has_turbo;
-    mic_byte2 = c->mic_byte2;
+    VOC_IMPORT
+
     // tape
     tape_hz = c->tape_hz;
     tape_ticks = c->tape_ticks;
@@ -2112,7 +2133,7 @@ void z80_quickreset(int warm) {
 void eject() {
     Reset1793(&wd,fdd,WD1793_EJECT);
     fdc_reset();
-    mic_reset();
+    tape_reset();
     media_reset();
 }
 
@@ -2155,14 +2176,12 @@ void reset(unsigned FLAGS) {
     mouse_cursor(1);
     kempston_mouse = 0;
 
-    azimuth = AZIMUTH_DEFAULT;
-
     tape_hz = 0;
     tape_ticks = 0;
     autoplay = 0;
     autostop = 0;
 
-    if( ZX_AUTOPLAY ) voc_pos=0,mic_on=!!mic_has_tape; // @todo: reset tape polarity too?
+    if( ZX_AUTOPLAY ) tape_rewind();
 
     if( !(FLAGS & KEEP_MEDIA) ) {
         eject();

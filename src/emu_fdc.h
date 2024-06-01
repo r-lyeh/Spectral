@@ -95,7 +95,7 @@ unsigned char* sector_getDataForWrite(t_sector *s) {
   return s->data;
 }
 
-static t_sector *last_sector = 0; // for speedlock
+static t_sector *last_sector_hit = 0; // for speedlock
 
 unsigned char* sector_getDataForRead(t_sector *s, int *checksum_ok) {
   s->weak_read_version = (s->weak_read_version + 1) % s->weak_versions;
@@ -104,7 +104,7 @@ unsigned char* sector_getDataForRead(t_sector *s, int *checksum_ok) {
    // repeatedly then some emulators assume that this sector has weak data. (e.g. Fuse)
    if( checksum_ok ) *checksum_ok = 1;
    if( s->weak_versions == 1 ) {
-      static int hits = 0; hits += (last_sector == s); hits *= (last_sector == s); last_sector = s;
+      static int hits = 0; hits += (last_sector_hit == s); hits *= (last_sector_hit == s); last_sector_hit = s;
 #if NDEBUG <= 0
       printf("%p %d %x %x\n", s, hits, *(uint32_t*)s->CHRN, *(uint32_t*)s->flags );
 #endif
@@ -1194,7 +1194,7 @@ void fdc_reset()
 
  read_status_delay = 0;
 
- last_sector = NULL;
+ last_sector_hit = NULL;
 }
 
 void fdc_motor(unsigned char on)
@@ -1218,3 +1218,31 @@ void fdc_tick(int TS) {
       }
    }
 }
+
+#define FDC_DEFINES \
+   t_FDC fdc; \
+   struct t_drive driveA; \
+   struct t_drive driveB; \
+   struct t_drive *active_drive; \
+   t_track *active_track; \
+   dword read_status_delay; \
+   byte *pbGPBuffer; \
+   t_sector *last_sector_hit;
+#define FDC_EXPORT \
+    EXPORT(fdc); \
+    EXPORT(driveA); \
+    EXPORT(driveB); \
+    EXPORT(active_drive); \
+    EXPORT(active_track); \
+    EXPORT(read_status_delay); \
+    EXPORT(pbGPBuffer); \
+    EXPORT(last_sector_hit);
+#define FDC_IMPORT \
+    IMPORT(fdc); \
+    IMPORT(driveA); \
+    IMPORT(driveB); \
+    IMPORT(active_drive); \
+    IMPORT(active_track); \
+    IMPORT(read_status_delay); \
+    IMPORT(pbGPBuffer); \
+    EXPORT(last_sector_hit);

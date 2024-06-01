@@ -54,7 +54,7 @@ int export_state(FILE *fp) {
 
     // model and submodel flags
     put16(ZX);
-    put16( (!!(rom_patches&TURBO_PATCH)) << 15 | !!ZX_PENTAGON );
+    put16( (!!(rom_patches&TURBO_PATCH)) << 15 | (!!ZX_PENTAGON) << 1 | issue2 );
 
     put16(AF(cpu));
     put16(AF2(cpu));
@@ -145,7 +145,8 @@ int import_state(FILE *fp) {
     uint16_t submodel;
     get16(submodel);
     rom_patches |= !!(submodel&0x8000) * TURBO_PATCH;
-    ZX_PENTAGON = !!(submodel & 1);
+    ZX_PENTAGON = !!(submodel & 2);
+    issue2 = !!(submodel & 1);
 
     get16(AF(cpu));
     get16(AF2(cpu));
@@ -203,7 +204,7 @@ int import_state(FILE *fp) {
     for( int i = 0; i < medias; ++i ) {
         getnn(media[i].bin, media[i].len);
         if(loadbin_(media[i].bin, media[i].len, 0))
-            mic_seekf(media[i].pos); // @fixme: dsk side/sector case. needed?
+            tape_seekf(media[i].pos); // @fixme: dsk side/sector case. needed?
     }
 
     puts(regs("import_state"));

@@ -12,8 +12,8 @@ Code is highly experimental and prone to change in the future. I will keep alter
 ## Features and wishlist
 - [x] Single executable.
 - [x] Z80. Z80 Disassembler.
-- [x] 16, 48, 128, +2, +2A, +3/FDC, Pentagon128/Betadisk.
-- [x] Issue 2/3.
+- [x] 16, 48, 128, +2, +2A, +3/FDC, Pentagon128/Betadisk models.
+- [x] Issue 2/3 keyboards.
 - [x] ULA/ULA+.
 - [x] Beeper/AY.
 - [x] Kempston mouse. <!-- @todo: AMX mouse.-->
@@ -45,23 +45,25 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - [x] Unlicensed.
 
 ## Usage
-You only need the mouse to configure Spectral. Here are some shortcuts, though:
-- ESC: game browser
-- F1: speed boost (hold)
-- F2: start/stop tape
-- F3/f4: rewind/advance tape
-- F5: restart
-- F6: toggle input latency (runahead)
-- F7: toggle issue 2/3
-- F8: toggle tape speed
-- F9: toggle tv/rf (4 modes)
-- F9+SHIFT: toggle ay core (2 modes)
-- F11/F12: quick save/load
-- ALT+ENTER: fullscreen
-- TAB+CURSORS: joysticks
+Spectral can be configured with a mouse.
+
+Here are some keyboard shortcuts, though:
+- ESC: Game browser
+- F1: CPU throttle (hold)
+- F2: Start/stop tape
+- F3/F4: Rewind/advance tape
+- F5: Reload game
+- F6: Toggle input latency (Run-a-head)
+- F7: Toggle issue 2/3
+- F8: Toggle tape speed
+- F9: Toggle TV/RF (4 modes)
+- F9+SHIFT: Toggle AY core (2 modes)
+- F11/F12: Quick save/load
+- ALT+ENTER: Fullscreen
+- TAB+CURSORS: Joysticks
 
 ## Credits
-Andre Weissflog, for their many single-header libraries! (Zlib licensed). Peter Sovietov, for their accurate AY chip emulator (MIT licensed). Ulrich Doewich and Colin Pitrat, for their uPD765A floppy disk controller (GPL licensed). Marat Fayzullin for their WD1793/FDI controllers (Propietary). Potapov Vsevolod Viktorovich for their rusfaq website. Andrew Owen and Geoff Wearmouth for their custom ROMs. Simon Owen for their DSK technical websites. Santiago Romero, Philip Kendall, James McKay for their FOSS emulators. Damian Vila for their BESCII truetype font (CC-1.0). lalaoopybee, for their lovely tube shader. Günter Woigk, Juan Carlos González Amestoy and David Colmenero for their floppy sound recordings. The ZX Spectrum Discord folks. All the ZX community!
+Andre Weissflog, for their many single-header libraries! (Zlib licensed). Peter Sovietov and wermipls, for their accurate AY chip emulator (MIT licensed). Ulrich Doewich and Colin Pitrat, for their uPD765A floppy disk controller (GPL licensed). Marat Fayzullin for their WD1793/FDI controllers (Propietary). Potapov Vsevolod Viktorovich for their rusfaq website. Andrew Owen and Geoff Wearmouth for their custom ROMs. Simon Owen for their DSK technical websites. Santiago Romero, Philip Kendall, James McKay for their FOSS emulators. Damian Vila for their BESCII truetype font (CC-1.0). lalaoopybee, for their lovely tube shader. Günter Woigk, Juan Carlos González Amestoy and David Colmenero for their floppy sound recordings. The ZX Spectrum Discord folks. All the ZX community!
 
 ## Unlicense
 This software is released into the [public domain](https://unlicense.org/). Also dual-licensed as [0-BSD](https://opensource.org/licenses/0BSD) or [MIT (No Attribution)](https://github.com/aws/mit-0) for those countries where public domain is a concern (sigh). Any contribution to this repository is implicitly subjected to the same release conditions aforementioned.

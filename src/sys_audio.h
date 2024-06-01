@@ -46,8 +46,11 @@ void audio_init() {
 #include "res/audio/read"    // S16 C1 22050Hz
 //#include "res/audio/step"    // S16 C1 22050Hz too fast
 
+#include "res/audio/camera"    // S16 C1 22050Hz
+
 typedef struct voice_t {
     int id;
+    unsigned ampl;  // amplification
     int16_t *samples;
     unsigned len;   // number of samples
     unsigned count; // number of loops (0=stop, ~0u=inf)
@@ -82,7 +85,7 @@ float mix(float dt) {
 
         if( v->count ) {
             // 16-bit mono [-32768..32767] to float [-1..1]
-            accum += v->samples[(unsigned)v->pos] / 32768.f;
+            accum += (v->samples[(unsigned)v->pos] / 32768.f) * v->ampl;
             ++voices;
         }
     }
@@ -92,13 +95,16 @@ float mix(float dt) {
 
 int play(int sample, unsigned count) {
     static voice_t motors[] = {
-        {'moto', (int16_t*)(44+wavmotor2), (sizeof(wavmotor2) - 44) / 2},
+        {'moto', 5, (int16_t*)(44+wavmotor2), (sizeof(wavmotor2) - 44) / 2},
     };
     static voice_t seeks[] = {
-        {'seek', (int16_t*)(44+wavseek), (sizeof(wavseek) - 44) / 2},
+        {'seek', 5, (int16_t*)(44+wavseek), (sizeof(wavseek) - 44) / 2},
     };
     static voice_t reads[] = {
-        {'read', (int16_t*)(44+wavread), (sizeof(wavread) - 44) / 2},
+        {'read', 5, (int16_t*)(44+wavread), (sizeof(wavread) - 44) / 2},
+    };
+    static voice_t cameras[] = {
+        {'cam', 1, (int16_t*)(44+wavcamera), (sizeof(wavcamera) - 44) / 2},
     };
 
     voice_t *v = 0;
@@ -123,6 +129,7 @@ int play(int sample, unsigned count) {
     /**/ if( sample == 'moto' ) *v = motors[0];
     else if( sample == 'seek' ) *v = seeks[0];
     else if( sample == 'read' ) *v = reads[0];
+    else if( sample == 'cam' )  *v = cameras[0];
     else return 0;
 
     // update markers
