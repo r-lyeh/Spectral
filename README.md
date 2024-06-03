@@ -19,7 +19,7 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - [x] Kempston mouse. <!-- @todo: AMX mouse.-->
 - [x] Kempston/Fuller/Cursor/Sinclair joysticks.
 - [x] RF/CRT experience (not physically accurate though).
-- [x] TAP/TZX/Z80/SNA/ROM/IF2/SCR/ZIP support. <!-- @todo: tzx info on window title -->
+- [x] TAP/TZX/CSW/Z80/SNA/ROM/IF2/SCR/ZIP support. <!-- @todo: tzx info on window title -->
 - [x] DSK/EDSK/TRD/SCL/FDI/MGT/IMG/HOBETA support.
 - [x] SCR/PNG screenshots. <!-- ulaplus screenshots. video recording -->
 - [x] Load games easily. Turbo loads. Auto play/stop tape.

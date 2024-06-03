@@ -7,75 +7,12 @@
 // - P47Thunderbolt
 // - OddiTheViking128
 
-// auto-stop is broken
-// [ ] basil
-// [ ] abadia
-// [ ] untouchables(hitsquad)
-// [ ] jack2(kixx)
-// idea: when stop-block is off
-// - turn autoplay=off
-// - wait silently for any key to be pressed, then turn autoplay=on again
+// turborom
 
-// 70908/69888 compensation
-// La Abadia del Crimen (5ExitosOpera)
+// tape buttons
 
-    // tape not ticking (w AUTOPLAY=ON):
-    // - 1942.tzx
-    // - nosferatu(alternativeltd) (issue2 can load it right now; may be a (-) tape)
-    // Wizball(pzxtools).tap(+)
-    // ForbiddenPlanet(-)
-    // express raider
-
-    // issue2/3 keyboard issues
-    // [ ] spynads issue2
-    // [ ] rasputin 48k issue2
-
-    // issue2/3 loading issues
-    // [ ] abusimbel(gremlin) i2 + final stop level
-    // [ ] lonewolf i3 (48/128)
-    // [ ] 
-
-    // extra polarity (issue2 vs 3)
-    // ForbiddenPlanetV1(-), ForbiddenPlanetV2(-)
-    // LoneWolf3SideA128(+), LoneWolf3SideB48(+)
-    // Wizball(pzxtools).tap(+)
-    // MASK(+), Basil(+)
-    // KoronisRift(+)
-
-    // pauses
-    // [ ] hudson hawk sensitive to pauses before loading screen
-    // Hijack128(EDS), Italy1990(Winners), Dogfight2187, JmenoRuze.tap, MoonAndThePirates.tap
-
-    // [ ] parapshock + turborom
-    // error: bad ./games/x/tests/input_keyboard/Rasputin48-issue3.tap.zip zip
-
-    // wont stop tape at eof or crash
-    // [ ] hijack (final stop)
-    // [ ] dogfight
-
-    // Crashes
-    // [x] abadiadelcrimen.tzx crashes towards end of tape
-    // Untouchables (hitsquad)
-
-    // pilots
-    // Untouchables (hitsquad)
-    // Lightforce
-// ATF
-// TT Racer
-    // Explorer (EDS)...
-
-    // pause
-    // hijack (EDS) 128
-    // italy 1990 winners
-    // dogfight 2187
-    // hudson hawk
-    // jmeno ruze.tap
-    // moon and the pirates.tap
-
-    // stop
-    // oddi the viking
-    // untouchables hitsquad
-    // batman the movie
+// 128/+2
+// - parapshock should break; it doesnt
 
 // .ay files:
 // - could use ay2sna again in the future
@@ -117,9 +54,6 @@
 // - AY should clock at 1.75 MHz exact, CPU at 3.50 MHz exact
 // - no autoboot (autoboot is activated by paging in TR-DOS rom and jumping to 0)
 //   "Unreal Speccy Portable checks for a boot.B file in firsts sectors. If not found, send two keystrokes (Enter). That only makes sense on Pentagon machines with the reset service rom (gluck), the first Enter show a list of files and the latter selects the first file."
-// tape
-// - https://discord.com/channels/654774470652723220/689220116801650811/1245696186891894814
-// - voc renderer is memory hungry
 // timing:
 // - border: sentinel, defenders of earth, dark star, super wonder boy (pause)
 // - border: aquaplane, olympic games, vectron, mask3, jaws, platoon
@@ -153,7 +87,8 @@ int ZX; // 16, 48, 128, 200 (+2), 210 (+2A), 300 (+3)
 int ZX_AY = 1; // 0: no, 1: ayumi, 2: flooh's, 3: both (ZX_AY is a mask)
 int ZX_TURBOROM = 0; // 0: no, 1: patch rom so loading standard tape blocks is faster (see: .tap files)
 int ZX_JOYSTICK = 3; // 0: no, 1: sinclair1, 2: sinclair2, 3: cursor/fuller/kempston/protek, 4..: other mappings
-int ZX_AUTOPLAY = 1; // yes/no: auto plays/stops tapes based on #FE port reads
+int ZX_AUTOPLAY = 0; // yes/no: auto-plays tapes based on #FE port reads
+int ZX_AUTOSTOP = 0; // yes/no: auto-stops tapes based on #FE port reads
 int ZX_RUNAHEAD = 0; // yes/no: improves input latency
 int ZX_MOUSE = 1; // yes/no: kempston mouse
 int ZX_ULAPLUS = 1; // yes/no: ulaplus 64color mode
@@ -171,6 +106,7 @@ int ZX_KLMODE_PATCH_NEEDED = 0; // helper internal variable, must be init to mat
 
 const
 int ZX_ALTROMS = 0; // 0:(no, original), 1:(yes, custom)
+
 
 void logport(word port, byte value, int is_out);
 void outport(word port, byte value);
@@ -327,6 +263,9 @@ int loadbin_(byte *ptr, int size, int preloader) {
         else reset(ZX);
     }
 
+    ZX_AUTOPLAY = 1;
+    ZX_AUTOSTOP = 0;
+
     #define preload_snap(blob,len) ( sna_load(blob,len) || z80_load(blob,len) )
 
     // pre-loaders
@@ -351,18 +290,22 @@ int loadbin_(byte *ptr, int size, int preloader) {
         int is_bin = tape_type == 3, choose = slots[ZX/16] + 6 * is_bin;
         if(preloader) preload_snap(bins[choose], lens[choose]);
         if(tape_has_turbo) rom_restore(); // rom_restore(), rom_patch(tape_has_turbo ? 0 : do_rompatch);
+        ZX_AUTOSTOP = tape_num_stops > 1 ? 0 : size > 65535;
+        //warning(va("numstops:%d", tape_num_stops));
         return 2;
     }
     if(tap_load(ptr,(int)size)) {
         int slots[] = { [1]=0,[3]=1,[8]=2,[12]=3,[13]=4,[18]=5 };
         int is_bin = tape_type == 3, choose = slots[ZX/16] + 6 * is_bin;
         if(preloader) preload_snap(bins[choose], lens[choose]);
+        ZX_AUTOSTOP = size > 65535;
         return 2;
     }
     if(csw_load(ptr,(int)size)) {
         int slots[] = { [1]=0,[3]=1,[8]=2,[12]=3,[13]=4,[18]=5 };
         int is_bin = tape_type == 3, choose = slots[ZX/16] + 6 * is_bin;
         if(preloader) preload_snap(bins[choose], lens[choose]);
+        ZX_AUTOSTOP = 1;
         return 2;
     }
 
@@ -1050,18 +993,27 @@ uint64_t tick1(int num_ticks, uint64_t pins, void* user_data) {
 
 void sim_frame() {
     // logic that ticks every new frame
-    // if( !((ticks) % ZX_TS) ) {
+    // this section has x50 faster rate than next section.
     if( 1 ) {
         // vsync (once per frame)
         zx_int = 1;
-
-        // auto-play tape. this one has x50 faster rate than stopping tape.
+    }
+    if( tape_inserted() ) {
+        // auto-plays tape
         if( autoplay && !tape_playing() ) {
-            ZX_FASTTAPE = 1;
-
             if( ZX_AUTOPLAY ) {
-                printf("auto-play tape (%u Hz, %u reads)\n", tape_hz, autoplay_numreads);
+                printf("auto-play tape (%u Hz, %u reads)\n", tape_hz, autoplay_numreads),
                 tape_play(1);
+            }
+            else
+            if( PC(cpu) < 0x4000 && voc_pos == 0 ) { // if( (PC(cpu) & 0xff00) == 0x0500 && GET_MAPPED_ROMBANK() == GET_BASIC_ROMBANK() ) {
+                // kick off the initial tape playing automatically.
+                // user will need to pause/resume tape manually (via F2 key) from this point, as AUTOPLAY=off
+                // if( 1 ) { // tape_inserted() && !tape_playing() ) {
+                if( !tape_playing() ) {
+                    puts("auto-play tape (rom)"),
+                    tape_play(1);
+                }
             }
         }
 
@@ -1069,32 +1021,19 @@ void sim_frame() {
         autostop = 0;
     }
     // logic that ticks once per second
-    // if( !((ticks) % (ZX_TS*50)) ) {
     static int frame = 0; ++frame;
     if( !(frame % 50) ) {
-        // auto-stop tape. stopping a tape is a risky action and load will fail if not done at the right moment.
-        // so, the thinking for this block has a x50 slower rate than playing a tape. we have to be sure.
-        if( autostop && mic_on ) {
-            ZX_FASTTAPE = 0;
-
-            if( ZX_AUTOPLAY ) {
-                printf("auto-stop tape (%u Hz, %u reads)\n", tape_hz, autoplay_numreads);
+        // auto-stops tape. stopping a tape is a risky action and load will fail if not done at the right moment.
+        // so, the thinking for this block has a x50 slower rate than playing a tape. we have to be sure we dont
+        // want tape to be playing instead.
+        if( autostop && tape_playing() ) {
+            if( ZX_AUTOSTOP ) {
+                printf("auto-stop tape (%u Hz, %u reads)\n", tape_hz, autoplay_numreads),
                 tape_stop();
             }
         }
 
-        if( /*autoplay &&*/ !ZX_AUTOPLAY ) {
-            // kick off the initial tape playing automatically. since AUTOPLAY is OFF,
-            // user will need to pause/resume tape manually (via F2 key) from this point.
-            if( tape_inserted() && !tape_playing() ) {
-                if( (PC(cpu) & 0xff00) == 0x0500 && GET_MAPPED_ROMBANK() == GET_BASIC_ROMBANK() ) {
-                    puts("auto-play tape (rom)");
-                    tape_play(1);
-                }
-            }
-        }
-
-//        autoplay = 0;
+        autoplay = 0;
         autostop = 0;
     }
 }
@@ -2181,7 +2120,7 @@ void reset(unsigned FLAGS) {
     autoplay = 0;
     autostop = 0;
 
-    if( ZX_AUTOPLAY ) tape_rewind();
+    tape_rewind();
 
     if( !(FLAGS & KEEP_MEDIA) ) {
         eject();

@@ -84,6 +84,7 @@ uint64_t fnv1a(const void* ptr_, unsigned len) {
     return hash;
 }
 
+#if 0
 unsigned crc32(unsigned h, const void *ptr_, unsigned len) {
     // based on public domain code by Karl Malbrain
     const uint8_t *ptr = (const uint8_t *)ptr_;
@@ -94,3 +95,4 @@ unsigned crc32(unsigned h, const void *ptr_, unsigned len) {
     for(h = ~h; len--; ) { uint8_t b = *ptr++; h = (h >> 4) ^ tbl[(h & 15) ^ (b & 15)]; h = (h >> 4) ^ tbl[(h & 15) ^ (b >> 4)]; }
     return ~h;
 }
+#endif

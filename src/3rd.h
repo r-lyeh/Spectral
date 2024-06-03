@@ -21,6 +21,7 @@
 
 #define DEFLATE_C
 #include "3rd_deflate.h"
+#include "3rd_zlib.h" // for zlib streams, like CSW2
 #define ZIP_C
 #include "3rd_zip.h"
 #define DIR_C

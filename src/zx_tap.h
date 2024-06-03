@@ -1,3 +1,71 @@
+#define ALT_TIMINGS 0 // 1 for the wip timings
+
+// tapes that require cpu-driven ticks:
+// [ ][ ][ ][?] 1942.tzx(with trainer)
+// [ ][ ][ ][?] nosferatu(alternativeltd)
+// [x][*][ ][?] express raider ; needs longer pilots
+// [*][*][*][?] Italy1990(Winners) ; needs longer pilots
+// [x][ ][x][?] ForbiddenPlanetV1(-), ForbiddenPlanetV2(-) (before loading screen)
+
+// games that needs tape to stop while cpu is busy
+// [ ][ ][ ][?] Barbarian(MelbourneHouse).tzx
+// [ ][x][ ][?] gauntlet.tzx
+// [ ][x][ ][?] mythhistoryinthemaking(kixx).tzx
+// [ ][ ][ ][?] hudsown hawk.tzx
+// [ ][x][ ][?] doctum
+// [ ][x][ ][?] coliseum.tap+turborom
+// [ ][x][ ][?] cauldron2.tap (press-any-key)
+// [ ][x][ ][?] EggThe (press-any-key)
+// [x][x][*][?] cauldron(silverbird)
+
+// issue2/3 loading issues
+// [ ][ ][ ][?] abusimbel(gremlin) i2 + polarity level at end-of-tape
+// [x][x][ ][?] Wizball(pzxtools).tap(+)
+// [ ][ ][ ][?] LoneWolf3SideA128(+), LoneWolf3SideB48(+)
+// [ ][ ][ ][?] MASK(+), Basil(+)
+// [ ][x][ ][?] KoronisRift(+)
+// [x][ ][x][?] MASK(IBSA)(+)(-)
+// [?][?][*][?] ForbiddenPlanet(-)
+
+// issue2/3 keyboard issues
+// [ ][ ][ ][?] spynads issue2
+// [ ][ ][ ][?] rasputin 48k issue2
+
+// 70908/69888 compensation
+// [x][x][x][?] La Abadia del Crimen (5ExitosOpera)
+
+// auto-stop is broken
+// [ ][ ][ ][?] basil(+)
+// [ ][ ][ ][?] abadia
+// [ ][ ][ ][?] untouchables(hitsquad)
+// [ ][ ][ ][?] jack2(kixx)
+// [ ][ ][ ][?] hijack (final stop)
+// [ ][x][x][?] dogfight
+
+// pauses
+// [ ][ ][ ][?] hijack (EDS) 128
+// [ ][x][*][?] italy 1990 winners
+// [ ][x][x][?] dogfight 2187
+// [ ][ ][ ][?] hudson hawk
+// [ ][x][ ][?] jmeno ruze.tap
+// [ ][x][ ][?] moon and the pirates.tap
+
+// Crashes
+// [x][ ][ ][?] abadiadelcrimen.tzx crashes towards end of tape
+// [?][ ][ ][?] Untouchables (hitsquad)
+
+// pilots
+// [?][x][ ][?] Untouchables (hitsquad)
+// [?][ ][ ][?] Lightforce
+// [?][ ][ ][?] ATF 48
+// [?][ ][ ][?] TT Racer 48
+// [?][ ][ ][?] Explorer (EDS) 48
+
+// stop
+// [?][ ][ ][?] oddi the viking
+// [?][x][ ][?] untouchables hitsquad
+// [?][ ][ ][?] batman the movie
+
 enum { PILOT = 2168, DELAY_HEADER = 8063, DELAY_DATA = 3223, SYNC1 = 667, SYNC2 = 735, ZERO = 855, ONE = 1710, END_MS = 1000, 
 COUNT_PER_MS = 3547}; // 3500 };
 
@@ -18,7 +86,8 @@ int             mic,mic_on; /* these two belong to zx.h */ \
 byte            tape_type; \
 uint64_t        tape_tstate; \
 int             tape_level; \
-int             tape_has_turbo, voc_len, voc_pos, voc_count, voc_units; \
+int             tape_has_turbo, tape_num_stops, voc_len, voc_pos, voc_count, voc_units; \
+int             tape_issue2; \
 struct tape_block q;
 VOC_DEFINES
 
@@ -32,12 +101,15 @@ void tape_reset(void) {
 
     voc = realloc(voc, sizeof(struct tape_block) * 0x1800000);
     voc_len = 0;
-    tape_has_turbo = 0;
     voc_pos = voc_count = voc_units = 0;
+
+    tape_has_turbo = 0;
+    tape_num_stops = 0;
+    tape_issue2 = 0;
+    tape_type = 0xFF;
 
     mic = 0;
     mic_on = 0;
-    tape_type = 0xFF;
 
     tape_level = LEVEL_FLIP;
     tape_tstate = 0;
@@ -54,23 +126,42 @@ void tape_render_polarity(unsigned level) {
     tape_level = level;
 }
 void tape_render_pilot(float count, float pulse) { // Used to be x1.0250 for longer pilots
+    if( pulse != PILOT ) tape_issue2 |= ((unsigned)count) & 1; // detect tape polarity: odd/even. exclude standard pilots
     // Untouchables(Hitsquad), Lightforce, ATF, TT Racer, Explorer(EDS)
-    // pulse *= 1.0250;
+#if !ALT_TIMINGS
+    pulse *= 1.03; // 1.0250;
+#endif
     tape_push("pilot", tape_level, count, pulse); // pi(l)ot
 }
 void tape_render_sync(float pulse) {
     // Italy 1990 (Winners Edition)
     tape_push("sync", tape_level, 1, pulse); // sy(n)c1 or sy(n)c2
 }
-void tape_render_pause(unsigned pause_ms) { // Used to be x1.03 for longer pauses
-    // Barbarian(Melbourne), Hijack128(EDS), Italy1990(Winners), Dogfight2187, HudsonHawk, JmenoRuze.tap, MoonAndThePirates.tap
-    // pause_ms *= (pause_ms == END_MS) * 1.5;
-    // pause_ms *= 1.03;
-    if(pause_ms) tape_push("pause", LEVEL_LOW, COUNT_PER_MS, pause_ms); // pa(u)se
-}
 void tape_render_stop(void) {
     // OddiTheViking, Untouchables(Hitsquad), BatmanTheMovie, ExpressRaider
     tape_push("stop", LEVEL_LOW, COUNT_PER_MS, 1); // st(o)p
+    ++tape_num_stops;
+}
+void tape_render_pause(unsigned pause_ms) { // Used to be x1.03 for longer pauses
+    // Barbarian(Melbourne), Hijack128(EDS), Italy1990(Winners), Dogfight2187, HudsonHawk
+    // pauses for decompression: JmenoRuze.tap, MoonAndThePirates.tap
+#if !ALT_TIMINGS
+    // pause_ms *= (pause_ms == END_MS) * 1.5;
+    // pause_ms *= 1.03;
+    pause_ms *= (pause_ms < 3000) ? 2 : 1;
+#endif
+#if 0
+    if(pause_ms) tape_push("pause", LEVEL_LOW, COUNT_PER_MS, pause_ms); // pa(u)se
+#else
+    // this version improves tape_preview[] accuracy
+    for(unsigned i = 0; i < pause_ms; ++i) tape_push("pause", LEVEL_LOW, COUNT_PER_MS, 1); // pa(u)se
+#endif
+}
+void tape_render_bit(int bit, int states_per_bit) { // rate 79 for 44100, 158 for 22050
+#if ALT_TIMINGS
+    states_per_bit = 1;
+#endif
+    tape_push("piLot", bit ? LEVEL_HIGH : LEVEL_LOW, 1, states_per_bit);
 }
 void tape_render_data(byte *data, unsigned bytes, unsigned bits, unsigned zero, unsigned one, int bitrepeat) {
     // keep 2nd byte in safe place
@@ -94,7 +185,11 @@ void tape_render_standard(byte *data, unsigned bytes, float pilot_len) {
     tape_render_full(data, bytes, 8, pilot_len, PILOT, SYNC1, SYNC2, ZERO, ONE, END_MS);
 }
 
+
 void tape_finish() {
+    if( DEV && tape_issue2 )
+    ;//warning(va("tape_issue2: %d", tape_issue2));
+
     // trim ending silences. see: abusimbelprofanation(gremlin) 16000ms nipper2(kixx) 23910ms
     for( int i = voc_len; --i >= 0; )
         if( !strchr("uo", voc[i].debug) ) break; // pa(u)se st(o)p
@@ -103,14 +198,10 @@ void tape_finish() {
     // write a terminator
     tape_render_stop();
 
-    // trim extremely large gaps now. they're between code blocks and without multiload most of the times
-    // (see nipper2(kixx): 13s, 15s, 23s, etc).
-    // I suspect these blocks were manually authored and never tested on real hw (probably just tested
-    // on emulators with flashload enabled). they're clearly wrong by a x10 factor at least.
-    // in any case, the automatic tape loader will pause/resume on these blocks for us, so there is no
-    // sense to keep such large gaps within the blocks. for the end-users that use manual tape buttons
-    // on multiload games, i think 5s pause should suffice them.
-    if(0) // if( automatic_tape )
+    // we could trim extremely large gaps now (>13s). however, we are missing a good heuristic to discern
+    // between real multiload pauses (gauntlet.tzx) and bad tapes (jacknipper2(kixx).tzx). disabled for now.
+    // idea: do not trim gaps on tape if any stop-tape blocks are found. wont work for tap/csw files, though.
+    if(0)
     for( int i = 0; i < voc_len; ++i )
         if( voc[i].debug == 'u' && voc[i].units > 5000 )
             voc[i].units = 5000;
@@ -121,7 +212,7 @@ void tape_finish() {
     for( int i = 0; i <= _320; ++i ) tape_preview[i] = (i & 1);
     for( unsigned pos = 0; pos < voc_len; ++pos ) {
         unsigned pct = (float)pos * _320 / (voc_len - 1);
-        int silence = 5 * !!strchr("uo", voc[pos].debug); // pa(u)se, st(o)p
+        int silence = 2 * !!strchr("uo", voc[pos].debug); // pa(u)se, st(o)p
         for( int i = 0; i < silence; ++i ) tape_preview[pct - i * (pct >= i)] = 0;
     }
 }
@@ -130,6 +221,15 @@ void tape_finish() {
 
 struct tape_block mic_read_tapeblock(int voc_pos) {
     struct tape_block q = voc[ voc_pos ];
+
+    // patch pilots to be consistently odd/even across the whole tape blocks (see: Mask(IBSA).tzx)
+    // fixes: mask(ibsa)(-)(+)
+    // improves: forbiddenPlanet(-), lonewolf3(+) in any issue2/3 combination
+    // keeps: koronisRift(-)
+    // breaks: wizball.tap(pzxtools)
+    if( 0 )
+    if( q.debug == 'l' /* && tape_issue2 */ )
+        q.count = issue2 ? q.count | 1 : q.count & ~1;
 
     // convert normal to turbo block, if needed
     bool loading_from_rom = PC(cpu) < 0x4000; // && GET_MAPPED_ROMBANK() == GET_BASIC_ROMBANK();
@@ -158,40 +258,40 @@ struct tape_block mic_read_tapeblock(int voc_pos) {
 
     // Tape compensation for 128k/+2/+2a/+3 models. Canonical value would be 70908/69888 (1%)
     // Used to be 1.025 or 1.03 for me, though. not turborom friendly
-    float scale = 1; // 1.03; // = ZX > 48 ? 70908 / 69888. : 1.0;
+#if !ALT_TIMINGS
+    float scale = ZX > 48 && !ZX_PENTAGON ? 70908 / 69888. : 1.0;
     //q.count *= scale;
-    q.units *= scale;
+    //q.units *= scale;
+#endif
 
     return q;
+}
+
+int SKIP(const char *skip) {
+    if( PC(cpu) < 0x4000 ) {
+        while( strchr(skip, voc[voc_pos].debug) ) {
+            voc_pos++, voc_pos -= (voc_pos >= voc_len), voc_count = 0, voc_units = 0, mic;
+        }
+        // q = mic_read_tapeblock(voc_pos);
+    }
+    return 0;
 }
 
 byte mic_read(uint64_t tstates) {
     mic_on *= voc_pos < voc_len; // stop tape at end of tape
 
-#if 0
-    if( mic_on ) { // if tape not stopped
-        int diff = tstates - tape_tstate;
-        if( ZX_AUTOPLAY && diff > 69888 ) diff = /*69888*/4; // fix games with animated intros or pauses: cauldron2.tap, EggThe, diver, doctum, coliseum.tap+turborom, barbarian(melbourne)
-        if( diff < 0 ) diff = 0;
-        tape_tstate = tstates;
-#else
-    // 1942.tzx(with trainer) and Barbarian(MelbourneHouse).tzx are two different problems on this block
-    // test also: cauldron2.tap, EggThe, doctum, coliseum.tap+turborom, wizball.tap(pzxtools)
-    extern uint64_t ticks;
-    tstates = ticks;
+    extern uint64_t ticks; tstates = ticks;
     int diff = tstates - tape_tstate;
-    if( mic_on ) tape_tstate = tstates;
-    if( diff < 0 ) diff = 0;
-    if( diff > 69888 ) {
-        diff = 4;
-        // bypass datas from a missed pilot. would take ages to read otherwise
-        if( PC(cpu) < 0x4000 ) // && GET_MAPPED_ROMBANK() == GET_BASIC_ROMBANK() )
-        while( voc[voc_pos].debug == 't' ) {
-            voc_pos++, voc_pos -= (voc_pos >= voc_len), voc_count = 0, voc_units = 0, mic;
-        }
-    }
+    tape_tstate = tstates;
+
     if( mic_on ) { // if tape not stopped
+#if ALT_TIMINGS
+        if( diff > 69888 ) diff = 4, SKIP("t"); // fix games with animated intros or pauses: cauldron2.tap, EggThe, diver, doctum, coliseum.tap+turborom, barbarian(melbourne)
+        if( diff > 69888 ) diff = 4; // fix games with animated intros or pauses: cauldron2.tap, EggThe, diver, doctum, coliseum.tap+turborom, barbarian(melbourne)
+#else
+        if( diff > 69888 && strchr("uo", q.debug) ) diff = 4;
 #endif
+        if( diff < 0 ) diff = 0;
 
         // debug
         // printf("%c [%d / %d][%d / %d][%d / %d] += %d\n", voc[voc_pos].debug,voc_pos,voc_len, voc_count,q.count, voc_units,q.units, diff);
@@ -205,7 +305,11 @@ byte mic_read(uint64_t tstates) {
 
         // fsm2, advance clock. the three counters do work like a clock cycle hh:mm:ss
         // hh:position in voc[], mm:sub-count, ss:sub-units
+#if ALT_TIMINGS
         voc_units += diff;
+#else
+        for( int inc = min(diff, q.units); diff > 0; diff -= inc, voc_units += inc, inc = min(diff, q.units) )
+#endif
         if( voc_units >= q.units ) {
             voc_units -= q.units;
 
@@ -221,7 +325,8 @@ byte mic_read(uint64_t tstates) {
                 // transfer new block
                 q = mic_read_tapeblock(voc_pos);
 
-                if( voc[voc_pos].debug == 'o' ) return mic; // st(o)p
+            if( q.debug == 'o' ) return mic_on = 0, mic; // st(o)p
+
             }
         }
     }
@@ -264,11 +369,26 @@ int tap_load(void *fp, int siz) {
 #define tape_seekf(at) ( voc_pos = voc && voc_len && at >= 0 && at <= 1 ? at * (voc_len - 1) : voc_pos )
 #define tape_peek() ( voc_pos < voc_len ? voc[voc_pos].debug : ' ' )
 #define tape_tellf() ( voc_pos / (float)(voc_len+!voc_len) )
-#define tape_play(on) ( mic_on = !!(on) )
+//#define tape_play(on) ( mic_on = !!(on) )
 #define tape_playing() (mic_on && voc_len)
 #define tape_stop() tape_play(0)
 
+void tape_play(int on) {
+    if( tape_inserted() ) {
+        /**/ if( !on ) mic_on = 0;
+        else if( voc_pos == 0 ) mic_on = 1;
+        else if( strchr("uo",q.debug) && voc_pos < (voc_len-1) ) {
+            mic_on = 1;
+            extern uint64_t tape_ticks;
+            mic_read(tape_ticks);
+            q = mic_read_tapeblock(++voc_pos);
+            voc_count = voc_units = 0;
+        }
+    }
+}
+
 void tape_next() {
+    tape_play(0);
     if( voc_len ) {
         while(voc_pos < voc_len && 'l' == voc[voc_pos].debug) voc_pos++; // skip pi(l)ot; current, if any
         while(voc_pos < voc_len && 'l' != voc[voc_pos].debug) voc_pos++; // find pi(l)ot
@@ -277,6 +397,7 @@ void tape_next() {
     }
 }
 void tape_prev() {
+    tape_play(0);
     if( voc_len ) {
         while((unsigned)voc_pos < voc_len && 'l' == voc[voc_pos].debug) voc_pos--; // skip pi(l)ot; current, if any
         while((unsigned)voc_pos < voc_len && 'l' != voc[voc_pos].debug) voc_pos--; // find pi(l)ot
@@ -529,6 +650,8 @@ void tape_rewind() {
     IMPORT(tape_level); \
     IMPORT(voc_len); \
     IMPORT(tape_has_turbo); \
+    IMPORT(tape_num_stops); \
+    IMPORT(tape_issue2); \
     IMPORT(voc_pos); \
     IMPORT(voc_count); \
     IMPORT(voc_units); \
@@ -542,6 +665,8 @@ void tape_rewind() {
     EXPORT(tape_level); \
     EXPORT(voc_len); \
     EXPORT(tape_has_turbo); \
+    EXPORT(tape_num_stops); \
+    EXPORT(tape_issue2); \
     EXPORT(voc_pos); \
     EXPORT(voc_count); \
     EXPORT(voc_units); \

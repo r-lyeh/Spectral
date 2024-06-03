@@ -4,11 +4,9 @@
 // @todo
 // find 1bas-then-1code pairs within tapes. provide a prompt() call if there are more than 1 pair in the tape
 //     then, deprecate 0x28 block
-// csw starbike1, starbike2
 // tzx(gdb) basil great mouse, bc quest for tires, book of the dead part 1 (crl), dan dare 2 mekon, world cup carnival
 // tzx(flow) hollywood poker, bubble bobble (the hit squad)
 // tzx(noise) leaderboard par 3, tai-pan, wizball
-// tzx(???) bathyscape
 
 int tzx_load(byte *fp, int len) {
     // verify tzx
@@ -121,8 +119,9 @@ int tzx_load(byte *fp, int len) {
                 debug = va("bytes:%u pause:%ums states/sample:%u bits:%u", bytes, pause, states, bits);
 
                 for( int len = 0; len < bytes; ++len, ++src )
-                    for( int i = 0; i < 8; ++i)
-                        tape_push("pilot", ((*src) & (1<<(7-i))) ? LEVEL_HIGH : LEVEL_LOW, 1, 1);
+                    for( int i = 0; i < 8; ++i) {
+                        tape_render_bit((*src) & (1<<(7-i)), states);
+                    }
 
                 voc_len -= 8 - bits; // trim ending excess bits
 
@@ -336,6 +335,7 @@ int tzx_load(byte *fp, int len) {
                 count  = (*src++); count  |= (*src++)*0x100; count  |= (*src++)*0x10000; count  |= (*src++)*0x1000000;
                 // src += count; // batman the movie has count(0), oddi the viking has count(4). i rather ignore the count value
                 if(ZX < 128) tape_render_stop(); // @fixme: || page128 & 16
+                else tape_render_pause(1000); // experimental
 
             break; case 0x2b: // REV: Cybermania, CASIO-DIGIT-INVADERS-v3
                 blockname = "signalLevel";
@@ -418,7 +418,7 @@ int csw_load(byte *fp, int len) {
     if( len < 0x20 || memcmp(fp, "Compressed Square Wave\x1a", 0x17) )
         return 0;
 
-    byte *eot = fp + len;
+    byte *beg = fp, *eot = fp + len;
 
     fp += 0x17;
 
@@ -435,7 +435,7 @@ int csw_load(byte *fp, int len) {
         flags = *fp++;
         fp += 3; // reserved
     }
-    else if( version = 200 ) {
+    else if( version == 200 ) {
         rate  = (*fp++);
         rate |= (*fp++)*0x100;
         rate |= (*fp++)*0x10000;
@@ -458,38 +458,61 @@ int csw_load(byte *fp, int len) {
         return 0;
     }
 
+    printf("%d pulses\n", pulses);
+
+    if( comp == 2 ) {
+        static byte *unc = 0;
+        unc = realloc(unc, pulses);
+
+        printf("inflate @ %x offs, %d bytes\n", (unsigned)(fp - beg), (signed)(eot - fp));
+
+        mz_stream z = {0};
+        z.avail_in = eot - fp;
+        z.next_in = fp;
+        z.avail_out = pulses;
+        z.next_out = unc;
+
+        mz_inflateInit(&z);
+        int ret = mz_inflate(&z, MZ_NO_FLUSH);
+        mz_inflateEnd(&z);
+
+        if( ret < 0 ) {
+            warning("error: cant decompress csw2 files");
+            return 0;
+        }
+
+        fp = beg = unc;
+        eot = fp + pulses;
+    }
+    else
     if( comp != 0x1 ) {
-        warning("error: unsupported compression method");
+        warning(va("error: unsupported compression method (%d)",comp));
         return 0;
     }
 
     // 22050 or 44100 Hz (158 or 79 T-states/sample)
     printf("rate:%u, polarity:%d\n", rate, flags);
 
-    tape_reset();
-    //tape_render_polarity(flags ? LEVEL_HIGH : LEVEL_LOW);
-    int level = !!flags;
-
-    if( comp == 0x1 )
-    while( fp < eot ) {
-        unsigned p = *fp++;
-        if( p == 0 ) {
-            p  = (*fp++);
-            p |= (*fp++)*0x100;
-            p |= (*fp++)*0x10000;
-            p |= (*fp++)*0x1000000;
-        }
-
-#if 0
-        // normalize pulse to 69888 ticks
-        int64_t pulses = ( p * 69888 ) / rate;
-        pulses += !pulses;
+#if ALT_TIMINGS
+    rate = 1;
 #else
-        int64_t pulses = p; // * 1.03;
+    rate = 44100. * 79 / rate;
 #endif
 
+    tape_reset();
+    int level = !!flags;
+
+    while( fp < eot ) {
+        unsigned pulses = *fp++;
+        if( pulses == 0 ) {
+            pulses  = (*fp++);
+            pulses |= (*fp++)*0x100;
+            pulses |= (*fp++)*0x10000;
+            pulses |= (*fp++)*0x1000000;
+        }
+
         // tape_render_pilot(pulses);
-        tape_push("pilot", level ? LEVEL_HIGH : LEVEL_LOW, pulses, 1); level ^= 1;
+        tape_push("piLot", level ? LEVEL_HIGH : LEVEL_LOW, pulses, rate); level ^= 1;
     }
 
     tape_finish();

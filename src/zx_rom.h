@@ -255,6 +255,7 @@ int translate(char *ptr, int size, int locale) {
         {"ARRIBA","UP"},
         {"BOMBA","BOMB"},
         {"COGER","PICK"},
+        {"COMENZAR","START"},
         {"CONTROLES","CONTROLS"},
         {"CURSORES","CURSOR"},
         {"DEFINIR","DEFINE"},
@@ -264,15 +265,18 @@ int translate(char *ptr, int size, int locale) {
         {"FUEGO","FIRE"},
         {"INSTRUCCIONES","INSTRUCTIONS"},
         {"IZQUIERDA", "LEFT"},
+        {"JUEGO","GAME"},
         {"JUGAR","PLAY"},
         {"PAUSA","PAUSE"},
+        {"PULSA UNA TECLA", "PRESS ANY KEY"},
         {"REDEFINIR", "DEFINE"},
         {"REINICIA","RESET"},
         {"REINICIAR", "RESET"},
         {"SALTAR","JUMP"},
         {"SALTO","JUMP"},
-        {"TECLADO","KEYPAD"}, // cant use 'keyboard', since it is longer than 'teclado'
+        {"TECLADO","KEYPAD"}, // cant use 'keyboard', as it is longer than 'teclado'
         {"TECLAS","KEYS"},
+        //{"USAR", "USE"},
         {"VIDAS","LIFES"},
     };
     int patches = 0;

@@ -33,7 +33,7 @@
 // done
 // cpu, ula, mem, rom, 48/128, key, joy, ula+, tap, ay, beep, sna/128, fps, tzx, if2, zip, rf, menu, kms, z80, scr,
 // key2/3, +2a/+3, fdc, dsk, autotape, gui, KL modes, load "" code, +3 fdc sounds, +3 speedlock,
-// pentagon, trdos,
+// pentagon, trdos, translate game menus, 50/60 hz,
 // [x] glue sequential tzx/taps in zips (side A) -> side 1 etc)
 // [x] sequential tzx/taps/dsks do not reset model
 
@@ -51,6 +51,9 @@
 // [ ] es2en auto-translations:
 //     - auto-translation IZQUIERD. DERECH. ABAJ. ARRIB. SALTA. DISPAR. FUEG. PAUS. ABORT.
 //     - INSTRUCCIONE. TECLAD.
+// idea: when stop-block is off
+// - turn autoplay=off
+// - wait silently for any key to be pressed, then turn autoplay=on again
 //
 // todo (tapes)
 // [ ] remove prompt() calls. create ui_inputbox() instead
@@ -497,7 +500,7 @@ void input() {
     if( window_trigger(app, TK_F5) )     cmdkey = 'F5';
     if( window_trigger(app, TK_F6) )     cmdkey = 'RUN';
     if( window_trigger(app, TK_F7) )     cmdkey = 'ISSU';
-    if( window_trigger(app, TK_F8) )     cmdkey = 'F8';
+    if( window_trigger(app, TK_F8) )     cmdkey = 'ffwd';
     if( window_trigger(app, TK_F9) )     cmdkey = window_pressed(app, TK_SHIFT) ? 'AY' : 'F9';
     if( window_trigger(app, TK_F11) )    cmdkey = 'F11';
     if( window_trigger(app, TK_F12) )    cmdkey = 'F12';
@@ -950,7 +953,7 @@ void draw_ui() {
         }
 
         // ui animation
-        int hovering_border = !active && (m.x > _320 * 5/6 || m.x < _320 * 1/6);
+        int hovering_border = !active && (m.x > _320 * 5/6); // || m.x < _320 * 1/6);
         static float smooth; do_once smooth = hovering_border;
         smooth = smooth * 0.75 + hovering_border * 0.25;
         // left panel: game options
@@ -1033,7 +1036,7 @@ void draw_ui() {
         // right panel: emulator options
         if( 1 )
         {
-            int chr_x = REMAP(smooth,0,1,33,28) * 11 + 0, chr_y = REMAP(smooth,0,1,-4,2) * 11;
+            int chr_x = REMAP(smooth,0,1,33,28) * 11 + 0, chr_y = REMAP(smooth,0,1,-4,2.5) * 11;
 
             {
                 // draw black panel
@@ -1062,7 +1065,7 @@ void draw_ui() {
 
             if( ui_click("-Toggle RunAHead-", !ZX_RUNAHEAD ? "🯆\f0\n" : "🯇\f1\n") ) cmdkey = 'RUN';
             if( ui_click("-Toggle TurboROM-", !ZX_TURBOROM ? "\f0\n" : "\f1\n")) cmdkey = 'TROM';
-            if( ui_click("-Toggle AutoTape-", "%c\f%d\n", PLAY_CHR,ZX_AUTOPLAY) ) cmdkey = 'AUTO';
+            if( ui_click("-Toggle FastTape-", "%c\f%d\n", PLAY_CHR,ZX_FASTTAPE )) cmdkey = 'ffwd';
 
             if( ui_click("-Translate game menus-", "T\f%d\n", ZX_AUTOLOCALE)) cmdkey = 'ALOC';
 
@@ -1092,40 +1095,30 @@ void draw_ui() {
             if( ui_click("-Debug-", "") ) cmdkey = 'DEV'; // send disassemble command
         }
 
-        // manual tape handling
-        ui_at(ui,1*11, 1*11);
-        if( ZX_AUTOPLAY ) {
-            if( ui_click(NULL, "%c", !active ? PLAY_CHR : PAUSE_CHR) ) active ^= 1;
-        } else {
-            if( ui_click(NULL, "%c", !tape_playing() ? PLAY_CHR : PAUSE_CHR) ) tape_play(!tape_playing());
-            if( ui_click(NULL, "\xf\b\b\b\xf") ) cmdkey = 'prev';
-            if( ui_click(NULL, "%c\b\b\b%c", PLAY_CHR, PLAY_CHR) ) cmdkey = 'next';
-            if( ui_click(NULL, "■") ) cmdkey = 'stop';
-            ui_x += 2;
-            if( ui_click(NULL, "\xe") ) active ^= 1;
-            ui_x += 1;
-        }
-
         // tape progress
         float pct = tape_tellf();
-#if DEV
-        if( mic_on )
-#else
-        if( ZX_AUTOPLAY ? tape_inserted() : 1 )
-#endif
-        if( pct <= 1.00f )
+        int visible = !active ? ( pct <= 1. && mic_on/*tape_playing()*/ ) || (m.y > -10 && m.y < _240/10) : 0;
+        static float smoothY; do_once smoothY = visible;
+        smoothY = smoothY * 0.75 + visible * 0.25;
+        if( smoothY > 0.01 )
         {
-            TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + UI_LINE1 * _320];
+            int y = REMAP(smoothY,0,1,-10,UI_LINE1);
+
+            TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + y * _320];
 
             // bars & progress
             unsigned mark = pct * _320;
-            for( int x = 0; x < _320; ++x ) bar[x] = bar[x+2*_320] = white;
-            for( int x = 0; x<=mark; ++x ) bar[x+_320] = white; bar[_320-1+_320] = white;
-            for( int x = 0; x < _320; ++x ) if(tape_preview[x]) bar[x+1*_320] = white;
+            if(y>= 0) for( int x = 0; x < _320; ++x ) bar[x] = white;
+            if(y>=-2) for( int x = 0; x < _320; ++x ) bar[x+2*_320] = white;
+            if(y>= 1) for( int x = 0; x<=mark; ++x )  bar[x+_320] = white;
+            if(y>=-2) for( int x = 0; x<=mark; ++x )  bar[-1+2*_320] = black;
+            if(y>=-1) for( int x = 0; x < _320; ++x ) {
+                if(tape_preview[x]) bar[x+1*_320] = white;
+            }
             // triangle marker (top)
-            bar[mark+4*_320] = white;
-            for(int i = -1; i <= +1; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+5*_320] = white;
-            for(int i = -2; i <= +2; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+6*_320] = white;
+            if(y>=-4) bar[mark+4*_320] = white;
+            if(y>=-5) for(int i = -1; i <= +1; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+5*_320] = white;
+            if(y>=-6) for(int i = -2; i <= +2; ++i) if((mark+i)>=0 && (mark+i)<_320) bar[mark+i+6*_320] = white;
             // mouse seeking
             if( m.y > 0 && m.y < 11 ) {
                 mouse_cursor(2);
@@ -1134,6 +1127,32 @@ void draw_ui() {
                     tape_seekf(m.x / (float)_320);
                 }
             }
+        }
+
+        ui_at(ui, 1*11, 1*11);
+        if( ui_click(NULL, "%c", !active ? PLAY_CHR : PAUSE_CHR) ) active ^= 1;
+
+        // manual tape handling
+        if( 1 ) {
+            int visible = !active ? (m.y > -10 && m.y < _240/10) : 0;
+            static float smoothY; do_once smoothY = visible;
+            smoothY = smoothY * 0.75 + visible * 0.25;
+
+            int y = REMAP(smoothY,0,1,-10,1*11);
+            ui_at(ui, ui_x, y+1 );
+
+            if( ui_click(NULL, "\xf\b\b\b\xf") ) cmdkey = 'prev';
+            if( ui_click(NULL, "%c\b\b\b%c", PLAY_CHR, PLAY_CHR) ) cmdkey = 'next';
+            if( ui_click(NULL, "■") ) cmdkey = 'stop';
+#if 0
+            ui_x += 2;
+            if( ui_click(NULL, "\xe") ) active ^= 1;
+            ui_x += 1;
+            if( ZX_AUTOPLAY )
+            if( ui_click(NULL, "P%d,", autoplay));
+            if( ZX_AUTOSTOP )
+            if( ui_click(NULL, "S%d", autostop));
+#endif
         }
 
         // bottom slider. @todo: rewrite this into a RZX player/recorder
@@ -1226,9 +1245,12 @@ int main() {
         ui_frame();
         input();
 
-        int tape_accelerated = tape_inserted() && tape_peek() == 'o' ? 0 
-            : tape_playing() && (ZX_FASTTAPE || ZX_FASTCPU);
-        if( tape_accelerated && active ) tape_accelerated = 0;
+        int likely_loading = (PC(cpu) & 0xFF00) == 0x0500 ? 1 : tape_hz > 40;
+
+        int tape_accelerated = ZX_FASTCPU ? 1
+            : tape_inserted() && tape_peek() == 'o' ? 0 
+            : tape_playing() && likely_loading && ZX_FASTTAPE;
+        if( active ) tape_accelerated = 0;
 
         // z80, ula, audio, etc
         // static int frame = 0; ++frame;
@@ -1422,7 +1444,7 @@ if( do_runahead == 0 ) {
             break; case 'prev':  tape_prev();
             break; case 'next':  tape_next();
             break; case 'stop':  tape_stop();
-            break; case  'F8':   ZX_FASTTAPE ^= 1;
+            break; case 'ffwd':  ZX_FASTTAPE ^= 1;
             // cycle tv modes
             break; case  'F9':   { static int mode = 0; do_once mode = ZX_CRT << 1 | ZX_RF; mode = (mode + 1) & 3; ZX_RF = mode & 1; crt( ZX_CRT = !!(mode & 2) ); }
             break; case 'F11':   quicksave(0);
@@ -1452,13 +1474,18 @@ if( do_runahead == 0 ) {
             break; case 'GUNS':  ZX_GUNSTICK ^= 1;   if(ZX_GUNSTICK) ZX_MOUSE = 0, ZX_JOYSTICK = 0; // cycle guns
             break; case 'MICE':  ZX_MOUSE ^= 1;      if(ZX_MOUSE) ZX_GUNSTICK = 0;                  // cycle kempston mouse(s)
             break; case 'PLUS':  ZX_ULAPLUS ^= 1;    // cycle ulaplus
-            break; case 'AUTO':  ZX_AUTOPLAY ^= 1;   // cycle autoplay command
             break; case 'RUN':   ZX_RUNAHEAD ^= 1;   // cycle runahead mode
             break; case 'DEV':   ZX_DEBUG ^= 1;
             break; case 'KL':    ZX_KLMODE ^= 1, ZX_KLMODE_PATCH_NEEDED = 1;
 
             // break; case 'POLR':  mic_low ^= 64;
-            break; case 'ISSU':  issue2 ^=1; reset(KEEP_MEDIA); loadfile(last_load,1); // toggle rom
+            break; case 'ISSU':
+                                    issue2 ^= 1;
+
+                                    int do_reset = tape_playing() && q.debug && !strchr("uol", q.debug);
+                                    if( do_reset ) {
+                                        reset(KEEP_MEDIA), loadfile(last_load,1);
+                                    }
 
             //break; case 'FPS':   { const float table[] = { [0]=1,[10]=1.2,[12]=2,[20]=4,[40]=0 }; ZX_FPS = table[(int)(ZX_FPS*10)]; }
             break; case 'FPS':   { const float table[] = { [10]=1.2,[12]=1 }; ZX_FPS = table[(int)(ZX_FPS*10)]; }
