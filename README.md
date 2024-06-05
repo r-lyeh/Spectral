@@ -12,17 +12,19 @@ Code is highly experimental and prone to change in the future. I will keep alter
 ## Features and wishlist
 - [x] Single executable.
 - [x] Z80. Z80 Disassembler.
-- [x] 16, 48, 128, +2, +2A, +3/FDC, Pentagon128/Betadisk models.
+- [x] 16, 48, 128, +2, +2A, +3, Pentagon128 models.
 - [x] Issue 2/3 keyboards.
-- [x] ULA/ULA+.
-- [x] Beeper/AY.
+- [x] ULA/ULA+ graphics.
+- [x] Beeper/AY chips.
 - [x] Kempston mouse. <!-- @todo: AMX mouse.-->
 - [x] Kempston/Fuller/Cursor/Sinclair joysticks.
 - [x] RF/CRT experience (not physically accurate though).
-- [x] TAP/TZX/CSW/Z80/SNA/ROM/IF2/SCR/ZIP support. <!-- @todo: tzx info on window title -->
-- [x] DSK/EDSK/TRD/SCL/FDI/MGT/IMG/HOBETA support.
+- [x] TAP/TZX/CSW tapes. Z80/SNA snaps. ROM/IF2 roms. <!-- @todo: tzx info on window title -->
+- [x] DSK/EDSK/TRD/SCL/FDI/MGT/IMG/HOBETA disks.
 - [x] SCR/PNG screenshots. <!-- ulaplus screenshots. video recording -->
-- [x] Load games easily. Turbo loads. Auto play/stop tape.
+- [x] ZIP/RAR archives.
+- [x] µ765/Betadisk interfaces.
+- [x] Auto load games. Auto play/stop tape. Turbo loads.
 - [x] Game browser. <!-- @todo: rewrite this -->
 - [x] Graphical tape browser.
 - [x] 50/60Hz fps lock.
@@ -32,6 +34,7 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - [x] External shaders support.
 - [x] Internal savestates.
 - [x] Graphical User Interface.
+- [x] Portable: Windows, Linux, MacOS.
 - [ ] ZXDB integration.
 - [ ] Gallery marquee. <!-- Flex. Tape cases. ZX catalog on demand. -->
 - [ ] Extra accurate Z80 backend. <!-- @todo: contended mem, contended ports, memptr, snow, Q, floating bus (+2a/+3) -->
@@ -40,7 +43,6 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - [ ] Gamepad support. <!-- Invert joystick/mouse axes/buttons -->
 - [ ] MP3s.
 - [ ] Netplay.
-- [ ] Portable.
 - [ ] Optimized.
 - [x] Unlicensed.
 
@@ -61,6 +63,9 @@ Here are some keyboard shortcuts, though:
 - F11/F12: Quick save/load
 - ALT+ENTER: Fullscreen
 - TAB+CURSORS: Joysticks
+
+## Build
+Windows users double click `MAKE.bat` file. OSX/Linux users can run `sh MAKE.bat`.
 
 ## Credits
 Andre Weissflog, for their many single-header libraries! (Zlib licensed). Peter Sovietov and wermipls, for their accurate AY chip emulator (MIT licensed). Ulrich Doewich and Colin Pitrat, for their uPD765A floppy disk controller (GPL licensed). Marat Fayzullin for their WD1793/FDI controllers (Propietary). Potapov Vsevolod Viktorovich for their rusfaq website. Andrew Owen and Geoff Wearmouth for their custom ROMs. Simon Owen for their DSK technical websites. Santiago Romero, Philip Kendall, James McKay for their FOSS emulators. Damian Vila for their BESCII truetype font (CC-1.0). lalaoopybee, for their lovely tube shader. Günter Woigk, Juan Carlos González Amestoy and David Colmenero for their floppy sound recordings. The ZX Spectrum Discord folks. All the ZX community!

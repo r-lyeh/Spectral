@@ -6,15 +6,14 @@
 // @todo: break on data condition, poke finder
 
 unsigned dasm_pc;
-char dasm_str[128] = {0};
+char dasm_str[128+1] = {0};
 uint8_t z80dasm_read(void *user_data) {
     uint8_t data = READ8(dasm_pc);
     return ++dasm_pc, data;
 }
-uint8_t z80dasm_write(char c, void *user_data) {
+void z80dasm_write(char c, void *user_data) {
     char buf[2] = { c/*tolower(c)*/, 0};
     strncat(dasm_str, buf, 128);
-    return 0;
 }
 char* z80dasm(unsigned pc) {
     int bytes = (*dasm_str = 0, z80dasm_op(dasm_pc = pc, z80dasm_read, z80dasm_write, NULL) - pc);

@@ -132,8 +132,8 @@ int sna_load(const byte *src, int size) {
 #endif
 
 #if 0 // def NEWCORE
-    AF(cpu) = _byteswap_ushort(AF(cpu));
-    AF2(cpu) = _byteswap_ushort(AF2(cpu));
+    AF(cpu) = bswap16(AF(cpu));
+    AF2(cpu) = bswap16(AF2(cpu));
 #endif
 
     outport(0xFE, ZXBorderColor);
@@ -345,8 +345,8 @@ if (tam==65535) sig-=49151;
     outport(0xFE, ZXBorderColor);
 
 #if 1 // def NEWCORE
-    AF(cpu) = _byteswap_ushort(AF(cpu));
-    AF2(cpu) = _byteswap_ushort(AF2(cpu));
+    AF(cpu) = bswap16(AF(cpu));
+    AF2(cpu) = bswap16(AF2(cpu));
 #endif
 
     printf("z80 v%d (rle:%d) (machine:%d)\n", ver, ver_rle, buffer[34]);
@@ -410,7 +410,7 @@ int pok_load(const byte *src, int len) {
     return 0;
 }
 
-int guess(byte *ptr, int size) { // guess required model type for given data
+int guess(const byte *ptr, int size) { // guess required model type for given data
     // dsk first
     if( !memcmp(ptr, "MV - CPC", 8) || !memcmp(ptr, "EXTENDED", 8) ) return 300;
 

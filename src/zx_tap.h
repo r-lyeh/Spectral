@@ -243,7 +243,7 @@ byte mic_read(uint64_t tstates) {
 
 // --- tap loading
 
-int tap_load(void *fp, int siz) {
+int tap_load(const void *fp, int siz) {
     if( memcmp(fp, "\x13\x00", 2) ) return 0;
 
     tape_reset();
@@ -258,7 +258,7 @@ int tap_load(void *fp, int siz) {
         byte *checksum = pos + 2 + bytes - 1; *checksum = 0;
         for( unsigned i = 0; i < (bytes - 1); ++i ) *checksum ^= pos[2+i];
 
-        printf("tap.block %003d (%s) %u bytes\n",block,pos[2] ? "HEAD":"DATA", bytes - 2);
+        printf("tap.block %03d (%s) %u bytes\n",block,pos[2] ? "HEAD":"DATA", bytes - 2);
 
         // data(2s) or header(5s) block?
         tape_render_standard(pos+2, bytes, pos[2] < 128 ? DELAY_HEADER : DELAY_DATA);

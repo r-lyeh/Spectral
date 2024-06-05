@@ -57,3 +57,27 @@ int db_get(const char *key) {
 //  fprintf(stderr, "%s=%d\n", key, value);
     return value;
 }
+
+void cwdexe(void) {
+#ifdef __APPLE__
+    char buffer[MAX_PATH]={0};
+    realpath(__argv[0],buffer);
+    puts(buffer);
+    if(strrchr(buffer,'/')) 1[strrchr(buffer,'/')] = '\0';
+    puts(buffer);
+    chdir(buffer);
+#elif defined _WIN32
+    // relocate cwd to exe folder (relative paths wont work from this point)
+    char path[MAX_PATH]={0};
+    GetModuleFileName(0,path,MAX_PATH);
+    *strrchr(path, '\\') = '\0';
+    SetCurrentDirectoryA(path);
+#else
+    char buffer[MAX_PATH];
+    char path[32] = {0};
+    sprintf(path, "/proc/%d/exe", getpid());
+    readlink(path, buffer, sizeof(buffer));
+    if(strrchr(buffer,'/')) 1[strrchr(buffer,'/')] = '\0';
+    chdir(buffer);
+#endif
+}

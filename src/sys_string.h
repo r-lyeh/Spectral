@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdarg.h>
+#include <string.h>
 char* va(const char *fmt, ...) {
     static char buf[16][1024];
     static int l = 0; l = (l+1) % 16;
@@ -47,6 +48,7 @@ int qsort_strcmp(const void * a, const void * b ) {
 }
 
 // find a mem blob in a mem section; similar to strstr()
+#define memmem memmem2 // archlinux
 const void *memmem(const void *block, size_t blocklen, const void * const bits, const size_t bitslen) {
     if((uintptr_t)block * blocklen * (uintptr_t)bits * bitslen)
     for (const char *h = block; blocklen >= bitslen; ++h, --blocklen) {

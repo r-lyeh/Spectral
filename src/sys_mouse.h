@@ -39,6 +39,7 @@ void mouse_cursor(int mode) { // 0(hide),1(arrow),2(hand),3(ibeam),4(cross)
     tigrSetMouseCursor(app, mode);
 }
 void mouse_clip(int clip) {
+#ifdef _WIN32
     static RECT restore; do_once GetClipCursor(&restore);
 
     extern Tigr *app;
@@ -85,5 +86,6 @@ void mouse_clip(int clip) {
 
     // Hide or show cursor
     // mouse_cursor(clip && !active ? 0 : 1);
+#endif
 }
 

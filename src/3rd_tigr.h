@@ -285,6 +285,7 @@ typedef enum {
     TK_INSERT,TK_DELETE,TK_LWIN,TK_RWIN,TK_NUMLOCK,TK_SCROLL,TK_LSHIFT,TK_RSHIFT,
     TK_LCONTROL,TK_RCONTROL,TK_LALT,TK_RALT,TK_SEMICOLON,TK_EQUALS,TK_COMMA,TK_MINUS,
     TK_DOT,TK_SLASH,TK_BACKTICK,TK_LSQUARE,TK_BACKSLASH,TK_RSQUARE,TK_TICK
+    ,TK_PRINT //< @r-lyeh
 } TKey;
 
 // Returns mouse input for a window.
@@ -492,6 +493,7 @@ typedef struct {
     char released[256];
 #endif  // __ANDROID__
 #if defined(__MACOS__)
+    id window; //< @r-lyeh: ok?
     int mouseInView;
     int mouseButtons;
 #endif  // __MACOS__
@@ -514,6 +516,8 @@ void tigrGAPIDestroy(Tigr* bmp);
 int tigrGAPIBegin(Tigr* bmp);
 int tigrGAPIEnd(Tigr* bmp);
 void tigrGAPIPresent(Tigr* bmp, int w, int h);
+
+#include "3rd_tigrdragndrop.h" //< @r-lyeh
 
 #endif
 
@@ -2525,8 +2529,6 @@ static BOOL UnadjustWindowRectEx(LPRECT prc, DWORD dwStyle, BOOL fMenu, DWORD dw
     return fRc;
 }
 
-#include "3rd_tigrdragndrop.h" // @r-lyeh
-
 LRESULT CALLBACK tigrWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     Tigr* bmp;
     TigrInternal* win = NULL;
@@ -2542,7 +2544,7 @@ LRESULT CALLBACK tigrWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         win = tigrInternal(bmp);
 
     switch (message) {
-        TIGR_DROP_MESSAGE(hWnd, wParam) // @r-lyeh
+        TIGR_HANDLE_DRAG_N_DROP(hWnd, wParam) // @r-lyeh
 
         case WM_PAINT:
             if (!tigrGAPIBegin(bmp)) {
@@ -2674,6 +2676,9 @@ LRESULT CALLBACK tigrWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
             if (LOWORD(wParam) == VK_RETURN)
                 return MNC_CLOSE << 16;
             return DefWindowProcW(hWnd, message, wParam, lParam);
+        case WM_HOTKEY:
+            if( wParam == 1/*HOTKEY_PRINTSCREEN*/ ) wParam = VK_SNAPSHOT;
+            // fall-thru
         case WM_SYSKEYDOWN:
             if (win) {
                 if (wParam == VK_RETURN) {
@@ -2808,6 +2813,9 @@ Tigr* tigrWindow(int w, int h, const char* title, int flags) {
     wglSwapIntervalEXT_ = (PFNWGLSWAPINTERVALFARPROC_)wglGetProcAddress("wglSwapIntervalEXT");
     if (wglSwapIntervalEXT_)
         wglSwapIntervalEXT_(0); //< @r-lyeh 1->0
+
+    enum Hotkeys { UNUSED = 0, HOTKEY_PRINTSCREEN = 1 };
+    RegisterHotKey(hWnd, HOTKEY_PRINTSCREEN, 0, VK_SNAPSHOT); //< @r-lyeh: VK_SNAPSHOT
 
     return bmp;
 }
@@ -3034,6 +3042,8 @@ static int tigrWinVK(int key) {
             return VK_OEM_6;
         case TK_TICK:
             return VK_OEM_7;
+        case TK_PRINT: //< @r-lyeh
+            return VK_SNAPSHOT; //< @r-lyeh
     }
     return 0;
 }
@@ -3190,14 +3200,16 @@ typedef CGPoint NSPoint;
 typedef CGSize NSSize;
 typedef CGRect NSRect;
 
+#ifndef __OBJC__ //< @r-lyeh
 enum {
     NSKeyDown = 10,
-    NSKeyDownMask = 1 << NSKeyDown,
+    NSEventMaskKeyDown = 1 << NSKeyDown,
     NSKeyUp = 11,
-    NSKeyUpMask = 1 << NSKeyUp,
+    NSEventMaskKeyUp = 1 << NSKeyUp,
 };
 
-NSUInteger NSAllEventMask = NSUIntegerMax;
+const NSUInteger NSEventMaskAny = NSUIntegerMax;
+#endif
 
 extern id NSApp;
 extern id const NSDefaultRunLoopMode;
@@ -3409,15 +3421,16 @@ NSSize _tigrContentBackingSize(id window) {
     return rect.size;
 }
 
+#ifndef __OBJC__ //< @r-lyeh
 enum {
     NSWindowStyleMaskTitled = 1 << 0,
     NSWindowStyleMaskClosable = 1 << 1,
     NSWindowStyleMaskMiniaturizable = 1 << 2,
     NSWindowStyleMaskResizable = 1 << 3,
-    NSWindowStyleRegular = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable |
-                           NSWindowStyleMaskResizable,
     NSWindowStyleMaskFullSizeContentView = 1 << 15
 };
+#endif
+enum { NSWindowStyleRegular = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable, }; //< @r-lyeh
 
 Tigr* tigrWindow(int w, int h, const char* title, int flags) {
     Tigr* bmp;
@@ -3460,6 +3473,10 @@ Tigr* tigrWindow(int w, int h, const char* title, int flags) {
     addMethod(WindowDelegateClass, "windowDidBecomeKey:", windowDidBecomeKey, "v@:@");
     addMethod(WindowDelegateClass, "mouseEntered:", mouseEntered, "v@:@");
     addMethod(WindowDelegateClass, "mouseExited:", mouseExited, "v@:@");
+
+#ifdef TIGR_HANDLE_DRAG_N_DROP
+    TIGR_HANDLE_DRAG_N_DROP(WindowDelegateClass);
+#endif
 
     id wdgAlloc = objc_msgSend_id((id)WindowDelegateClass, sel("alloc"));
     id wdg = objc_msgSend_id(wdgAlloc, sel("init"));
@@ -3549,6 +3566,7 @@ Tigr* tigrWindow(int w, int h, const char* title, int flags) {
 
     // Set up the Windows parts.
     win = tigrInternal(bmp);
+    win->window = window; //< @r-lyeh: ok?
     win->shown = 0;
     win->closed = 0;
     win->scale = bitmapScale;
@@ -4055,12 +4073,12 @@ void tigrUpdate(Tigr* bmp) {
     }
 
     id keyWindow = objc_msgSend_id(NSApp, sel("keyWindow"));
-    unsigned long long eventMask = NSAllEventMask;
+    unsigned long long eventMask = NSEventMaskAny; //< @r-lyeh: NSAllEventMask to NSEventMaskAny
 
     if (keyWindow == window) {
         memcpy(win->prev, win->keys, 256);
     } else {
-        eventMask &= ~(NSKeyDownMask | NSKeyUpMask);
+        eventMask &= ~(NSEventMaskKeyDown | NSEventMaskKeyUp);
     }
 
     id event = 0;
@@ -5231,6 +5249,8 @@ uint8_t tigrKeyFromX11(KeySym sym) {
             return TK_RSQUARE;
         case XK_apostrophe:
             return TK_TICK;
+        case XK_Print: //< @r-lyeh
+            return TK_PRINT; //< @r-lyeh
     }
     return 0;
 }
@@ -5332,7 +5352,15 @@ static void tigrProcessInput(TigrInternal* win, int winWidth, int winHeight) {
             XDestroyWindow(win->dpy, win->win);
             win->win = 0;
         }
+        #ifdef TIGR_HANDLE_DRAG_N_DROP
+        if( !TIGR_HANDLE_DRAG_N_DROP(win, event) ) break;
+        #endif
     }
+    #ifdef TIGR_HANDLE_DRAG_N_DROP
+    while (XCheckTypedWindowEvent(win->dpy, win->win, SelectionNotify, &event)) {
+        if( !TIGR_HANDLE_DRAG_N_DROP(win, event) ) break;
+    }
+    #endif
     XFlush(win->dpy);
 }
 

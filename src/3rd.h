@@ -5,6 +5,7 @@
 #define TIGR_DO_NOT_PRESERVE_WINDOW_POSITION
 #include "3rd_tigr.h"
 #include "3rd_tigrmousecursor.h"
+#include "3rd_tigrdragndrop.h"
 
 #if 0
 #define LUA_IMPL                              // lua544
@@ -24,8 +25,18 @@
 #include "3rd_zlib.h" // for zlib streams, like CSW2
 #define ZIP_C
 #include "3rd_zip.h"
+#include "3rd_rar.h"
 #define DIR_C
 #include "3rd_dir.h"
+
+#if 0 // defined __has_include
+#	if __has_include ("3rd_sqlite3.c")
+// 		gcc: #pragma GCC warning "warning message"
+// 		msc: #pragma message ( "your warning text here" ) // works in gcc too, albeit not as intended
+#		pragma message ("ZXDB/Sqlite enabled")
+#		define SQLITE_C 1
+#	endif
+#endif
 
 #if SQLITE_C
 //#include "3rd_sqlite3.h"
@@ -41,6 +52,7 @@
 #undef TK_MINUS
 #undef TK_DOT
 #undef TK_SLASH
+#undef NB
 #endif
 
 #include "3rd_bin.h"

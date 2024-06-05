@@ -3,15 +3,14 @@
 // runahead
 // - bonanza bros.dsk
 
-// buzz
-// - P47Thunderbolt
-// - OddiTheViking128
-
 // tape buttons
 
-// 128/+2
-// - parapshock should break; it doesnt
+// pentagon
+// - bordertrix
 
+// 128/+2:
+// - parapshock should break; it doesnt
+// - parapshock + turborom
 // .ay files:
 // - could use ay2sna again in the future
 // .dsk files:
@@ -34,6 +33,7 @@
 // beeper:
 // - fix: indiana jones last crusade
 // - p-47 in-game click sound (ayumi? beeper?). double check against real zx spectrum
+// - OddiTheViking128
 // crash (vsync/int line?):
 // - hostages(erbe) +2, +3 versions. 48 is ok.
 // disciple/plusd/mgt (lack of):
@@ -52,6 +52,13 @@
 // - AY should clock at 1.75 MHz exact, CPU at 3.50 MHz exact
 // - no autoboot (autoboot is activated by paging in TR-DOS rom and jumping to 0)
 //   "Unreal Speccy Portable checks for a boot.B file in firsts sectors. If not found, send two keystrokes (Enter). That only makes sense on Pentagon machines with the reset service rom (gluck), the first Enter show a list of files and the latter selects the first file."
+// ports:
+// - linux: no mouse clip
+// - osx: no mouse clip
+// - osx: no icons; see https://gist.github.com/oubiwann/453744744da1141ccc542ff75b47e0cf
+// - osx: no cursors; https://stackoverflow.com/questions/30269329/creating-a-windowed-application-in-pure-c-on-macos
+// - osx: no drag n drop
+// - osx: retina too heavy?
 // timing:
 // - border: sentinel, defenders of earth, dark star, super wonder boy (pause)
 // - border: aquaplane, olympic games, vectron, mask3, jaws, platoon
@@ -64,12 +71,6 @@
 // - x4,x6 modes not working anymore. half bits either.
 // tzx:
 // - flow,gdb
-
-#if NDEBUG >= 2
-#define DEV 0
-#else
-#define DEV 1
-#endif
 
 FILE *printer;
 
@@ -234,7 +235,7 @@ struct media_t {
 } media[16];
 int medias;
 void media_reset() { medias = 0; for(int i=0;i<16;++i) media[i].bin = realloc(media[i].bin, media[i].len = media[i].pos = 0); }
-void media_mount(byte *bin, int len) { media[medias].bin = memcpy(realloc(media[medias].bin, media[medias].len = len), bin, len), media[medias].pos = 0, medias++; }
+void media_mount(const byte *bin, int len) { media[medias].bin = memcpy(realloc(media[medias].bin, media[medias].len = len), bin, len), media[medias].pos = 0, medias++; }
 
 #include "zx_dis.h"
 #include "zx_rom.h"
@@ -243,14 +244,14 @@ void media_mount(byte *bin, int len) { media[medias].bin = memcpy(realloc(media[
 #include "zx_tzx.h"
 #include "zx_sna.h" // requires page128, ZXBorderColor
 
-enum { ALL_FILES = 0, GAMES_ONLY = 3*4, TAPES_AND_DISKS_ONLY = 6*4, DISKS_ONLY = 9*4 };
+enum { ALL_FILES = 0, GAMES_ONLY = 4*4, TAPES_AND_DISKS_ONLY = 7*4, DISKS_ONLY = 10*4 };
 int file_is_supported(const char *filename, int skip) {
     const char *ext = strrchr(filename ? filename : "", '.');
-    return ext && strstri(skip+".zip.pok.scr.rom.sna.z80.tap.tzx.csw.dsk.img.mgt.trd.fdi.scl.$b.$c.", ext);
+    return ext && strstri(skip+".zip.rar.pok.scr.rom.sna.z80.tap.tzx.csw.dsk.img.mgt.trd.fdi.scl.$b.$c.", ext);
 }
 
 // 0: cannot load, 1: snapshot loaded, 2: tape loaded, 3: disk loaded
-int loadbin_(byte *ptr, int size, int preloader) {
+int loadbin_(const byte *ptr, int size, int preloader) {
     if(!(ptr && size))
         return 0;
 
@@ -331,7 +332,7 @@ int loadbin_(byte *ptr, int size, int preloader) {
     return 0;
 }
 
-int loadbin(byte *ptr, int size, int preloader) {
+int loadbin(const byte *ptr, int size, int preloader) {
     if(!(ptr && size > 87))
         return 0;
 
@@ -351,7 +352,7 @@ int loadfile(const char *file, int preloader) {
 
     char *ptr = 0; size_t size = 0;
     void *zip_read(const char *filename, size_t *size);
-    if( strstr(file, ".zip") ) {
+    if( strstr(file, ".zip") || strstr(file,".rar") ) {
         ptr = zip_read(file, &size); // @leak
 
         if( ptr ) {
@@ -360,6 +361,14 @@ int loadfile(const char *file, int preloader) {
             for( unsigned i = 0 ; i < zip_count(z); ++i ) {
                 if( file_is_supported(zip_name(z,i), GAMES_ONLY) ) {
                     file = va("%s",zip_name(z,i));
+                    break;
+                }
+            }
+            // update file from archived filename. use 1st entry if multiple entries on zipfile are found
+            for( rar *r = rar_open(file, "rb"); r; rar_close(r), r = 0 )
+            for( unsigned i = 0 ; i < rar_count(r); ++i ) {
+                if( file_is_supported(rar_name(r,i), GAMES_ONLY) ) {
+                    file = va("%s",rar_name(r,i));
                     break;
                 }
             }
@@ -383,7 +392,8 @@ int loadfile(const char *file, int preloader) {
     const char *extensions = ".img.mgt.trd.fdi.scl.$b .$c ."; // order must match FMT enum definitions in FDI header
     const char *extfound = ext ? strstri(extensions, ext) : NULL;
     if( extfound ) {
-        int format = FMT_AUTO + ( extfound - extensions ) / 3;
+        printf("found ext: %d\n", (int)(extfound - extensions) );
+        int format = FMT_IMG + ( extfound - extensions ) / 4;
         if( format > FMT_HOBETA ) format = FMT_HOBETA;
         printf(
             "FMT_IMG = %d\n"
@@ -404,6 +414,14 @@ int loadfile(const char *file, int preloader) {
             ZX_PENTAGON = 1;
             ZX = 128;
             boot(ZX, KEEP_MEDIA);
+
+            // type RUN+ENTER if bootable disk found
+            extern window *app;
+            if( !window_pressed(app, TK_SHIFT) )
+            if( memmem(ptr, size, "boot    B", 9) ) {
+                loadbin(ldtrdos, ldtrdos_length, 0);
+            }
+
             return 1;
         }
     }
@@ -1116,7 +1134,7 @@ void sys_audio() {
 
     // tick the AY (half frequency)
     static float ay_sample1 = 0, ay_sample2 = 0; enum { ayumi_fast = 0 };
-    static byte even = ~0u; ++even;
+    static byte even = 255; ++even;
     if( ZX_AY & 1 ) if(!(even & 0x7F)) ay_sample1 = ayumi_render(&ayumi, ayumi_fast, 1) * 2; // 2/256 freq. even == 0 || even == 0x80
     if( ZX_AY & 2 ) if( even & 1 ) ay38910_tick(&ay), ay_sample2 = ay.sample; // half frequency
 

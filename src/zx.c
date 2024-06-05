@@ -1,4 +1,18 @@
-#define SPECTRAL "v0.7"
+// # build (windows)
+// cl zx.c /Fe..\Spectral.exe /O2 /MT /DNDEBUG=3 /GL /GF /arch:AVX2
+//
+// # build (linux, debian)
+// sudo apt-get install mesa-common-dev libx11-dev gcc libgl1-mesa-dev libasound2-dev
+// gcc zx.c -o ../Spectral -O3 -DNDEBUG=3 -Wno-unused-result -Wno-format -Wno-multichar -lm -ldl -lX11 -lGL -lasound -lpthread
+//
+// # done
+// cpu, ula, mem, rom, 48/128, key, joy, ula+, tap, ay, beep, sna/128, fps, tzx, if2, zip, rf, menu, kms, z80, scr,
+// key2/3, +2a/+3, fdc, dsk, autotape, gui, KL modes, load "" code, +3 fdc sounds, +3 speedlock, issue 2/3,
+// pentagon, trdos, trdos (boot), translate game menus, 50/60 hz,
+// glue sequential tzx/taps in zips (side A) -> side 1 etc)
+// sequential tzx/taps/dsks do not reset model
+
+#define SPECTRAL "v0.8"
 
 #define README \
 "Spectral can be configured with a mouse.\n" \
@@ -17,28 +31,20 @@
 "- ALT+ENTER: Fullscreen\n" \
 "- TAB+CURSORS: Joysticks\n"
 
-// # build (windows)
-// cl run.c /O2 /MT /DNDEBUG /GL /GF /arch:AVX2
-//
-// # build (linux)
-// sudo apt-get install mesa-common-dev libx11-dev gcc libgl1-mesa-dev
-// gcc run.c -Wno-unused-result -Wno-format -lm -ldl -lX11 -lpthread -lGL -O3
-//
+#if NDEBUG >= 2
+#define DEV 0
+#else
+#define DEV 1
+#endif
+
+
 // ref: http://www.zxdesign.info/vidparam.shtml
 // https://worldofspectrum.org/faq/reference/48kreference.htm
 // https://faqwiki.zxnet.co.uk/wiki/ULAplus
 // https://foro.speccy.org/viewtopic.php?t=2319
 
-//
-// done
-// cpu, ula, mem, rom, 48/128, key, joy, ula+, tap, ay, beep, sna/128, fps, tzx, if2, zip, rf, menu, kms, z80, scr,
-// key2/3, +2a/+3, fdc, dsk, autotape, gui, KL modes, load "" code, +3 fdc sounds, +3 speedlock,
-// pentagon, trdos, translate game menus, 50/60 hz,
-// [x] glue sequential tzx/taps in zips (side A) -> side 1 etc)
-// [x] sequential tzx/taps/dsks do not reset model
-
 // @todo:
-// [ ] ui_inputbox()
+// [ ] ui_inputbox(). remove prompt()
 // [ ] widescreen fake borders
 // [ ] animated states
 // [ ] auto-saves, then F11 to rewind. use bottom bar
@@ -48,21 +54,28 @@
 // [ ] db interface [optionally: y/n/why]
 //     [hearts] NUM. Title(F2 to rename)   [ghost-load*][ghost-run*][ghost-play*][ghost-snd*] [*:white,red,yellow,green]
 //     on hover: show animated state if exists. show loading screen otherwise.
-// [ ] es2en auto-translations:
-//     - auto-translation IZQUIERD. DERECH. ABAJ. ARRIB. SALTA. DISPAR. FUEG. PAUS. ABORT.
-//     - INSTRUCCIONE. TECLAD.
+//
 // idea: when stop-block is off
 // - turn autoplay=off
 // - wait silently for any key to be pressed, then turn autoplay=on again
 //
 // todo (tapes)
-// [ ] remove prompt() calls. create ui_inputbox() instead
 // [ ] overlay ETA
 // [ ] auto rewind
 // [ ] auto-rewind at end of tape if multiload found (auto-stop detected)
 // [ ] auto-insert next tape at end of tape (merge both during tzx_load! argv[1] argv[2])
 // [ ] when first stop-the-tape block is reached, trim everything to the left, so first next block will be located at 0% progress bar
 // [ ] trap rom loading, edge detection
+// [ ] glue consecutive tzx/taps in disk
+// [ ] glue: do not glue two consecutive tapes if size && hash match (both sides are same)
+// [ ] glue: if tape1 does not start with a basic block, swap tapes
+// [ ] prefer programs in tape with "128" string on them (barbarian 2; dragon ninja)
+//     - if not found, and a "48" string is found, switch model to 48k automatically
+// score128: 128 in filename + memcmp("19XY") X <= 8 Y < 5 + sizeof(tape) + memfind("in ayffe") + side b > 48k + program name "128" + filename128  -> load as 128, anything else: load as usr0
+//      if single bank > 49k (navy seals), if size(tap)>128k multiload (outrun)
+// test autotape with: test joeblade2,atlantis,vegasolaris,amc
+// find 1bas-then-1code pairs within tapes. provide a prompt() call if there are more than 1 pair in the tape
+//     then, deprecate 0x28 block
 
 // notes about TESTS mode:
 // - scans src/tests/ folder
@@ -74,15 +87,6 @@
 // @todo: tests
 // - send keys via cmdline: "--keys 1,wait,wait,2"
 // - send termination time "--maxidle 300"
-
-// [ ] glue consecutive tzx/taps in disk
-// [ ] glue: do not glue two consecutive tapes if size && hash match (both sides are same)
-// [ ] glue: if tape1 does not start with a basic block, swap tapes
-// [ ] prefer programs in tape with "128" string on them (barbarian 2; dragon ninja)
-//     - if not found, and a "48" string is found, switch model to 48k automatically
-// score128: 128 in filename + memcmp("19XY") X <= 8 Y < 5 + sizeof(tape) + memfind("in ayffe") + side b > 48k + program name "128" + filename128  -> load as 128, anything else: load as usr0
-//      if single bank > 49k (navy seals), if size(tap)>128k multiload (outrun)
-// test autotape with: test joeblade2,atlantis,vegasolaris,amc
 
 // try
 // https://github.com/anotherlin/z80emu
@@ -100,6 +104,12 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <ctype.h>
+
+#if !DEV // disable console logging in release builds (needed for linux/osx targets)
+#define printf(...) 0
+#define puts(...)   1
+#endif
 
 enum { _320 = 352, _319 = _320-1, _321 = _320+1, _32 = (_320-256)/2 };
 enum { _240 = 288, _239 = _240-1, _241 = _240+1, _24 = (_240-192)/2 };
@@ -331,16 +341,25 @@ const char *shader =
     "    vec2 crtUV = uv;\n"
     "    vec2 edge = vec2(1.,1.);\n"
 #endif
+
 #if 1
     "    /* chromatic aberration */\n"
-    "    fragColor.rgb=vec3(\n"
+    "    vec3 color = vec3(\n"
     "        texture(image, (crtUV-.5)*CA_AMT+.5).r,\n"
     "        texture(image, crtUV).g,\n"
     "        texture(image, (crtUV-.5)/CA_AMT+.5).b\n"
-    "    )*edge.x*edge.y;\n"
-#else
-    "    fragColor = texture(image, crtUV) * edge.x * edge.y;\n"
+    "    );\n"
 #endif
+
+#if 1
+    "    /* tv refresh line*/\n"
+    "    float tvline = mod(parameters.x / -12.5, 1) - uv.y; // params.x @ 50hz, make it x12.5 slower so it's less distracting; neg sign for upwards dir\n"
+    "    if(tvline > 0 && tvline < 0.03f) color.rgb -= tvline;\n"
+#endif
+
+    "    /* mix up */\n"
+    "    fragColor.rgb = color * edge.x * edge.y;\n"
+
 #if 0
     "    /* diodes */\n"
     "    if(mod(fragCoord.y, 2.)<1.) fragColor.rgb*=.95;\n"
@@ -401,6 +420,39 @@ void *zip_read(const char *filename, size_t *size) {
     char *alpha_tapes[64] = {0};
     int count_tapes = 0;
 
+    // quick rar test
+    rar *r = rar_open(filename, "rb");
+    if( r ) {
+        for( unsigned i = 0 ; count_tapes < 64 && i < rar_count(r); ++i ) {
+            if( !file_is_supported(rar_name(r,i), ALL_FILES) ) continue;
+
+            printf("  %d) ", i+1);
+            printf("[%08X] ", rar_hash(r,i));
+            printf("$%02X ", rar_codec(r,i));
+            printf("%s ", rar_modt(r,i));
+            printf("%5s ", rar_file(r,i) ? "" : "<dir>");
+            printf("%11u ", rar_size(r,i));
+            printf("%s ", rar_name(r,i));
+            void *data = rar_extract(r,i);
+            printf("\r%c\n", data ? 'Y':'N'); // %.*s\n", rar_size(r,i), (char*)data);
+
+            // append data to merge
+            glue(data, rar_size(r,i));
+            if(size) *size = merge_len;
+            rar_free(r,data);
+
+            // keeping glueing tapes
+            if(strstr(rar_name(r,i),".tap") || strstr(rar_name(r,i),".tzx")) {
+            continue;
+            }
+            break;
+        }
+
+        rar_close(r);
+        return merge;
+    }
+
+
     // test contents of file
     zip *z = zip_open(filename, "rb");
     if( z ) {
@@ -443,7 +495,7 @@ void *zip_read(const char *filename, size_t *size) {
         zip_close(z);
         return merge;
     } else {
-        printf("error: bad %s zip\n", filename);
+        printf("error: bad %s archive\n", filename);
     }
     return 0;
 }
@@ -505,10 +557,7 @@ void input() {
     if( window_trigger(app, TK_F11) )    cmdkey = 'F11';
     if( window_trigger(app, TK_F12) )    cmdkey = 'F12';
 
-    static int prev = 0;
-    int key = !!(GetAsyncKeyState(VK_SNAPSHOT) & 0x8000);
-    if( key ^ prev ) cmdkey = 'PIC1';
-    prev = key;
+    if( window_trigger(app, TK_PRINT) )  cmdkey = 'PIC1';
 }
 
 
@@ -651,7 +700,7 @@ char **games;
 int *dbgames;
 int numgames;
 int numok,numwarn,numerr; // stats
-void rescan() {
+void rescan(const char *folder) {
     // clean up
     while( numgames ) free(games[--numgames]);
     free(games);
@@ -660,10 +709,6 @@ void rescan() {
     {
         numok=0,numwarn=0,numerr=0;
 
-        const char *folder = "./games/";
-#if TESTS
-        folder = "./src/tests/";
-#endif
         for( dir *d = dir_open(folder, "r"); d; dir_close(d), d = NULL ) {
             for( unsigned count = 0, end = dir_count(d); count < end; ++count ) {
                 if( !dir_file(d, count) ) continue;
@@ -706,7 +751,11 @@ int game_browser() { // returns true if loaded
     do_once
     {
         uint64_t then = time_ns();
-        rescan();
+        const char *folder = "./games/";
+#if TESTS
+        folder = "./src/tests/";
+#endif
+        rescan(folder);
         printf("%5.2fs rescan\n", (time_ns() - then)/1e9);
     }
 
@@ -1082,7 +1131,9 @@ void draw_ui() {
             if( ui_click("-Toggle Pentagon-", "%c\f%d\n", ZX_PENTAGON ? 'P':'p',/*beta128+*/ZX_PENTAGON)) {
                 ZX_PENTAGON ^= 1;
                 rom_restore();
-                if(PC(cpu) < 0x4000 && !tape_playing()) reset(ZX);
+
+                if( GET_MAPPED_ROMBANK() == GET_EDITOR_ROMBANK() )
+                    reset(ZX);
             }
 
             int right = chr_x+8*4-4;
@@ -1212,13 +1263,8 @@ int main() {
     }
 #endif
 
-    {
-        // relocate cwd to exe folder (relative paths wont work from this point)
-        char path[MAX_PATH]={0};
-        GetModuleFileName(0,path,MAX_PATH);
-        *strrchr(path, '\\') = '\0';
-        SetCurrentDirectoryA(path);
-    }
+    // relocate to exedir
+    cwdexe();
 
     // app
     app = window_open(_32+256+_32, _24+192+_24, va("Spectral%s", DEV ? " DEV" : "") );
@@ -1243,6 +1289,14 @@ int main() {
 
     // main loop
     do {
+#if 1
+        // 4 parameters in our shader. we use parameters[0] to track time
+        if( ZX_CRT )
+        tigrSetPostFX(app, (ticks / (69888 * 50.)), 0, 0, 0);
+        else
+        tigrSetPostFX(app, 0, 0, 0, 1);
+#endif
+
         ui_frame();
         input();
 
@@ -1314,9 +1368,7 @@ if( do_runahead == 0 ) {
         // screenshots: after drawn frame, before UI
         if( cmdkey == 'PIC2' )
         {
-            char buffer[128];
-            GetWindowTextA((HWND)((app)->handle), buffer, 128);
-            screenshot( buffer );
+            screenshot( window_title(app, NULL) );
             play('cam', 1);
         }
 
@@ -1410,7 +1462,7 @@ if( do_runahead == 0 ) {
             } while(0)
 
         // parse drag 'n drops. reload if needed
-        for( char **list = tigrDropFiles(app); list; list = 0)
+        for( char **list = tigrDropFiles(app,0,0); list; list = 0)
         for( int i = 0; list[i]; ++i ) {
             #if TESTS
             LOAD(48,1,list[i]);

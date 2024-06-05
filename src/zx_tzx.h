@@ -2,13 +2,11 @@
 // [ref] https://www.alessandrogrussu.it/loading/schemes/Schemes.html
 //
 // @todo
-// find 1bas-then-1code pairs within tapes. provide a prompt() call if there are more than 1 pair in the tape
-//     then, deprecate 0x28 block
 // tzx(gdb) basil great mouse, bc quest for tires, book of the dead part 1 (crl), dan dare 2 mekon, world cup carnival
 // tzx(flow) hollywood poker, bubble bobble (the hit squad)
 // tzx(noise) leaderboard par 3, tai-pan, wizball
 
-int tzx_load(byte *fp, int len) {
+int tzx_load(const byte *fp, int len) {
     // verify tzx
     if( memcmp(fp, "ZXTape!\x1a", 8) ) return 0;
 
@@ -393,11 +391,11 @@ int tzx_load(byte *fp, int len) {
     return valid;
 }
 
-int csw_load(byte *fp, int len) {
+int csw_load(const byte *fp, int len) {
     if( len < 0x20 || memcmp(fp, "Compressed Square Wave\x1a", 0x17) )
         return 0;
 
-    byte *beg = fp, *eot = fp + len;
+    const byte *beg = fp, *eot = fp + len;
 
     fp += 0x17;
 

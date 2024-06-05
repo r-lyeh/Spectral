@@ -361,7 +361,7 @@ t_sector *find_sector(byte *requested_CHRN)
 
 
 
-inline void cmd_write()
+static void cmd_write()
 {
    t_sector *sector;
 
@@ -405,7 +405,7 @@ inline void cmd_write()
 
 
 
-inline void cmd_read()
+static void cmd_read()
 {
    t_sector *sector;
 
@@ -464,7 +464,7 @@ loop:
 
 
 
-inline void cmd_readtrk()
+static void cmd_readtrk()
 {
    int sector_size;
    t_sector *sector;
@@ -494,7 +494,7 @@ inline void cmd_readtrk()
 
 
 
-inline void cmd_scan()
+static void cmd_scan()
 {
    t_sector *sector;
 

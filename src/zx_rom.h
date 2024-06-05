@@ -5,6 +5,7 @@
 #include "res/roms/pentagon128"
 #include "res/roms/trdos503"
 //#include "res/roms/trdos505"
+//#include "res/roms/trdos513f"
 //#include "res/roms/trdos611e"
 //#include "res/roms/trdos604"
 //#include "res/roms/gluk663pen"
@@ -29,6 +30,7 @@
 #include "res/snaps/ldplus3"
 #include "res/snaps/ldplus3bas"
 #include "res/snaps/ldplus3bin"
+#include "res/snaps/ldtrdos"
 //#include "res/snaps/ldusr0bas"
 //#include "res/snaps/ldusr0bin"
 
@@ -208,10 +210,10 @@ IF_TURBOROM_TURBO(
         "\x0B\x0B\x0C\x0B", // x9 never worked 15,15,16,15
     };
 
-    rombank[0x5A5+1] /= ROMHACK_TURBO; // LD B,$B0 -> $XX                 Set the timing constant for the flag byte
-    rombank[0x5C6+1] /= ROMHACK_TURBO; // LD B,$B2 -> $XX                 Set the timing constant.
-    rombank[0x5CE+1] /= ROMHACK_TURBO; // LD A,$CB -> $XX                 Compare the length against approx. 2,400 T states, resetting the carry flag for a '0' and setting it for a '1'.
-    rombank[0x5D3+1] /= ROMHACK_TURBO; // LD B,$B0 -> $XX                 Set the timing constant for the next bit.
+    rombank[0x5A5 +1] /= ROMHACK_TURBO; // LD B,$B0 -> $XX                 Set the timing constant for the flag byte
+    rombank[0x5C6 +1] /= ROMHACK_TURBO; // LD B,$B2 -> $XX                 Set the timing constant.
+    rombank[0x5CE +1] /= ROMHACK_TURBO; // LD A,$CB -> $XX                 Compare the length against approx. 2,400 T states, resetting the carry flag for a '0' and setting it for a '1'.
+    rombank[0x5D3 +1] /= ROMHACK_TURBO; // LD B,$B0 -> $XX                 Set the timing constant for the next bit.
 );
 }
 

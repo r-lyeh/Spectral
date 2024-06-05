@@ -1,6 +1,8 @@
 //-----------------------------------------------------------------------------
 // 3rd party emu libs
 
+int play(int sample, unsigned count); // this is from sys headers actually
+
 #define CHIPS_IMPL
 #define CHIPS_UTIL_IMPL
 #include "emu_spk.h"

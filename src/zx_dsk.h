@@ -224,7 +224,7 @@ exit:;
 
 
 const char *dsk_id(const void *data, int datalen) {
-   static const char *nil = "", *ids[] = {
+   static const char *ids[] = {
       "HEXAGON DISK PROTECTION", // ERR:DoubleDragonII.dsk, Final Fight(1991)(U.S.Gold).dsk, G-LOC(1992).dsk
       "SPEEDLOCK +3 DISC PROTECTION", // ERR:AfterBurner(1988).dsk, Ok:DanDareII.dsk,TheVindicator.dsk
       "Loader Copyright Three Inch Software", // Ok: DoubleDragon.dsk, P47Thunderbolt.dsk, Virus.dsk
@@ -248,5 +248,5 @@ const char *dsk_id(const void *data, int datalen) {
       if( memmem(data, datalen, ids[i], strlen(ids[i])) ) return ids[i];
       if( ids[i][0] < 32 && memmem(data, datalen, ids[i], 16) ) return ids[i] + 16;
    }
-   return nil;
+   return "";
 }

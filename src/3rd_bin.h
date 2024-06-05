@@ -4,7 +4,7 @@ By Tom Torfs - donated to the public domain
 
 /* All macro's evaluate to compile-time constants */
 
-/* *** helper macros *** /
+/* *** helper macros ***/
 
 /* turn a numeric literal into a hex constant
 (avoids problems with leading zeroes)
@@ -22,7 +22,7 @@ By Tom Torfs - donated to the public domain
 +((x&0x0F000000LU)?64:0) \
 +((x&0xF0000000LU)?128:0)
 
-/* *** user macros *** /
+/* *** user macros ***/
 
 /* for upto 8-bit binary constants */
 #define B8(d) ((unsigned char)B8__(HEX__(d)))
