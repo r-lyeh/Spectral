@@ -7,8 +7,6 @@
 // - P47Thunderbolt
 // - OddiTheViking128
 
-// turborom
-
 // tape buttons
 
 // 128/+2
@@ -289,7 +287,7 @@ int loadbin_(byte *ptr, int size, int preloader) {
         int slots[] = { [1]=0,[3]=1,[8]=2,[12]=3,[13]=4,[18]=5 };
         int is_bin = tape_type == 3, choose = slots[ZX/16] + 6 * is_bin;
         if(preloader) preload_snap(bins[choose], lens[choose]);
-        if(tape_has_turbo) rom_restore(); // rom_restore(), rom_patch(tape_has_turbo ? 0 : do_rompatch);
+        //if(tape_has_turbo) rom_restore(); // rom_restore(), rom_patch(tape_has_turbo ? 0 : do_rompatch);
         ZX_AUTOSTOP = tape_num_stops > 1 ? 0 : size > 65535;
         //warning(va("numstops:%d", tape_num_stops));
         return 2;
@@ -305,6 +303,7 @@ int loadbin_(byte *ptr, int size, int preloader) {
         int slots[] = { [1]=0,[3]=1,[8]=2,[12]=3,[13]=4,[18]=5 };
         int is_bin = tape_type == 3, choose = slots[ZX/16] + 6 * is_bin;
         if(preloader) preload_snap(bins[choose], lens[choose]);
+        rom_restore(); // rom_restore(), rom_patch(tape_has_turbo ? 0 : do_rompatch);
         ZX_AUTOSTOP = 1;
         return 2;
     }

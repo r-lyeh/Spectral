@@ -14,7 +14,7 @@
 #include "res/roms/lg18v07"     // https://speccy4ever.speccy.org/_CMS.htm
 //#include "res/roms/gw03v33"   // https://speccy4ever.speccy.org/_CMS.htm
 //#include "res/roms/jgh077"    // https://speccy4ever.speccy.org/_CMS.htm
-//#include "res/roms/sebasic"   // from spin
+//#include "res/roms/sebasic"   // https://web.archive.org/web/20061213013302if_/http://www.worldofspectrum.org:80/sinclairbasic/software/sebas094.zip
 
 #include "res/snaps/ld16bas"
 #include "res/snaps/ld16bin"

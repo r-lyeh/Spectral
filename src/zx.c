@@ -1,4 +1,4 @@
-#define SPECTRAL "v0.7 wip+"
+#define SPECTRAL "v0.7"
 
 #define README \
 "Spectral can be configured with a mouse.\n" \
@@ -918,7 +918,7 @@ void help() {
 
 void titlebar(const char *filename) {
     const char *models[] = { [1]="16",[3]="48",[8]="128",[12]="+2",[13]="+2A",[18]="+3" };
-    const char *title = filename ? 1+strrchr(filename, DIR_SEP) : "";
+    const char *title = strrchr(filename ? filename : "", DIR_SEP); title = title ? title + 1 : "";
     window_title(app, va("Spectral%s %s%s%s", DEV ? " DEV" : "", models[ZX/16], title[0] ? " - " : "", title));
 }
 
@@ -1141,10 +1141,11 @@ void draw_ui() {
             int y = REMAP(smoothY,0,1,-10,1*11);
             ui_at(ui, ui_x, y+1 );
 
+#if 0
             if( ui_click(NULL, "\xf\b\b\b\xf") ) cmdkey = 'prev';
             if( ui_click(NULL, "%c\b\b\b%c", PLAY_CHR, PLAY_CHR) ) cmdkey = 'next';
             if( ui_click(NULL, "■") ) cmdkey = 'stop';
-#if 0
+
             ui_x += 2;
             if( ui_click(NULL, "\xe") ) active ^= 1;
             ui_x += 1;

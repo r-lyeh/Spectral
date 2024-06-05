@@ -13,6 +13,8 @@ struct tape_block {
 };
 #pragma pack(pop)
 
+typedef int static_assert_tape_block[ sizeof(struct tape_block) == 5];
+
 #define VOC_DEFINES \
 int             mic,mic_on; /* these two belong to zx.h */ \
 byte            tape_type; \
@@ -80,12 +82,8 @@ void tape_render_pause(unsigned pause_ms) { // Used to be x1.03 for longer pause
     // pause_ms *= (pause_ms == END_MS) * 1.5;
     // pause_ms *= 1.03;
 #endif
-#if 0
-    if(pause_ms) tape_push("pause", LEVEL_LOW, COUNT_PER_MS, pause_ms); // pa(u)se
-#else
     // this version improves tape_preview[] accuracy
     for(unsigned i = 0; i < pause_ms; ++i) tape_push("pause", LEVEL_LOW, COUNT_PER_MS, 1); // pa(u)se
-#endif
 }
 void tape_render_bit(int bit, int states_per_bit) { // rate 79 for 44100, 158 for 22050
 #if ALT_TIMINGS
@@ -201,10 +199,10 @@ byte mic_read(uint64_t tstates) {
     tape_tstate = tstates;
 
     if( mic_on ) { // if tape not stopped
-#if ALT_TIMINGS
-        if( diff > 69888 ) diff = 4; // fix games with animated intros or pauses: cauldron2.tap, EggThe, diver, doctum, coliseum.tap+turborom, barbarian(melbourne)
-#else
+#if !ALT_TIMINGS
         if( diff > 69888 && strchr("uo", q.debug) ) diff = 4;
+#else
+        if( diff > 69888 ) diff = 4; // fix games with animated intros or pauses: cauldron2.tap, EggThe, diver, doctum, coliseum.tap+turborom, barbarian(melbourne)
 #endif
         if( diff < 0 ) diff = 0;
 
@@ -220,12 +218,8 @@ byte mic_read(uint64_t tstates) {
 
         // fsm2, advance clock. the three counters do work like a clock cycle hh:mm:ss
         // hh:position in voc[], mm:sub-count, ss:sub-units
-#if ALT_TIMINGS
-        voc_units += diff;
-#else
-        for( int inc = min(diff, q.units); diff > 0; diff -= inc, voc_units += inc, inc = min(diff, q.units) )
-#endif
-        if( voc_units >= q.units ) {
+        for( int inc = min(diff, q.units); diff > 0; diff -= inc, inc = min(diff, q.units) )
+        if( (voc_units += inc) >= q.units ) {
             voc_units -= q.units;
 
             /**/ if( q.level == LEVEL_FLIP ) mic ^= 64;
@@ -578,8 +572,8 @@ void tape_rewind() {
 // try: tk90x turbo timings (R.G.)
 // PILOT = 1408, n_pilot = 4835, guess = 4835 / (5/2) = 1934, SYNC1 = 397, SYNC2 = 317, ZERO = 325, ONE = 649, END_MS = 318,
 
-// [?][?][?][?] turborom
-// [?][?][?][?] turborom+coliseum.tap
+// [?][?][?][ ] turborom
+// [?][?][?][x] turborom+coliseum.tap
 
 // tapes that require cpu-driven ticks:
 // [ ][ ][ ][ ] 1942.tzx(with trainer)
@@ -604,7 +598,7 @@ void tape_rewind() {
 // [ ][x][ ][ ] moon and the pirates.tap (decompression)
 // [ ][ ][ ][ ] hijack (EDS) 128
 // [ ][x][*][ ] italy 1990 winners
-// [ ][x][x][x] dogfight 2187
+// [ ][x][x][!] dogfight 2187
 // [ ][ ][ ][ ] hudson hawk
 
 // issue2/3 loading issues
@@ -629,7 +623,7 @@ void tape_rewind() {
 // [ ][ ][ ][ ] untouchables(hitsquad)
 // [ ][ ][ ][ ] jack2(kixx)
 // [ ][ ][ ][ ] hijack (final stop)
-// [ ][x][x][x] dogfight
+// [ ][x][x][!] dogfight
 
 // Crashes
 // [x][ ][ ][ ] abadiadelcrimen.tzx crashes towards end of tape
