@@ -10,9 +10,11 @@
 //#include "res/roms/gluk663pen"
 
 //#include "res/roms/plus2c"    // https://speccy4ever.speccy.org/_CMS.htm
+//#include "res/roms/plus2b"    // https://shorturl.at/dY4wP
 #include "res/roms/lg18v07"     // https://speccy4ever.speccy.org/_CMS.htm
 //#include "res/roms/gw03v33"   // https://speccy4ever.speccy.org/_CMS.htm
 //#include "res/roms/jgh077"    // https://speccy4ever.speccy.org/_CMS.htm
+//#include "res/roms/sebasic"   // from spin
 
 #include "res/snaps/ld16bas"
 #include "res/snaps/ld16bin"
@@ -96,17 +98,24 @@ void rom_restore() {
     if( ZX <= 200) memcpy(rom+0x2744+11, rom128+0x2744+11, 2); // restore classic rom1 locked in 48 mode
     if( ZX <= 200) rom[0x1B2B+13] = 0x03; // fix error msg on plus2c+gw03/lg18+SPECTRUM command combo; (BORDER q#PI instead of 0 OK) ; $0013 -> $0003 Address of a $FF byte within ROM 1, used to generate error report "0 OK".
 
-    // install gw03
+    // install gw03 or lg18
     // if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48), romgw03v33/*romjgh077/*romgw03v33/*romlg18v07/*rom48*/, 0x4000);
 
-    // install jgh where possible
-    if(ZX<=200) memcpy(ROM_BASIC(), ZX==16 ? rom48 : romjgh, 0x4000);
-    if(ZX<=200) memcpy(ROM_BASIC()+0x3D00, rom48+0x3D00, (0x7F-0x20)*8); // restore charset
-    if(ZX<=200) ROM_BASIC()[0x11CD+1] = 0x38 + 7; // border 7
-    if(ZX<=200) ROM_BASIC()[0x1265+1] = 0x38; // paper 7: ink 0
-    if(ZX==128||ZX==200) memset(rom+0x4000*0+0x240, 0x00, 3);
+    // install old sebasic where possible
+    // if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48), ZX==16 ? rom48 : romsebasic, 0x4000);
+    // if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48)+0x3D00, rom48+0x3D00, (0x7F-0x20)*8); // restore charset
+    // if( ZX == 200 || ZX ==128) memset(rom+0x4000*0+0x240, 0x00, 3); // make editor128 work with this rom
 
+    // install jgh where possible
+    // if( ZX <= 200) memcpy(ROM_BASIC(), ZX==16 ? rom48 : romjgh077, 0x4000);
+    // if( ZX <= 200) memcpy(ROM_BASIC()+0x3D00, rom48+0x3D00, (0x7F-0x20)*8); // restore charset
+    // if( ZX <= 200) ROM_BASIC()[0x11CD+1] = 0x38 + 7; // border 7
+    // if( ZX <= 200) ROM_BASIC()[0x1265+1] = 0x38; // paper 7: ink 0
+    // if( ZX == 200 || ZX ==128) memset(rom+0x4000*0+0x240, 0x00, 3);
 #endif
+
+    // install plus2b on +2A model (debugged 128k/original 16k/BBC/SEbasic)
+    // if( ZX == 210) memcpy(rom, romplus2b, 0x4000*4);
 
     // note: rom48, contains a vector FF table in the [0x386E..0x3D00) region
     // if( ZX >= 128) memcpy(rom+0x4000, romplus2+0x4000, 0x4000); //memset(rom+0x4000*0+0x386E, 0xFF, 0x3D00-0x386E);

@@ -1,0 +1,30 @@
+plus2b.rom: +2B ROM Set. For Spectrum +2A/+2B models
+
+The +2B ROM set includes the following:
+
+ROM 0 - debugged UK 128 editor 
+ROM 1 - original 16K BASIC ROM
+ROM 2 - RT Russell's BBC BASIC (Z80) ported by JG Harston:
+
+        http://mdfs.net/Software/BBCBasic/Spectrum/
+
+ROM 3 - OpenSE BASIC 3.1.1:
+
+        http://sourceforge.net/projects/sebasic/
+
+The menu options are as follows:
+
+* SE BASIC
+  fully debugged, optimized, and enhanced version of Sinclair BASIC
+
+* BBC BASIC
+  arguably the best version of classic BASIC with inline Z80 assembler
+
+* 128 BASIC
+  fully debugged, new menu system, and virtual numeric keypad support
+
+* 48 BASIC
+  the original 1982 ROM, memory paging switched off
+
+* USR 0
+  the original 1982 ROM, memory paging enabled

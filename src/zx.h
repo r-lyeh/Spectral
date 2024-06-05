@@ -27,7 +27,7 @@
 // - bloodbrothers (128): no ay (wrong checksum?)
 // - travelwithtrashman (128): crash (wrong checksum?)
 // - r-type128-km-nocheats (lg18v07 + usr0): r tape err (no turbo) or crash (turbo)
-// - lg18,gw03,sebasic fail in the games above. jgh v0.77 seems to work
+// - lg18,gw03,sebasic fail in the games above. jgh v0.77 seems to work. old sebasic partially too
 // auto-locale:
 // - will corrupt medias with checksums (like tap files)
 // ay:
@@ -65,7 +65,7 @@
 // turborom:
 // - x4,x6 modes not working anymore. half bits either.
 // tzx:
-// - flow,gdb,voc,csw
+// - flow,gdb
 
 #if NDEBUG >= 2
 #define DEV 0

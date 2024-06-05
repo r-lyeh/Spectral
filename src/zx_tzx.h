@@ -12,20 +12,18 @@ int tzx_load(byte *fp, int len) {
     // verify tzx
     if( memcmp(fp, "ZXTape!\x1a", 8) ) return 0;
 
-    tape_reset();
-
     // skip header & check version
     int major=fp[8];
     if (major>1) return 0; // unsupported version
     fp += 10;
     len -= 10;
 
+    tape_reset();
+
     int valid=1;
     unsigned processed = 0;
     unsigned pulses, pilot, sync1, sync2, zero, one, pause, bytes, count, bits;
-    char brief_description[4*1024] = {0}, *brief = brief_description;
 
-//    int padding_bytes = -1;
     int group_level = 0;
     unsigned loop_counter = 0, loop_pointer = 0;
 
@@ -39,11 +37,7 @@ int tzx_load(byte *fp, int len) {
         switch (id) {
             default:
                 blockname = "????????";
-#if 1
                 valid = 0;
-#else
-                src = end;
-#endif
 
             break; case 0x10: //OK(0)
                 blockname = "Standard";
@@ -131,18 +125,6 @@ int tzx_load(byte *fp, int len) {
             break; case 0x18: // OK, ignored. see all cases: OlimpoEnGuerra(Part2), CaseOfMurderA, AdvancedGretaThunbergSimulator
                 blockname = "CSW";
                 bytes  = (*src++); bytes  |= (*src++)*0x100; bytes |= (*src++)*0x10000; bytes |= (*src++)*0x1000000;
-                #if 0
-                pause  = (*src++); pause  |= (*src++)*0x100;
-
-                unsigned rate = (*src++); rate |= (*src++)*0x100; rate |= (*src++)*0x10000;
-                unsigned comp = (*src++); unsigned zipped = comp & 2;
-                pulses = (*src++); pulses |= (*src++)*0x100; pulses |= (*src++)*0x10000; pulses |= (*src++)*0x1000000;
-
-                byte *csw = src;
-                bytes -= 10;
-
-                warning(va("csw %srle found", zipped ? "z-":""));
-                #endif
                 src += bytes;
 
             break; case 0x19: // @todo: Basil, BountyBobStrikesBack(Americana), NowotnikPuzzleThe, Twister-MotherOfCharlotte, AYankeeInIraqv132(TurboLoader)
@@ -403,12 +385,9 @@ int tzx_load(byte *fp, int len) {
         }
 
         if(blockname) {
-        *brief++ = blockname[0];
         printf("tzx.block %03d ($%02X) %6d bytes [%-13s] %s\n",processed,id,bytes,blockname,debug);
         }
     }
-
-//  puts(brief_description);
 
     tape_finish();
     return valid;
@@ -477,7 +456,7 @@ int csw_load(byte *fp, int len) {
         mz_inflateEnd(&z);
 
         if( ret < 0 ) {
-            warning("error: cant decompress csw2 files");
+            warning("error: cant decompress csw2 file");
             return 0;
         }
 
@@ -486,7 +465,7 @@ int csw_load(byte *fp, int len) {
     }
     else
     if( comp != 0x1 ) {
-        warning(va("error: unsupported compression method (%d)",comp));
+        warning(va("error: unsupported .csw compression method (%d)",comp));
         return 0;
     }
 
