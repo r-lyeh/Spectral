@@ -266,7 +266,7 @@ int tzx_load(const byte *fp, int len) {
                     ptr += sprintf(ptr, "%d) %.*s\n", i+1, len, src);
                     src += len;
                 }
-                char* answer = prompt( NULL, "Select block", body, "1" );
+                char* answer = prompt("Select block", body, "1");
 
                 int selection = answer ? atoi(answer) : 0;
                 if( selection > 0 && selection <= selections ) {
@@ -322,7 +322,7 @@ int tzx_load(const byte *fp, int len) {
                 count  = (*src++); count  |= (*src++)*0x100;
                 byte level = (*src++);
                 src += 0;
-                warning("signalLevel block tape found! please check (0x2b)");
+                alert("signalLevel block tape found! please check (0x2b)");
 
             break; case 0x30: // OK(0)
                 blockname = "Text";
@@ -431,7 +431,7 @@ int csw_load(const byte *fp, int len) {
         fp += hdr; // skip header
     }
     else {
-        warning("error: unknown .csw version");
+        alert("error: unknown .csw version");
         return 0;
     }
 
@@ -454,7 +454,7 @@ int csw_load(const byte *fp, int len) {
         mz_inflateEnd(&z);
 
         if( ret < 0 ) {
-            warning("error: cant decompress csw2 file");
+            alert("error: cant decompress csw2 file");
             return 0;
         }
 
@@ -463,7 +463,7 @@ int csw_load(const byte *fp, int len) {
     }
     else
     if( comp != 0x1 ) {
-        warning(va("error: unsupported .csw compression method (%d)",comp));
+        alert(va("error: unsupported .csw compression method (%d)",comp));
         return 0;
     }
 

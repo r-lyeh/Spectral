@@ -22,9 +22,9 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - [x] TAP/TZX/CSW tapes. Z80/SNA snaps. ROM/IF2 roms. <!-- @todo: tzx info on window title -->
 - [x] DSK/EDSK/TRD/SCL/FDI/MGT/IMG/HOBETA disks.
 - [x] SCR/PNG screenshots. <!-- ulaplus screenshots. video recording -->
-- [x] ZIP/RAR archives.
+- [x] ZIP/RAR/GZ archives.
 - [x] µ765/Betadisk interfaces.
-- [x] Auto load games. Auto play/stop tape. Turbo loads.
+- [x] Auto load games. Auto play/stop tape. TurboROM.
 - [x] Game browser. <!-- @todo: rewrite this -->
 - [x] Graphical tape browser.
 - [x] 50/60Hz fps lock.
@@ -35,7 +35,7 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - [x] Internal savestates.
 - [x] Graphical User Interface.
 - [x] Portable: Windows, Linux, MacOS.
-- [ ] ZXDB integration.
+- [x] ZXDB integration.
 - [ ] Gallery marquee. <!-- Flex. Tape cases. ZX catalog on demand. -->
 - [ ] Extra accurate Z80 backend. <!-- @todo: contended mem, contended ports, memptr, snow, Q, floating bus (+2a/+3) -->
 - [ ] Cycle accurate (border, multicolor, etc).

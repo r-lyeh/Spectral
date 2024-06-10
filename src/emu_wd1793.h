@@ -117,7 +117,7 @@ int SaveFDI(FDIDisk *D,const char *FileName,int Format);
 /** Seek to given side/track/sector. Returns sector address **/
 /** on success or 0 on failure.                             **/
 /*************************************************************/
-byte *SeekFDI(FDIDisk *D,int Side,int Track,int SideID,int TrackID,int SectorID);
+byte *(SeekFDI)(FDIDisk *D,int Side,int Track,int SideID,int TrackID,int SectorID);
 
 /** LinearFDI() **********************************************/
 /** Seek to given sector by its linear number. Returns      **/
@@ -985,7 +985,7 @@ int SaveFDI(FDIDisk *D,const char *FileName,int Format)
 /** Seek to given side/track/sector. Returns sector address **/
 /** on success or 0 on failure.                             **/
 /*************************************************************/
-byte *SeekFDI(FDIDisk *D,int Side,int Track,int SideID,int TrackID,int SectorID)
+byte *(SeekFDI)(FDIDisk *D,int Side,int Track,int SideID,int TrackID,int SectorID)
 {
   byte *P,*T;
   int J,Deleted;
@@ -1193,13 +1193,13 @@ void Reset1793(register WD1793 *D,FDIDisk *Disks,register byte Eject);
 /** Read value from a WD1793 register A. Returns read data  **/
 /** on success or 0xFF on failure (bad register address).   **/
 /*************************************************************/
-byte Read1793(register WD1793 *D,register byte A);
+byte (Read1793)(register WD1793 *D,register byte A);
 
 /** Write1793() **********************************************/
 /** Write value V into WD1793 register A. Returns DRQ/IRQ   **/
 /** values.                                                 **/
 /*************************************************************/
-byte Write1793(register WD1793 *D,register byte A,register byte V);
+byte (Write1793)(register WD1793 *D,register byte A,register byte V);
 
 /** Save1793() ***********************************************/
 /** Save WD1793 state to a given buffer of given maximal    **/
@@ -1301,7 +1301,7 @@ unsigned int Load1793(register WD1793 *D,byte *Buf,unsigned int Size)
 /** Read value from a WD1793 register A. Returns read data  **/
 /** on success or 0xFF on failure (bad register address).   **/
 /*************************************************************/
-byte Read1793(register WD1793 *D,register byte A)
+byte (Read1793)(register WD1793 *D,register byte A)
 {
   switch(A)
   {
@@ -1371,7 +1371,7 @@ byte Read1793(register WD1793 *D,register byte A)
 /** Write value V into WD1793 register A. Returns DRQ/IRQ   **/
 /** values.                                                 **/
 /*************************************************************/
-byte Write1793(register WD1793 *D,register byte A,register byte V)
+byte (Write1793)(register WD1793 *D,register byte A,register byte V)
 {
   int J;
 

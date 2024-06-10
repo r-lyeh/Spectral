@@ -18,8 +18,9 @@ if [ "$(uname)" != "Darwin" ]; then
 [ ! -f ".setup" ] && sudo apt-get -y update && sudo apt-get -y install gcc libx11-dev gcc libgl1-mesa-dev libasound2-dev mesa-common-dev  && echo>.setup
 
 # compile --------------------------------------------------------------------
-gcc src/zx.c -I src -o ./Spectral.linux -O3 -DNDEBUG=3 -Wno-unused-result -Wno-format -Wno-multichar -Wno-pointer-sign -Wno-string-plus-int -Wno-empty-body -lm -lX11 -lGL -lasound -lpthread || exit
+gcc src/zx.c -I src -o ./Spectral.linux -O3 -DNDEBUG=3 -Wno-unused-result -Wno-unused-value -Wno-format -Wno-multichar -Wno-pointer-sign -Wno-string-plus-int -Wno-empty-body -lm -lX11 -lGL -lasound -lpthread $* || exit
 upx -9 Spectral.linux
+src/res/zxdb/append.linux Spectral.linux src/res/zxdb/Spectral.db.gz
 
 fi
 
@@ -27,7 +28,8 @@ if [ "$(uname)" = "Darwin" ]; then
 
 # compile --------------------------------------------------------------------
 export SDKROOT=$(xcrun --show-sdk-path)
-gcc -ObjC src/zx.c -I src -o ./Spectral.osx -O3 -DNDEBUG=3 -Wno-unused-result -Wno-format -Wno-multichar -Wno-pointer-sign -Wno-string-plus-int -Wno-empty-body -framework cocoa -framework iokit -framework CoreFoundation -framework CoreAudio -framework AudioToolbox -framework OpenGL -lm || exit
+gcc -ObjC src/zx.c -I src -o ./Spectral.osx -O3 -DNDEBUG=3 -Wno-unused-result -Wno-unused-value -Wno-format -Wno-multichar -Wno-pointer-sign -Wno-string-plus-int -Wno-empty-body -framework cocoa -framework iokit -framework CoreFoundation -framework CoreAudio -framework AudioToolbox -framework OpenGL -lm $* || exit
+src/res/zxdb/append.osx Spectral.osx src/res/zxdb/Spectral.db.gz
 
 # embed icon and make .app
 test -d Spectral.app && rm -rf Spectral.app
@@ -98,6 +100,7 @@ if "%1"=="test" (
 
 if "%1"=="dev" (
     cl src\zx.c src\sys_window.cc -I src /FeSpectral.exe /Zi %ALL_BUT_FIRST% || goto error
+    copy /y src\res\zxdb\Spectral.db.gz Spectral.db 1>nul 2>nul
 
     tasklist /fi "ImageName eq remedybg.exe" 2>NUL | find /I "exe">NUL || start remedybg -q -g Spectral.exe
 
@@ -107,12 +110,14 @@ if "%1"=="dev" (
 if "%1"=="opt" (
     rem do not use /O1 or /O2 below. ayumi drums will be broken in AfterBurner.dsk otherwise
     call make nil /Ox /MT /DNDEBUG /GL /GF /arch:AVX2 %ALL_BUT_FIRST% || goto error
+    copy /y src\res\zxdb\Spectral.db.gz Spectral.db 1>nul 2>nul
     exit /b
 )
 
 if "%1"=="rel" (
     call make opt -Dmain=WinMain -DNDEBUG=3 %ALL_BUT_FIRST% || goto error
     where /q upx.exe && upx Spectral.exe
+    src\res\zxdb\append Spectral.exe src\res\zxdb\Spectral.db.gz && if exist "Spectral.db" del Spectral.db
     exit /b 1
 )
 
@@ -127,6 +132,7 @@ where /q cl.exe || call "%ProgramFiles(x86)%/microsoft visual studio/2017/commun
 
 @echo on
 cl src\zx.c src\sys_window.cc -I src /FeSpectral.exe %ALL_BUT_FIRST% || goto error
+copy /y src\res\zxdb\Spectral.db.gz Spectral.db 1>nul 2>nul
 
 @echo off
 where /Q ResourceHacker.exe && ResourceHacker.exe -open Spectral.exe -save Spectral.exe -action addskip -res src\res\img\noto_1f47b.ico -mask ICONGROUP,MAINICON,0

@@ -192,7 +192,7 @@ int z80_guess(const byte *source_, int len) {
     if(! pc ) {
         pc = buffer[33]<<8|buffer[32];
         if( !strchr("\x17\x36\x37", buffer[30]) )
-            warning(va(".z80 unknown version: %d\n", buffer[30]));
+            alert(va(".z80 unknown version: %d\n", buffer[30]));
         ver = buffer[30] == 0x17 ? 2 : 3;
     }
 
@@ -204,13 +204,13 @@ int z80_guess(const byte *source_, int len) {
     /**/ if(buffer[34]== 7) return buffer[37]&0x80 ? 210 : 300; //OK!
     else if(buffer[34]== 8) return buffer[37]&0x80 ? 210 : 300; //OK!
     else if(buffer[34]== 9) return -128; // Pentagon 128k
-    else if(buffer[34]==10) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // Scorpion 256k
-    else if(buffer[34]==11) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // Didaktik-Kompakt
+    else if(buffer[34]==10) return alert(va(".z80 submodel not supported: %d", buffer[34])), 0; // Scorpion 256k
+    else if(buffer[34]==11) return alert(va(".z80 submodel not supported: %d", buffer[34])), 0; // Didaktik-Kompakt
     else if(buffer[34]==12) return 200; //OK!
     else if(buffer[34]==13) return 210; //OK!
-    else if(buffer[34]==14) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // TC2048
-    else if(buffer[34]==15) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // TC2068
-    else if(buffer[34]==16) return warning(va(".z80 submodel not supported: %d", buffer[34])), 0; // TS2068
+    else if(buffer[34]==14) return alert(va(".z80 submodel not supported: %d", buffer[34])), 0; // TC2048
+    else if(buffer[34]==15) return alert(va(".z80 submodel not supported: %d", buffer[34])), 0; // TC2068
+    else if(buffer[34]==16) return alert(va(".z80 submodel not supported: %d", buffer[34])), 0; // TS2068
     else {
     // v2 hw, v3 hw or Unknown hardware
     /**/ if(buffer[34]== 0 && ver>=2) return buffer[37]&0x80 ? 16 : 48; //OK!
@@ -388,17 +388,17 @@ int pok_load(const byte *src, int len) {
         src += strlen(line);
         while( strchr("\r\n", *src) ) ++src;
 
-        if( line[0] == 'N' ) { if(trainer[0]) warning(trainer); strcpy(trainer, line+1); continue; }
-        if( line[0] == 'Y' ) { if(trainer[0]) warning(trainer); return 1; }
+        if( line[0] == 'N' ) { if(trainer[0]) alert(trainer); strcpy(trainer, line+1); continue; }
+        if( line[0] == 'Y' ) { if(trainer[0]) alert(trainer); return 1; }
 
         int bank, addr, val, defaults;
         if( 4 != sscanf(line+1, "%d %d %d %d", &bank, &addr, &val, &defaults) ) break;
 
         // int current = bank & 8 ? READ8(addr) : RAM_BANK(bank&7)[addr & 0x3FFF];
-        // if( current != defaults ) { warning("poke mismatch"); continue; }
+        // if( current != defaults ) { alert("poke mismatch"); continue; }
 
         extern Tigr *app;
-        if( val == 256 ) val = (byte)atoi(prompt(app->handle, trainer, "", va("%d",defaults))), printf("prompt: %d\n", val), trainer[0] = '\0';
+        if( val == 256 ) val = (byte)atoi(prompt(trainer, "", va("%d",defaults))), printf("prompt: %d\n", val), trainer[0] = '\0';
 
         if( bank & 8 )
         WRITE8(addr, val);
@@ -412,12 +412,12 @@ int pok_load(const byte *src, int len) {
 
 int guess(const byte *ptr, int size) { // guess required model type for given data
     // dsk first
-    if( !memcmp(ptr, "MV - CPC", 8) || !memcmp(ptr, "EXTENDED", 8) ) return 300;
+    if( size > 0x08 &&(!memcmp(ptr, "MV - CPC", 8) || !memcmp(ptr, "EXTENDED", 8)) ) return 300;
 
     // tapes first
-    if( !memcmp(ptr, "ZXTape!\x1a", 8) ) return ZX;
-    if( !memcmp(ptr, "\x13\x00", 2) ) return ZX;
-    if( !memcmp(ptr, "Compressed Square Wave\x1a", 0x17) ) return ZX;
+    if( size > 0x08 && !memcmp(ptr, "ZXTape!\x1a", 8) ) return ZX;
+    if( size > 0x02 && !memcmp(ptr, "\x13\x00", 2) ) return ZX;
+    if( size > 0x17 && !memcmp(ptr, "Compressed Square Wave\x1a", 0x17) ) return ZX;
 
     // headerless fixed-size formats now, sorted by ascending file size.
     if( size == 6912 ) return 48;
@@ -433,5 +433,5 @@ int guess(const byte *ptr, int size) { // guess required model type for given da
 
     // headerless variable-size formats now
     if( *ptr == 'N' ) return ZX;
-    return z80_guess(ptr, size);
+    return size > 87 ? z80_guess(ptr, size) : ZX;
 }

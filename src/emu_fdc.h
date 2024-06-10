@@ -210,10 +210,10 @@ void fdc_specify();
 void fdc_drvstat();
 void fdc_recalib();
 void fdc_intstat();
-void fdc_seek();
+void (fdc_seek)();
 void fdc_readtrk();
 void fdc_write();
-void fdc_read();
+void (fdc_read)();
 void fdc_readID();
 void fdc_writeID();
 void fdc_scan();
@@ -238,13 +238,13 @@ fdc_cmd_table_def fdc_cmd_table[MAX_CMD_COUNT] = {
    {0x04, 2, 1, FDC_TO_CPU, fdc_drvstat}, // sense device status
    {0x07, 2, 0, FDC_TO_CPU, fdc_recalib}, // recalibrate
    {0x08, 1, 2, FDC_TO_CPU, fdc_intstat}, // sense interrupt status
-   {0x0f, 3, 0, FDC_TO_CPU, fdc_seek},    // seek
+   {0x0f, 3, 0, FDC_TO_CPU, (fdc_seek)},    // seek
    {0x42, 9, 7, FDC_TO_CPU, fdc_readtrk}, // read diagnostic
    {0x45, 9, 7, CPU_TO_FDC, fdc_write},   // write data
-   {0x46, 9, 7, FDC_TO_CPU, fdc_read},    // read data
+   {0x46, 9, 7, FDC_TO_CPU, (fdc_read)},    // read data
    {0x49, 9, 7, CPU_TO_FDC, fdc_write},   // write deleted data
    {0x4a, 2, 7, FDC_TO_CPU, fdc_readID},  // read id
-   {0x4c, 9, 7, FDC_TO_CPU, fdc_read},    // read deleted data
+   {0x4c, 9, 7, FDC_TO_CPU, (fdc_read)},    // read deleted data
    {0x4d, 6, 7, CPU_TO_FDC, fdc_writeID}, // write id
    {0x51, 9, 7, CPU_TO_FDC, fdc_scan},    // scan equal
    {0x59, 9, 7, CPU_TO_FDC, fdc_scan},    // scan low or equal
@@ -882,8 +882,6 @@ void fdc_recalib()
 {
    fdc.command[CMD_C] = 0; // seek to track 0
    fdc_seek();
-
-   play('seek', 1);
 }
 
 
@@ -933,7 +931,7 @@ void fdc_intstat()
 
 
 
-void fdc_seek()
+void (fdc_seek)()
 {
    check_unit(); // switch to target drive
    if (init_status_regs() == 0) { // drive Ready?
@@ -1027,10 +1025,8 @@ void fdc_write()
 
 
 
-void fdc_read()
+void (fdc_read)()
 {
-   play('read', 1);
-
    fdc.led = 1; // turn the drive LED on
    check_unit(); // switch to target drive
    if (init_status_regs() == 0) { // drive Ready?
@@ -1197,12 +1193,10 @@ void fdc_reset()
  last_sector_hit = NULL;
 }
 
-void fdc_motor(unsigned char on)
+void (fdc_motor)(unsigned char on)
 {
  fdc.motor = !!on;
  fdc.flags |= STATUSDRVA_flag; // | STATUSDRVB_flag;
-
- play('moto', on ? ~0u : 0);
 }
 
 void fdc_tick(int TS) {

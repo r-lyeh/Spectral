@@ -3,6 +3,14 @@
 
 int play(int sample, unsigned count); // this is from sys headers actually
 
+#define Read1793(...)  (play('read',  1), Read1793(__VA_ARGS__))
+#define SeekFDI(...)   (play('seek',  1), SeekFDI(__VA_ARGS__))
+#define Write1793(...) (play('moto', 10), Write1793(__VA_ARGS__))
+
+#define fdc_read()     (play('read',  1), fdc_read())
+#define fdc_seek()     (play('seek',  1), fdc_seek())
+#define fdc_motor(on)  (play('moto', on ? ~0u : 0), fdc_motor(on))
+
 #define CHIPS_IMPL
 #define CHIPS_UTIL_IMPL
 #include "emu_spk.h"

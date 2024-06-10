@@ -303,7 +303,7 @@ int translate(char *ptr, int size, int locale) {
             t2[strlen(t2)-1] |= 0x80,
             patches += patch( ptr, ptr + size, t1, t2, strlen(t2) );
         } else {
-            warning(va("Error: %s/%s translation length mismatch",t1,t2));
+            alert(va("Error: %s/%s translation length mismatch",t1,t2));
         }
     }
     printf("%d translation patch(es) found\n", patches);

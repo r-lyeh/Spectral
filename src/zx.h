@@ -5,8 +5,17 @@
 
 // tape buttons
 
-// pentagon
-// - bordertrix
+// tape
+// - red/cyan tape freq bars
+
+// zxdb
+// - no cache library
+// - no gifs
+// - no mp3s
+// - infos get lost between different .sav sessions
+// - overlay: no scroll (mouse/key), no zooming, no panning
+// - JACKNIP.TAP ; difficult to get it right without hyphenation. best we could do for now is search JACKNIP%
+// - reset does not clear zxdb
 
 // 128/+2:
 // - parapshock should break; it doesnt
@@ -243,16 +252,17 @@ void media_mount(const byte *bin, int len) { media[medias].bin = memcpy(realloc(
 #include "zx_tap.h" // requires page128
 #include "zx_tzx.h"
 #include "zx_sna.h" // requires page128, ZXBorderColor
+#include "zx_db.h"
 
-enum { ALL_FILES = 0, GAMES_ONLY = 4*4, TAPES_AND_DISKS_ONLY = 7*4, DISKS_ONLY = 10*4 };
+enum { ALL_FILES = 0, GAMES_ONLY = 5*4, TAPES_AND_DISKS_ONLY = 8*4, DISKS_ONLY = 11*4 };
 int file_is_supported(const char *filename, int skip) {
     const char *ext = strrchr(filename ? filename : "", '.');
-    return ext && strstri(skip+".zip.rar.pok.scr.rom.sna.z80.tap.tzx.csw.dsk.img.mgt.trd.fdi.scl.$b.$c.", ext);
+    return ext && strstri(skip+".gz .zip.rar.pok.scr.rom.sna.z80.tap.tzx.csw.dsk.img.mgt.trd.fdi.scl.$b.$c.", ext);
 }
 
 // 0: cannot load, 1: snapshot loaded, 2: tape loaded, 3: disk loaded
 int loadbin_(const byte *ptr, int size, int preloader) {
-    if(!(ptr && size))
+    if(!(ptr && size > 10))
         return 0;
 
     if( preloader ) {
@@ -284,23 +294,23 @@ int loadbin_(const byte *ptr, int size, int preloader) {
     }
 
     // tapes first
-    if(tzx_load(ptr, (int)size)) {
+    if( tzx_load(ptr, (int)size) ) {
         int slots[] = { [1]=0,[3]=1,[8]=2,[12]=3,[13]=4,[18]=5 };
         int is_bin = tape_type == 3, choose = slots[ZX/16] + 6 * is_bin;
         if(preloader) preload_snap(bins[choose], lens[choose]);
         //if(tape_has_turbo) rom_restore(); // rom_restore(), rom_patch(tape_has_turbo ? 0 : do_rompatch);
         ZX_AUTOSTOP = tape_num_stops > 1 ? 0 : size > 65535;
-        //warning(va("numstops:%d", tape_num_stops));
+        //alert(va("numstops:%d", tape_num_stops));
         return 2;
     }
-    if(tap_load(ptr,(int)size)) {
+    if( tap_load(ptr,(int)size) ) {
         int slots[] = { [1]=0,[3]=1,[8]=2,[12]=3,[13]=4,[18]=5 };
         int is_bin = tape_type == 3, choose = slots[ZX/16] + 6 * is_bin;
         if(preloader) preload_snap(bins[choose], lens[choose]);
         ZX_AUTOSTOP = size > 65535;
         return 2;
     }
-    if(csw_load(ptr,(int)size)) {
+    if( csw_load(ptr,(int)size) ) {
         int slots[] = { [1]=0,[3]=1,[8]=2,[12]=3,[13]=4,[18]=5 };
         int is_bin = tape_type == 3, choose = slots[ZX/16] + 6 * is_bin;
         if(preloader) preload_snap(bins[choose], lens[choose]);
@@ -324,7 +334,7 @@ int loadbin_(const byte *ptr, int size, int preloader) {
     if( *ptr == 'N' && pok_load(ptr, size) ) {
         return 1;
     }
-    if( z80_load(ptr, size) ) {
+    if( size > 87 && z80_load(ptr, size) ) {
         return regs("load .z80"), 1;
     }
 
@@ -333,7 +343,7 @@ int loadbin_(const byte *ptr, int size, int preloader) {
 }
 
 int loadbin(const byte *ptr, int size, int preloader) {
-    if(!(ptr && size > 87))
+    if(!(ptr && size))
         return 0;
 
     int ret = loadbin_(ptr, size, preloader);
@@ -341,10 +351,12 @@ int loadbin(const byte *ptr, int size, int preloader) {
     return ret;
 }
 
+static struct zxdb ZXDB;
 static char *last_load = 0;
 int loadfile(const char *file, int preloader) {
     if( !file ) return 0;
     last_load = (free(last_load), strdup(file));
+    file = last_load;
 
 #if TESTS
     printf("\n\n%s\n-------------\n\n", file);
@@ -360,7 +372,8 @@ int loadfile(const char *file, int preloader) {
             for( zip *z = zip_open(file, "rb"); z; zip_close(z), z = 0 )
             for( unsigned i = 0 ; i < zip_count(z); ++i ) {
                 if( file_is_supported(zip_name(z,i), GAMES_ONLY) ) {
-                    file = va("%s",zip_name(z,i));
+                    free(last_load);
+                    file = last_load = strdup(zip_name(z,i));
                     break;
                 }
             }
@@ -368,7 +381,8 @@ int loadfile(const char *file, int preloader) {
             for( rar *r = rar_open(file, "rb"); r; rar_close(r), r = 0 )
             for( unsigned i = 0 ; i < rar_count(r); ++i ) {
                 if( file_is_supported(rar_name(r,i), GAMES_ONLY) ) {
-                    file = va("%s",rar_name(r,i));
+                    free(last_load);
+                    file = last_load = strdup(rar_name(r,i));
                     break;
                 }
             }
@@ -384,14 +398,32 @@ int loadfile(const char *file, int preloader) {
         fread(ptr, 1, size, fp);
     }
 
+#if 1 // gunzip
+    if( ptr && !memcmp(ptr, "\x1f\x8b\x08", 3) ) {
+        static char *unc = 0;
+        unsigned unclen;
+        unc = gunzip(ptr, size, &unclen);
+        if( unc ) {
+            free( ptr );
+            ptr = unc;
+            size = unclen;
+        }
+    }
+#endif
+
     if( ZX_AUTOLOCALE ) {
         translate(ptr, size, 'en');
     }
 
+    int ok = 0;
     const char *ext = strrchr(file, '.');
     const char *extensions = ".img.mgt.trd.fdi.scl.$b .$c ."; // order must match FMT enum definitions in FDI header
     const char *extfound = ext ? strstri(extensions, ext) : NULL;
-    if( extfound ) {
+    if( !extfound ) {
+        // regular load
+        ok = loadbin(ptr, size, preloader);
+    } else {
+        // betadisk load
         printf("found ext: %d\n", (int)(extfound - extensions) );
         int format = FMT_IMG + ( extfound - extensions ) / 4;
         if( format > FMT_HOBETA ) format = FMT_HOBETA;
@@ -407,7 +439,7 @@ int loadfile(const char *file, int preloader) {
 
         // this temp file is a hack for now. @fixme: implement a proper file/stream abstraction in FDI library
         for( FILE *fp = fopen("spectral.$$$", "wb"); fp; fwrite(ptr, size, 1, fp), fclose(fp), fp = 0);
-        int ok = LoadFDI(&fdd[0], "spectral.$$$", format);
+        ok = LoadFDI(&fdd[0], "spectral.$$$", format);
         unlink("spectral.$$$");
 
         if( ok ) {
@@ -421,16 +453,19 @@ int loadfile(const char *file, int preloader) {
             if( memmem(ptr, size, "boot    B", 9) ) {
                 loadbin(ldtrdos, ldtrdos_length, 0);
             }
-
-            return 1;
         }
     }
 
-    int rc = loadbin(ptr, size, preloader);
-    if( !rc ) {
+    if( ok && preloader ) { // probably a game, so use ZXDB
+        // ZXDB = zxdb_free(ZXDB);
+        zxdb_print( ZXDB = zxdb_search(file) );
+    }
+
+    if( !ok ) {
         if( ptr ) free(ptr);
     }
-    return rc;
+
+    return ok;
 }
 
 
@@ -1607,6 +1642,12 @@ byte inport_(word port) {
         // Note: Status of MIC line (block below), can alter the behavior of the last code assignment.
         // See: AbuSimbelProfanation(Gremlin) + polarity of ending TZX pause/stop blocks.
 
+        // @todo: check this comment
+        // Patrik Rak "In case there is no tape input, bit 6 depends on what was output
+        // to bits 3 and 4. Issue 2 maps 00 to 0, issue 3 both 00 and 01 to 0.
+        // We stick to issue 2 behavior as it is more compatible of the two (when it matters).
+        // The +2A/+3 models however always return 0, so we honor that."
+
         if( 1 ) {
             ear = mic_read(tape_ticks);
             code = code ^ ear;
@@ -2091,6 +2132,7 @@ void eject() {
     fdc_reset();
     tape_reset();
     media_reset();
+    ZXDB = zxdb_free(ZXDB);
 }
 
 void reset(unsigned FLAGS) {

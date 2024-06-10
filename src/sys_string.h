@@ -1,12 +1,15 @@
+// string utilities,
+// - rlyeh, public domain
+
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
 char* va(const char *fmt, ...) {
-    static char buf[16][1024];
+    static char buf[16][1024+512];
     static int l = 0; l = (l+1) % 16;
     va_list vl;
     va_start(vl,fmt);
-    int rc = vsnprintf(buf[l], 1024-1, fmt, vl);
+    int rc = vsnprintf(buf[l], 1024+512-1, fmt, vl);
     va_end(vl);
     buf[l][rc<0?0:rc] = 0;
     return buf[l];
@@ -28,11 +31,11 @@ const char *strstri(const char *a, const char *b) {
     for(char *p = (char*)(B = va("%s",b)); *p; ++p) *p = toupper(*p);
     return M = strstr(A, B), M ? a + (M - A) : NULL;
 }
-bool strendi(const char *src, const char *sub) { // returns true if both strings match at end. case insensitive
+const char *strendi(const char *src, const char *sub) { // returns true if both strings match at end. case insensitive
     int srclen = strlen(src);
     int sublen = strlen(sub);
     if( sublen > srclen ) return 0;
-    return !strcmpi(src + srclen - sublen, sub);
+    return !strcmpi(src + srclen - sublen, sub) ? src + srclen - sublen : NULL;
 }
 int qsort_strcmp(const void * a, const void * b ) {
     // smart strcmp which does:
@@ -96,5 +99,17 @@ unsigned crc32(unsigned h, const void *ptr_, unsigned len) {
         0xedb88320, 0xf00f9344, 0xd6d6a3e8, 0xcb61b38c, 0x9b64c2b0, 0x86d3d2d4, 0xa00ae278, 0xbdbdf21c };
     for(h = ~h; len--; ) { uint8_t b = *ptr++; h = (h >> 4) ^ tbl[(h & 15) ^ (b & 15)]; h = (h >> 4) ^ tbl[(h & 15) ^ (b >> 4)]; }
     return ~h;
+}
+#endif
+
+#ifdef _WIN32 // better than strtok(). preserves empty strings within delimiters
+char *strsep(char **sp, const char *sep) {
+    if( sp && *sp && **sp ) {
+        char *p = *sp + strcspn(*sp, sep), *s = *sp;
+        if( *p ) *p++ = '\0';
+        *sp = p;
+        return s;
+    }
+    return NULL;
 }
 #endif

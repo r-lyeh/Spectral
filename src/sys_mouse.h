@@ -5,7 +5,13 @@ struct mouse {
 struct mouse mouse() {
     extern Tigr *app;
     int mx, my, mb, lmb, mmb, rmb;
-    tigrMouse(app, &mx, &my, &mb); lmb = mb & 1; mmb = !!(mb & 2); rmb = !!(mb & 4);
+    tigrMouse(app, &mx, &my, &mb);
+
+#ifdef _WIN32
+    lmb = mb & 1; mmb = !!(mb & 2); rmb = !!(mb & 4);
+#else
+    lmb = mb & 1; rmb = !!(mb & 2); mmb = !!(mb & 4);
+#endif
 
 #if 1 // adjust mouse coords when shader for CRT distortion is applied. move to sys_input.h
     extern int ZX_CRT;

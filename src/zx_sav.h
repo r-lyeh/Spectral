@@ -117,7 +117,7 @@ int export_state(FILE *fp) {
         putnn(media[i].bin, media[i].len);
     }
 
-    if( errors ) warning("export errors");
+    if( errors ) alert("export errors");
     return errors ? 0 : count;
 }
 
@@ -209,6 +209,6 @@ int import_state(FILE *fp) {
 
     puts(regs("import_state"));
 
-    if( errors ) warning(".sav import errors");
+    if( errors ) alert(".sav import errors");
     return errors ? 0 : count;
 }

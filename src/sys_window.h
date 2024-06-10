@@ -13,15 +13,15 @@ void    window_override_icons();
 char*   window_title(window *win, const char *title);
 
 
-char*   prompt( void *hwndParentWindow, const char *title, const char *caption, const char *defaults );
-#define warning(body) warning("Warning", body)
+char*   prompt(const char *title, const char *caption, const char *defaults );
+#define alert(body) alert("Warning", body)
 void    die(const char *msg);
 
 
 
 #ifdef __APPLE__
 
-char* prompt( void *hwndParentWindow, const char *title, const char *body, const char *defaults ) {
+char* prompt(const char *title, const char *body, const char *defaults ) {
     static char buffer[256]; buffer[0] = '\0';
     char *cmd = va("osascript -e 'text returned of (display dialog \"%s - %s\" default answer \"%s\")'", title, body, defaults);
     for( FILE *fp = popen(cmd, "r"); fp; pclose(fp), fp = 0 ) {
@@ -56,7 +56,7 @@ void window_override_icons() {
 
 #else
 
-char* prompt( void *hwndParentWindow, const char *title, const char *body, const char *defaults ) {
+char* prompt(const char *title, const char *body, const char *defaults ) {
     // order should be: kdialog, then zenity, then Xdialog
     // kdialog --title "title" --inputbox "" "body"
     // zenity --title "title" --entry --text "body"
@@ -97,7 +97,7 @@ char* window_title(window *win, const char *title) {
     return copy;
 }
 
-int (warning)(const char *title, const char *body) {
+int (alert)(const char *title, const char *body) {
 #ifdef _WIN32
     MessageBoxA(0, body, title, MB_OK);
 //#elif is(ems)
@@ -113,7 +113,7 @@ int (warning)(const char *title, const char *body) {
 
 void die(const char *msg) {
     fprintf(stderr, "%s\n", msg);
-    warning(msg);
+    alert(msg);
 #ifdef _WIN32
     if(IsDebuggerPresent()) DebugBreak();
 #endif

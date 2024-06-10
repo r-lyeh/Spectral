@@ -1,4 +1,5 @@
-// io
+// io utilities,
+// - rlyeh, public domain
 
 #ifdef _WIN32
 #include <windows.h>
@@ -38,7 +39,11 @@ int writefile(const char *pathfile, const void *blob, int len) {
     }
     return ok;
 }
-
+int is_folder( const char *pathfile ) {
+    // @fixme: win32+tcc wont like ending slashes in stat()
+    struct stat st;
+    return stat(pathfile, &st) >= 0 ? S_IFDIR == ( st.st_mode & S_IFMT ) : 0;
+}
 
 void db_set(const char *key, int value) {
     char fname[1024+1];
@@ -79,5 +84,60 @@ void cwdexe(void) {
     readlink(path, buffer, sizeof(buffer));
     if(strrchr(buffer,'/')) 1[strrchr(buffer,'/')] = '\0';
     chdir(buffer);
+#endif
+}
+
+
+void hexdump( const void *ptr, unsigned len ) {
+    FILE *fp = stdout;
+    enum { width = 16 };
+    unsigned char *data = (unsigned char*)ptr;
+    for( unsigned jt = 0; jt <= len; jt += width ) {
+        fprintf( fp, "; %05d%s", jt, jt == len ? "\n" : " " );
+        for( unsigned it = jt, next = it + width; it < len && it < next; ++it ) {
+            fprintf( fp, "%02x %s", (unsigned char)data[it], &" \n\0...\n"[ (1+it) < len ? 2 * !!((1+it) % width) : 3 ] );
+        }
+        fprintf( fp, "; %05d%s", jt, jt == len ? "\n" : " " );
+        for( unsigned it = jt, next = it + width; it < len && it < next; ++it ) {
+            fprintf( fp, " %c %s", (signed char)data[it] >= 32 ? (signed char)data[it] : (signed char)'.', &" \n\0..."[ (1+it) < len ? 2 * !!((1+it) % width) : 3 ] );
+        }
+    }
+    fprintf(fp, " %d bytes\n", len);
+}
+
+
+const char* app_loadfile() {
+    char cwd[DIR_MAX] = {0}; getcwd(cwd, DIR_MAX);
+#ifdef TFD_IMPLEMENTATION
+    const char *windowTitle = NULL;
+    const char *filterHints = NULL; // "image files"
+    const char *filters[] = { "*.*" };
+    int allowMultipleSelections = 0;
+
+    tinyfd_assumeGraphicDisplay = 1;
+    return tinyfd_openFileDialog( windowTitle, cwd, countof(filters), filters, filterHints, allowMultipleSelections );
+#else
+    return osdialog_file(OSDIALOG_OPEN, cwd, NULL, NULL);
+#endif
+}
+const char* app_savefile() {
+    char cwd[DIR_MAX] = {0}; getcwd(cwd, DIR_MAX);
+#ifdef TFD_IMPLEMENTATION
+    const char *windowTitle = NULL;
+    const char *filterHints = NULL; // "image files"
+    const char *filters[] = { "*.*" };
+
+    tinyfd_assumeGraphicDisplay = 1;
+    return tinyfd_saveFileDialog( windowTitle, cwd, countof(filters), filters, filterHints );
+#else
+    return osdialog_file(OSDIALOG_SAVE, cwd, NULL, NULL);
+#endif
+}
+const char* app_selectfolder(const char *title) {
+    char cwd[DIR_MAX] = {0}; getcwd(cwd, DIR_MAX);
+#ifdef TFD_IMPLEMENTATION
+    return tinyfd_selectFolderDialog(title, cwd);
+#else
+    return osdialog_file(OSDIALOG_OPEN_DIR, cwd, NULL, NULL);
 #endif
 }

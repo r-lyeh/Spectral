@@ -1,7 +1,12 @@
+//#pragma GCC warning "warning message"         // gcc/clang only pragma
+//#pragma message ( "your warning text here" )  // msc pragma which works in gcc too, albeit not as intended
+
 typedef unsigned char  byte;
 typedef unsigned short word;
 typedef unsigned int   dword;
 typedef unsigned int   rgba;
+
+#define countof(x) ((int)(sizeof(x) / sizeof(0[x])))
 
 #define joint(a,b) a##b
 #define join(a,b)  joint(a,b)

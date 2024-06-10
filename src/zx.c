@@ -8,14 +8,14 @@
 // # done
 // cpu, ula, mem, rom, 48/128, key, joy, ula+, tap, ay, beep, sna/128, fps, tzx, if2, zip, rf, menu, kms, z80, scr,
 // key2/3, +2a/+3, fdc, dsk, autotape, gui, KL modes, load "" code, +3 fdc sounds, +3 speedlock, issue 2/3,
-// pentagon, trdos, trdos (boot), translate game menus, 50/60 hz,
+// pentagon, trdos, trdos (boot), translate game menus, 50/60 hz, zxdb, custom zxdb fmt, embedded zxdb,
 // glue sequential tzx/taps in zips (side A) -> side 1 etc)
 // sequential tzx/taps/dsks do not reset model
 
-#define SPECTRAL "v0.8"
+#define SPECTRAL "v0.9"
 
 #define README \
-"Spectral can be configured with a mouse.\n" \
+"Spectral can be configured with a mouse.\n\n" \
 "Here are some keyboard shortcuts, though:\n" \
 "- ESC: Game browser\n" \
 "- F1: CPU throttle (hold)\n" \
@@ -394,6 +394,7 @@ int screenshot(const char *filename) {
 
 // command keys: sent either physically (user) or virtually (ui)
 int cmdkey;
+char *cmdarg;
 
 
 static byte* merge = 0;
@@ -513,8 +514,8 @@ void crt(int enable) {
 
 
 
-
-window *app, *ui, *dbg;
+enum { OVERLAY_ALPHA = 96 };
+window *app, *ui, *dbg, *overlay; int do_overlay;
 int do_disasm;
 float fps;
 
@@ -542,6 +543,8 @@ void input() {
     if(window_pressed(app, TK_SHIFT))       ZXKey(ZX_SHIFT);
     if(window_pressed(app, TK_CONTROL))     ZXKey(ZX_SYMB);
     if(window_pressed(app, TK_ALT))         ZXKey(ZX_CTRL);
+
+if(do_overlay) ZXKeyUpdate(); // do not submit keys to ZX while overlay is drawn on top
 
     // prepare command keys
     if( window_trigger(app, TK_ESCAPE) ) cmdkey = 'ESC';
@@ -701,9 +704,11 @@ int *dbgames;
 int numgames;
 int numok,numwarn,numerr; // stats
 void rescan(const char *folder) {
+    if(!folder) return;
+
     // clean up
     while( numgames ) free(games[--numgames]);
-    free(games);
+    games = realloc(games, 0);
 
     // refresh stats
     {
@@ -762,6 +767,10 @@ int game_browser() { // returns true if loaded
     if( !numgames ) return 0;
 
     if( !active ) return 0;
+
+    // disable overlay
+    if( do_overlay ) tigrClear(overlay, tigrRGBA(0,0,0,0));
+    do_overlay = 0;
 
     // restore mouse interaction in case it is being clipped (see: kempston mouse)
     mouse_clip(0);
@@ -962,7 +971,7 @@ void help() {
         "https://github.com/r-lyeh/Spectral\n\n"
         "Library: %d games found (%d%%)\n\n"
         README "\n", numgames, 100 - (numerr * 100 / (total + !total)));
-    (warning)("Spectral " SPECTRAL, help);
+    (alert)("Spectral " SPECTRAL, help);
 }
 
 void titlebar(const char *filename) {
@@ -1002,40 +1011,127 @@ void draw_ui() {
         }
 
         // ui animation
-        int hovering_border = !active && (m.x > _320 * 5/6); // || m.x < _320 * 1/6);
+        int hovering_border = !active && !do_overlay && (m.x > _320 * 5/6 || m.x < _320 * 1/6);
         static float smooth; do_once smooth = hovering_border;
         smooth = smooth * 0.75 + hovering_border * 0.25;
         // left panel: game options
-        if( 0 ) // smooth > 0.1 )
+        if( smooth > 0.1 )
         {
             {
                 // draw black panel
                 TPixel transp = { 0,0,0, 192 * smooth };
-                tigrFillRect(ui, 0, -1, smooth * (_320*1/6), _240+2, transp);
+                tigrFillRect(ui, -1,-1, smooth * (_320*1/6), _240+2, transp);
             }
 
             // left panel
-
             float chr_x = REMAP(smooth,0,1,-6,0.5) * 11, chr_y = REMAP(smooth,0,1,-3,2.5) * 11;
+            int right = chr_x+8*4-4;
+            int bottom = chr_y+8*31.0-1;
 
             ui_at(ui,chr_x,chr_y);
 
             // stars, user-score
             const char *stars[] = {
-                "\2\x10\f\x10\f\x10\n", // 0 0 0
-                "\2\x11\f\x10\f\x10\n", // 0 0 1
-                "\2\x12\f\x10\f\x10\n", // 0 1 0
-                "\2\x12\f\x11\f\x10\n", // 0 1 1
-                "\2\x12\f\x12\f\x10\n", // 1 0 0
-                "\2\x12\f\x12\f\x11\n", // 1 0 1
-                "\2\x12\f\x12\f\x12\n", // 1 1 0
-                "\2\x12\f\x12\f\x12\n", // 1 1 1
+                /*"\2"*/"\f\x10\f\x10\f\x10\n", // 0 0 0
+                /*"\2"*/"\f\x11\f\x10\f\x10\n", // 0 0 1
+                /*"\2"*/"\f\x12\f\x10\f\x10\n", // 0 1 0
+                /*"\2"*/"\f\x12\f\x11\f\x10\n", // 0 1 1
+                /*"\2"*/"\f\x12\f\x12\f\x10\n", // 1 0 0
+                /*"\2"*/"\f\x12\f\x12\f\x11\n", // 1 0 1
+                /*"\2"*/"\f\x12\f\x12\f\x12\n", // 1 1 0
+                /*"\2"*/"\f\x12\f\x12\f\x12\n", // 1 1 1
             };
             static int score = 3;
             if( ui_click("-Stars-", stars[score]) )
                 score = (score + 1) % 7;
 
+            // sample sketch
+
+            if( ZXDB.ids[0] ) {
+
+            // zxdb
+            if( ui_click(va("- %s -", ZXDB.ids[2]), "ZXDB\n"));
+            if( ui_click(va("- %s -", ZXDB.ids[1]), "Year\n"));
+            if( ui_click(va("- %s -", ZXDB.ids[4]), "Brand\n"));
+            if( ui_click(va("- %s -", ZXDB.ids[7]), "Genre\n"));
+            if( ui_click(va("- %s -", ZXDB.ids[6]), "Score\n"));
+
+//          if( ui_click("- AY Sound -", "Feat.\n"));
+//          if( ui_click("- Multicolour (Rainbow Graphics) -", "Feat.\n"));
+
+            int len;
+
+            if( ui_click(va("- Toggle Inlay -"), "Inlays\n")) { // @todo: include scanned instructions and tape scan, and mp3s
+                for( char *data = zxdb_download(zxdb_url(ZXDB, "inlay"), &len); data; free(data), data = 0 ) {
+                    do_overlay ^= 1;
+                    tigrClear(overlay, !do_overlay ? tigrRGBA(0,0,0,0) : tigrRGBA(0,0,0,OVERLAY_ALPHA));
+                    if( do_overlay ) {
+                        rgba *bitmap = ui_image(data,len, _320,_240);
+                        if( bitmap ) {
+                            memcpy(overlay->pix, bitmap, _320 * _240 * 4);
+                            free( bitmap );
+                        }
+                    }
+                }
+            }
+            if( ui_click(va("- Toggle Screen$ -"), "Screen\n")) {
+                for( char *data = zxdb_download(zxdb_url(ZXDB, "screen"), &len); data; free(data), data = 0 ) {
+                    // loadbin(data, len, false);
+                    if( len == 6912 ) memcpy(VRAM, data, len);
+                }
+            }
+            if( ui_click(va("- Toggle Instructions -"), "Help\n")) { // @todo: word wrap. mouse panning. rmb close
+                for( char *data = zxdb_download(zxdb_url(ZXDB, "instructions"), &len); data; free(data), data = 0 ) {
+                    do_overlay ^= 1;
+                    tigrClear(ui, !do_overlay ? tigrRGBA(0,0,0,0) : tigrRGBA(0,0,0,OVERLAY_ALPHA));
+                    if( do_overlay ) ui_print(overlay, 11,11, ui_colors, data);
+                }
+            }
+            if( ui_click(va("- Toggle Game Map -"), "Maps\n")) {
+                for( char *data = zxdb_download(zxdb_url(ZXDB, "map"), &len); data; free(data), data = 0 ) {
+                    tigrClear(overlay, !do_overlay ? tigrRGBA(0,0,0,0) : tigrRGBA(0,0,0,OVERLAY_ALPHA));
+                    do_overlay ^= 1;
+                    if( do_overlay ) {
+                        rgba *bitmap = ui_image(data,len, _320,_240);
+                        if( bitmap ) {
+                            memcpy(overlay->pix, bitmap, _320 * _240 * 4);
+                            free( bitmap );
+                        }
+                    }
+                }
+            }
+            if( ui_click("- Cheats -", "Cheats\n") ) { // @todo: selector
+                for( char *data = zxdb_download(zxdb_url(ZXDB, "poke"), &len); data; free(data), data = 0 ) {
+                    loadbin(data, len, false);
+                }
+            }
+
+            const char *roles[] = {
+                ['?'] = "",
+                ['C'] = "Code: ",
+                ['D'] = "Design: ",
+                ['G'] = "Graphics: ",
+                ['A'] = "Inlay: ",
+                ['V'] = "Levels: ",
+                ['S'] = "Screen: ",
+                ['T'] = "Translation: ",
+                ['M'] = "Music: ",
+                ['X'] = "Sound Effects: ",
+                ['W'] = "Story Writing: ",
+            };
+
+            for( int i = 0; i < 9/*countof(ZXDB.authors)*/; ++i )
+            if( ZXDB.authors[i] )
+            if( ui_click(va("- %s%s -", roles[ZXDB.authors[i][0]], ZXDB.authors[i]+1), "Author\n"));
+
+            }
+
+            // mags reviews
+            // netplay lobby
+            // #tags
+
             // issues 
+            ui_at(ui,chr_x,bottom);
             static int issues[4] = {0};
             static const char *err_warn_ok = "\7\4\2\6";
             if( ui_click("-Toggle Loading issue-", va("%c%s\f", err_warn_ok[issues[0]], issues[0] ? "":"" )) ) {
@@ -1053,39 +1149,13 @@ void draw_ui() {
             int count = 0; for(int i = 0; i < 4; ++i) count += issues[i] > 1;
             if( ui_click("-Total Issues-", va("%d\n", count)) ) {
             }
-
-            // sample sketch
-            if( ui_click("- 2018 -", "Year\n"));
-            if( ui_click("- RetroSouls (Russia) -", "Brand\n"));
-
-            if( ui_click("- Arcade Game: Maze -", "Genre\n"));
-            if( ui_click("- AY Sound -", "Feat.\n"));
-            if( ui_click("- Multicolour (Rainbow Graphics) -", "Feat.\n"));
-
-            if( ui_click("- Denis Grachev (Russia) -", "Author\n"));
-            if( ui_click("- Oleg Nikitin (Russia) -", "Author\n"));
-            if( ui_click("- Ivan Seleznev -", "Author\n"));
- 
-            // zxdb
-            if( ui_click("- 34458 -", "ZXDB\n"));
-
-            // pokes
-            if( ui_click("- Cheats -", "Cheats\n"));
-
-            // manual
-            // inlays
-            // tape scans
-
-            // mp3s
-            // mags reviews
-
-            // netplay lobby
-            // #tags
         }
         // right panel: emulator options
         if( 1 )
         {
             int chr_x = REMAP(smooth,0,1,33,28) * 11 + 0, chr_y = REMAP(smooth,0,1,-4,2.5) * 11;
+            int right = chr_x+8*4-4;
+            int bottom = chr_y+8*31.0-1;
 
             {
                 // draw black panel
@@ -1136,9 +1206,6 @@ void draw_ui() {
                     reset(ZX);
             }
 
-            int right = chr_x+8*4-4;
-            int bottom = chr_y+8*31.0-1;
-
             ui_at(ui,chr_x - 8,bottom+1);
             if( ui_click(NULL, "") ) cmdkey = 'HELP';
 
@@ -1148,7 +1215,7 @@ void draw_ui() {
 
         // tape progress
         float pct = tape_tellf();
-        int visible = !active ? ( pct <= 1. && mic_on/*tape_playing()*/ ) || (m.y > -10 && m.y < _240/10) : 0;
+        int visible = !active && !do_overlay ? ( pct <= 1. && mic_on/*tape_playing()*/ ) || (m.y > -10 && m.y < _240/10) : 0;
         static float smoothY; do_once smoothY = visible;
         smoothY = smoothY * 0.75 + visible * 0.25;
         if( smoothY > 0.01 )
@@ -1181,17 +1248,21 @@ void draw_ui() {
         }
 
         ui_at(ui, 1*11, 1*11);
-        if( ui_click(NULL, "%c", !active ? PLAY_CHR : PAUSE_CHR) ) active ^= 1;
+        if( numgames ) {
+            if( ui_click(NULL, "%c", !active ? PLAY_CHR : PAUSE_CHR) ) active ^= 1;
+        }
+        else {
+            if( ui_click("-Scan games folder-", "%c\n", FOLDER_CHR) ) cmdkey = 'SCAN';
+        }
 
         // manual tape handling
         if( 1 ) {
-            int visible = !active ? (m.y > -10 && m.y < _240/10) : 0;
+            int visible = !active && !do_overlay ? (m.y > -10 && m.y < _240/10) : 0;
             static float smoothY; do_once smoothY = visible;
             smoothY = smoothY * 0.75 + visible * 0.25;
 
             int y = REMAP(smoothY,0,1,-10,1*11);
             ui_at(ui, ui_x, y+1 );
-
 #if 0
             if( ui_click(NULL, "\xf\b\b\b\xf") ) cmdkey = 'prev';
             if( ui_click(NULL, "%c\b\b\b%c", PLAY_CHR, PLAY_CHR) ) cmdkey = 'next';
@@ -1209,7 +1280,7 @@ void draw_ui() {
 
         // bottom slider. @todo: rewrite this into a RZX player/recorder
         if( ZX_DEBUG )
-        if( !active ) {
+        if( !active && !do_overlay ) {
             static float my_var = 0; // [-2,2]
 
             TPixel white = {255,255,255,255}, black = {0,0,0,255}, *bar = &ui->pix[0 + (_240-7) * _320];
@@ -1238,7 +1309,36 @@ void draw_ui() {
     }
 }
 
+void logo(void) {
+    cputs("\3 \3 \3 \3 \3 \3 \3 \3 \2 \2 \2 \2 \2 \2 \2 \2 \2 \2 \2 \2 \2 \2 \2 \2 \6 \6 \6 \6 \6 \6 \6 \6 \6 \6 \6 \6 \6 \6 \6 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \1 \1 \1 \1 \1█");
+    cputs("\3█\3▀\3▀\3▀\3▀\3▀\2▀\2▀\2▀\2▀\2 \2█\2▀\2▀\2▀\2▀\2▀\2▀\2▀\2▀\2█\2 \6█\6▀\6▀\6▀\6▀\6▀\6▀\6▀\6▀\6▀\6 \6█\6▀\4▀\4▀\4▀\4▀\4▀\4▀\4▀\4▀\4 \4▀\4▀\4▀\4▀\4█\4▀\4▀\4▀\4▀\5▀\5 \5█\5▀\5▀\5▀\5▀\5▀\5▀\5▀\5▀\5▀\5 \5▀\5▀\5▀\5▀\5▀\1▀\1▀\1▀\1▀\1█\1 \1█");
+    cputs("\3▀\3▀\3▀\3▀\2▀\2▀\2▀\2▀\2▀\2█\2 \2█\2 \2 \2 \2 \2 \2 \2 \2 \6█\6 \6█\6▀\6▀\6▀\6▀\6▀\6▀\6▀\6▀\6▀\6 \4█\4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4█\4 \4 \5 \5 \5 \5 \5█\5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5█\5▀\5▀\1▀\1▀\1▀\1▀\1▀\1▀\1█\1 \1█");
+    cputs("\3▀\3▀\2▀\2▀\2▀\2▀\2▀\2▀\2▀\2▀\2 \2█\2▀\2▀\2▀\2▀\2▀\2▀\6▀\6▀\6▀\6 \6▀\6▀\6▀\6▀\6▀\6▀\6▀\6▀\6▀\4▀\4 \4▀\4▀\4▀\4▀\4▀\4▀\4▀\4▀\4▀\4▀\4 \4 \4 \4 \4 \5▀\5 \5 \5 \5 \5 \5 \5▀\5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5▀\1▀\1▀\1▀\1▀\1▀\1▀\1▀\1▀\1▀\1 \1▀" "\007 " SPECTRAL);
+    cputs("\3 \2 \2 \2 \2 \2 \2 \2 \2 \2 \2 \2█\2 \6 \6 \6 \6 \6 \6 \6 \6 \6 \6 \6 \6 \6 \6 \6 \6 \6 \6 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \4 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \5 \1 \1 \1 \1 \1 \1 \1 \1 \1 \1 \1" ANSI_RESET);
+
+    // works on win, lin, osx. wont work on lubuntu/lxterminal, though.
+    //cputs("\3┏\2┓\2 \6 \6 \6 \4 \4 \4 \5 \5 \5 \1┓");
+    //cputs("\2┗\2┓\6┏\6┓\6┏\4┓\4┏\4╋\5┏\5┓\5┏\1┓\1┃");
+    //cputs("\2┗\6┛\6┣\6┛\4┗\4 \4┗\5┗\5┛\5 \1┗\1┻\1┗" "\007" SPECTRAL);
+    //cputs("\6 \6 \4┛\4 \4 \4 \5 \5 \5 \1 \1 \1 \1 " ANSI_RESET);
+
+    //puts("┌┐          ┐");
+    //puts("└┐┌┐┌┐┌┼┌┐┌┐│");
+    //puts("└┘├┘└ └└┘ └┴└");
+    //puts("  ┘          ");
+    //puts("┏┐          ┐");
+    //puts("└┐┏┐┏┐┏┼┏┐┏┐┃");
+    //puts("└┛├┛└ └└┛ └┻└");
+    //puts("  ┛          ");
+    //puts("┏┓          ┓");
+    //puts("┗┓┏┓┏┓┏╋┏┓┏┓┃");
+    //puts("┗┛┣┛┗ ┗┗┛ ┗┻┗");
+    //puts("  ┛          ");
+}
+
 int main() {
+    logo();
+
     // install icon hooks for any upcoming window or modal creation
     window_override_icons();
 
@@ -1265,11 +1365,21 @@ int main() {
 
     // relocate to exedir
     cwdexe();
+    // normalize argv[0] extension
+#ifdef _WIN32
+    __argv[0] = strdup(va("%s%s", __argv[0], strendi(__argv[0], ".exe") ? "" : ".exe" ));
+#endif
+
+    // init zxdb (external files first, they may be an updated file)
+    zxdb_init("Spectral.db");
+    // else try embedded database in executable
+    zxdb_init(__argv[0]);
 
     // app
     app = window_open(_32+256+_32, _24+192+_24, va("Spectral%s", DEV ? " DEV" : "") );
     ui = window_bitmap(_320, _240);
     dbg = window_bitmap(_320, _240);
+    overlay = window_bitmap(_320, _240);
 
     // postfx
     crt(ZX_CRT);
@@ -1379,7 +1489,7 @@ if( do_runahead == 0 ) {
         ptr += sprintf(ptr, "%02X%c%02X %04X ", page128, page128&32?'!':' ', page2a, PC(cpu));
         ptr += sprintf(ptr, "%c%c %4dHz ", "  +-"[tape_inserted()*2+tape_level()], toupper(tape_peek()), tape_hz);
 
-        tigrClear(ui, !active ? tigrRGBA(0,0,0,0) : tigrRGBA(0,0,0,128));
+        tigrClear(ui, !active && !do_overlay ? tigrRGBA(0,0,0,0) : tigrRGBA(0,0,0,128));
 
         if( DEV ) {
             float x = 0.5, y = 25.5;
@@ -1448,6 +1558,12 @@ if( do_runahead == 0 ) {
         // draw ui on top
         tigrBlitAlpha(app, ui, 0,0, 0,0, _320,_240, 1.0f);
 
+        // draw overlay on top
+        if( do_overlay ) {
+        tigrBlitAlpha(app, overlay, 0,0, 0,0, _320,_240, 1.0f);
+        if( mouse().rb || window_pressed(app,TK_ESCAPE) ) do_overlay = 0, tigrClear(overlay, tigrRGBA(0,0,0,0));
+        }
+
         // flush
         window_update(app);
 
@@ -1456,7 +1572,8 @@ if( do_runahead == 0 ) {
                 boot(ZX, 0); if(TURBO || window_pressed(app,TK_CONTROL)) rom_patch_turbo(); \
                 if( !loadfile(file,1) ) { \
                     if( !load_shader( file ) ) { \
-                        warning(va("cannot open '%s' file\n", file)); \
+                        if( is_folder(file) ) cmdkey = 'SCAN', cmdarg = file; \
+                        else alert(va("cannot open '%s' file\n", file)); \
                     } \
                 } \
             } while(0)
@@ -1485,13 +1602,13 @@ if( do_runahead == 0 ) {
 
 
         // clear command
-        int cmd = cmdkey;
-        cmdkey = 0;
+        int cmdkey_ = cmdkey; cmdkey = 0;
+        char *cmdarg_ = cmdarg; cmdarg = 0;
 
         // parse commands
         ZX_FASTCPU = 0;
-        switch(cmd) { default:
-            break; case 'ESC':   active ^= 1;
+        switch(cmdkey_) { default:
+            break; case 'ESC':   if( numgames ) active ^= 1;
             break; case  'F1':   ZX_FASTCPU = 1; // fast-forward cpu
             break; case  'F2':   if(!tape_inserted()) active ^= 1; else tape_play(!tape_playing()); // open browser if start_tape is requested but no tape has been ever inserted
             break; case 'prev':  tape_prev();
@@ -1545,6 +1662,9 @@ if( do_runahead == 0 ) {
 
             break; case 'ALOC':  ZX_AUTOLOCALE ^= 1; if(ZX_AUTOLOCALE) translate(mem, 0x4000*16, 'en');
             break; case 'HELP':  help();
+
+            break; case 'SCAN':  for( const char *f = cmdarg_ ? cmdarg_ : app_selectfolder("Select games folder"); f ; f = 0 )
+                                    rescan( f ), active = !!numgames;
         }
 
     } while( window_alive(app) );
@@ -1558,7 +1678,7 @@ if( do_runahead == 0 ) {
     if(medias) media[0].pos = voc_pos / (double)(voc_len+!voc_len);
     for( FILE *state = fopen("Spectral.sav","wb"); state; fclose(state), state = 0) {
         if( !export_state(state) )
-            warning("Error exporting state");
+            alert("Error exporting state");
     }
 
     window_close(app);

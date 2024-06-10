@@ -3507,7 +3507,9 @@ Tigr* tigrWindow(int w, int h, const char* title, int flags) {
     uint32_t glAttributes[] = { 8, 24,  //	NSOpenGLPFAColorSize, 24,
                                 11, 8,  //	NSOpenGLPFAAlphaSize, 8,
                                 5,      //	NSOpenGLPFADoubleBuffer,
+#if NDEBUG > 0 //< @r-lyeh: include `NSOpenGLPFAAccelerated` only in retail builds. by excluding this line on debug builds we ensure the app is rendered within virtualbox guests.
                                 73,     //	NSOpenGLPFAAccelerated,
+#endif
                                 // 72,			//	NSOpenGLPFANoRecovery,
                                 // 55, 1,		//	NSOpenGLPFASampleBuffers, 1,
                                 // 56, 4,		//	NSOpenGLPFASamples, 4,

@@ -37,8 +37,11 @@ void audio_init() {
 //#include "res/audio/eject"   // S16 C1 22050Hz zxsp
 
 //#include "res/audio/motor"   // S16 C1 22050Hz cap32
-#include "res/audio/motor2"  // S16 C1 22050Hz rvm
-//#include "res/audio/running" // S16 C1 22050Hz zxsp
+//enum {motor_volume = 10};
+//#include "res/audio/motor2"  // S16 C1 22050Hz rvm
+//enum {motor_volume = 3};
+#include "res/audio/running" // S16 C1 22050Hz zxsp
+enum {motor_volume = 5};
 
 #include "res/audio/seek"    // S16 C1 22050Hz cap32
 //#include "res/audio/seek2"   // S16 C1 22050Hz 
@@ -95,7 +98,7 @@ float mix(float dt) {
 
 int play(int sample, unsigned count) {
     static voice_t motors[] = {
-        {'moto', 5, (int16_t*)(44+wavmotor2), (sizeof(wavmotor2) - 44) / 2},
+        {'moto', motor_volume, (int16_t*)(44+wavrunning), (sizeof(wavrunning) - 44) / 2},
     };
     static voice_t seeks[] = {
         {'seek', 5, (int16_t*)(44+wavseek), (sizeof(wavseek) - 44) / 2},
