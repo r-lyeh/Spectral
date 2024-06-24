@@ -23,7 +23,10 @@ int rom_load(const byte *src, int len) { // interface2 cartridge
 }
 
 int scr_load(const byte *src, int len) { // screenshot
-    if(len != 6912) return 0; // @fixme: 6912+64 for ulaplus+ screen$
+    // @todo: .ifl (multicolor8x2 9216 = 6144+768*4)
+    // @todo: .mc/.mlt (multicolor8x1 12288 = 6144+768*8)
+    // @todo: ulaplus+ screen$ (6912+64)
+    if(len != 6912) return 0;
 #if 0
     //boot(48, 0);
 #else
@@ -411,6 +414,9 @@ int pok_load(const byte *src, int len) {
 }
 
 int guess(const byte *ptr, int size) { // guess required model type for given data
+    // ay first
+    if( size > 0x08 &&(!memcmp(ptr, "ZXAYEMUL", 8) )) return 128;
+
     // dsk first
     if( size > 0x08 &&(!memcmp(ptr, "MV - CPC", 8) || !memcmp(ptr, "EXTENDED", 8)) ) return 300;
 

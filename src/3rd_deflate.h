@@ -1,3 +1,6 @@
+#ifndef DEFLATE_H
+#define DEFLATE_H
+
 // miniz.c v1.15 r4 - public domain de/inflate. See "unlicense" statement at http://unlicense.org/
 // Rich Geldreich <richgel99@gmail.com>, last updated Oct. 13, 2013. Then stripped down by @r-lyeh.
 // Implements RFC 1950: http://www.ietf.org/rfc/rfc1950.txt and RFC 1951: http://www.ietf.org/rfc/rfc1951.txt
@@ -5,7 +8,9 @@
 unsigned deflate_encode(const void *in, unsigned inlen, void *out, unsigned outlen, unsigned flags); // [0..(6)..9][10 (uber)]
 unsigned deflate_decode(const void *in, unsigned inlen, void *out, unsigned outlen);
 unsigned deflate_bounds(unsigned inlen, unsigned flags);
+unsigned deflate_excess(unsigned flags);
 
+#endif
 
 #ifdef DEFLATE_C
 #pragma once
@@ -1597,6 +1602,9 @@ unsigned deflate_encode(const void *in, unsigned inlen, void *out, unsigned outl
 }
 unsigned deflate_bounds(unsigned inlen, unsigned flags) {
     return (unsigned)MZ_MAX(128 + (inlen * 110) / 100, 128 + inlen + ((inlen / (31 * 1024)) + 1) * 5);
+}
+unsigned deflate_excess(unsigned flags) {
+    return (unsigned)0;
 }
 
 #endif // DEFLATE_C

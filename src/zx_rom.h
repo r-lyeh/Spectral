@@ -10,12 +10,12 @@
 //#include "res/roms/trdos604"
 //#include "res/roms/gluk663pen"
 
-//#include "res/roms/plus2c"    // https://speccy4ever.speccy.org/_CMS.htm
+#include "res/roms/plus2c"      // https://speccy4ever.speccy.org/_CMS.htm
 //#include "res/roms/plus2b"    // https://shorturl.at/dY4wP
 #include "res/roms/lg18v07"     // https://speccy4ever.speccy.org/_CMS.htm
 //#include "res/roms/gw03v33"   // https://speccy4ever.speccy.org/_CMS.htm
 //#include "res/roms/jgh077"    // https://speccy4ever.speccy.org/_CMS.htm
-//#include "res/roms/sebasic"   // https://web.archive.org/web/20061213013302if_/http://www.worldofspectrum.org:80/sinclairbasic/software/sebas094.zip
+#include "res/roms/sebasic"   // https://web.archive.org/web/20061213013302if_/http://www.worldofspectrum.org:80/sinclairbasic/software/sebas094.zip
 
 #include "res/snaps/ld16bas"
 #include "res/snaps/ld16bin"
@@ -89,7 +89,7 @@ void rom_restore() {
 
     if(ZX_ALTROMS)
     {
-#if 0
+#if 1
     // install plus2c on 128/+2 models
     if( ZX <= 200) memcpy(rom+0x0000, romplus2c, 0x4000), memcpy(rom+0x4000, rom128+0x4000, 0x4000);
     if( ZX <= 200) rom[0x0566] = '6';  // 198(6) Sinclair
@@ -104,9 +104,9 @@ void rom_restore() {
     // if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48), romgw03v33/*romjgh077/*romgw03v33/*romlg18v07/*rom48*/, 0x4000);
 
     // install old sebasic where possible
-    // if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48), ZX==16 ? rom48 : romsebasic, 0x4000);
-    // if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48)+0x3D00, rom48+0x3D00, (0x7F-0x20)*8); // restore charset
-    // if( ZX == 200 || ZX ==128) memset(rom+0x4000*0+0x240, 0x00, 3); // make editor128 work with this rom
+    if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48), ZX==16 ? rom48 : romsebasic, 0x4000);
+    if( ZX <= 200) memcpy(rom+0x4000 * (ZX > 48)+0x3D00, rom48+0x3D00, (0x7F-0x20)*8); // restore charset
+    if( ZX == 200 || ZX ==128) memset(rom+0x4000*0+0x240, 0x00, 3); // make editor128 work with this rom
 
     // install jgh where possible
     // if( ZX <= 200) memcpy(ROM_BASIC(), ZX==16 ? rom48 : romjgh077, 0x4000);
@@ -218,6 +218,9 @@ IF_TURBOROM_TURBO(
 }
 
 void rom_patch_klmode() {
+    // dont patch K/L mode if trdos is present. both lg18 and trdos rom regions do overlap.
+    if( !ZX_PENTAGON )
+
     // apply hot patch
     if( ZX_KLMODE_PATCH_NEEDED && PC(cpu) == 0x15E1 ) { // @todo: find another less hacky PC addr
         int rombank = GET_MAPPED_ROMBANK();

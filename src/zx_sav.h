@@ -5,7 +5,7 @@
 // header [16] + version [16]
 // @todo: uncompressed SCR page, then get this page excluded in 16ram pages block
 // z80 regs (in alphabetical order) [16 each]
-//  AF AF2 BC BC2 DE DE2 HL HL2 IFF12 IM IR IX IY PC SP WZ
+//  AF AF2 BC BC2 DE DE2 HL HL2 IFF1 IFF2 IM IR IX IY PC SP WZ
 // ports (in ascending order, ideally)
 //  addr [16], data [16]
 //  [...]
@@ -34,20 +34,23 @@
 //        v - may be safely copied regardless of the extent of modifications to the file
 
 const uint16_t STATE_HEADER = 'Xp';
-const uint16_t STATE_VERSION = '0\x1a';
+const uint16_t STATE_VERSION = '1\x1a';
 
 int export_state(FILE *fp) {
     if( !fp ) return 0;
 
     puts(regs("export_state"));
 
-    uint32_t count = 0, errors = 0, temp;
+    uint64_t count = 0, errors = 0, temp;
 
     #define putnn(ptr,len) \
         ( errors += fwrite( (count += (len), (ptr)), (len), 1, fp ) != 1 )
 
     #define put16(value) \
-        putnn( ( temp = bswap16(value), &temp ), 2 )
+        putnn( ( temp = (value), temp = bswap16(temp), &temp ), 2 )
+
+    #define put64(value) \
+        putnn( ( temp = (value), temp = bswap64(temp), &temp ), 8 )
 
     put16(STATE_HEADER);
     put16(STATE_VERSION);
@@ -63,15 +66,18 @@ int export_state(FILE *fp) {
     put16(DE(cpu));
     put16(DE2(cpu));
     put16(HL(cpu));
-    put16(HL2(cpu));       uint16_t cpu_iff12 = (IFF1(cpu) << 8) | (IFF2(cpu) & 255);
-    put16(cpu_iff12);
-    put16(IM(cpu));        uint16_t cpu_ir = (I(cpu) << 8) | (R(cpu) & 255);
-    put16(cpu_ir);
+    put16(HL2(cpu));
+    put16(IFF1(cpu));
+    put16(IFF2(cpu));
+    put16(IM(cpu));
+    put16(IR(cpu));
     put16(IX(cpu));
     put16(IY(cpu));
     put16(PC(cpu));
     put16(SP(cpu));
     put16(WZ(cpu));
+    put16(cpu.step);
+    put64(pins);
 
                     put16(0x00fe), put16(ZXBorderColor); // any ZX
     if( ZX >= 210 ) put16(0x1ffd), put16(page2a); // +2A, +3
@@ -124,13 +130,16 @@ int export_state(FILE *fp) {
 int import_state(FILE *fp) {
     if( !fp ) return 0;
 
-    uint16_t count = 0, errors = 0, temp;
+    uint64_t count = 0, errors = 0, temp;
 
     #define getnn(ptr,len) \
         ( errors += fread( (count += (len), (ptr)), (len), 1, fp ) != 1 )
 
     #define get16(value) \
         (getnn(&temp, 2), value = bswap16(temp))
+
+    #define get64(value) \
+        (getnn(&temp, 8), value = bswap64(temp))
 
     #define check16(value) \
         if( (get16(temp), temp) != value ) return 0
@@ -155,15 +164,18 @@ int import_state(FILE *fp) {
     get16(DE(cpu));
     get16(DE2(cpu));
     get16(HL(cpu));
-    get16(HL2(cpu));    uint16_t cpu_iff12;
-    get16(cpu_iff12);   IFF1(cpu)=cpu_iff12>>8; IFF2(cpu)=cpu_iff12&255;
-    get16(IM(cpu));     uint16_t cpu_ir;
-    get16(cpu_ir);      I(cpu)=cpu_ir>>8; R(cpu)=cpu_ir&255;
+    get16(HL2(cpu));
+    get16(IFF1(cpu));
+    get16(IFF2(cpu));
+    get16(IM(cpu));
+    get16(IR(cpu));
     get16(IX(cpu));
     get16(IY(cpu));
     get16(PC(cpu));
     get16(SP(cpu));
     get16(WZ(cpu));
+    get16(cpu.step);
+    get64(pins);
 
     for(;;) {
         uint16_t port, data;

@@ -32,7 +32,7 @@ extern "C" {
 // error-accumulation precision boost
 #define BEEPER_FIXEDPOINT_SCALE (16)
 // DC adjust buffer size
-#define BEEPER_DCADJ_BUFLEN (512)
+#define BEEPER_DCADJ_BUFLEN (128) // (512) https://github.com/floooh/chips/pull/100
 
 // initialization parameters
 typedef struct {
@@ -112,15 +112,17 @@ static float _beeper_dcadjust(beeper_t* bp, float s) {
     bp->dcadj_sum += s;
     bp->dcadj_buf[bp->dcadj_pos] = s;
     bp->dcadj_pos = (bp->dcadj_pos + 1) & (BEEPER_DCADJ_BUFLEN-1);
-    return s - (bp->dcadj_sum / BEEPER_DCADJ_BUFLEN);
+    return 0; // return s - (bp->dcadj_sum / BEEPER_DCADJ_BUFLEN); // https://github.com/floooh/chips/pull/100
 }
 
 bool beeper_tick(beeper_t* bp) {
+    _beeper_dcadjust(bp, (float)bp->state * bp->volume * bp->base_volume); // https://github.com/floooh/chips/pull/100
     /* generate a new sample? */
     bp->counter -= BEEPER_FIXEDPOINT_SCALE;
     if (bp->counter <= 0) {
         bp->counter += bp->period;
-        bp->sample = _beeper_dcadjust(bp, (float)bp->state * bp->volume * bp->base_volume);
+        // bp->sample = _beeper_dcadjust(bp, (float)bp->state * bp->volume * bp->base_volume);
+        bp->sample = bp->dcadj_sum / BEEPER_DCADJ_BUFLEN; // https://github.com/floooh/chips/pull/100
         return true;
     }
     return false;

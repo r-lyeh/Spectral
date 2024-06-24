@@ -2846,7 +2846,9 @@ void tigrFree(Tigr* bmp) {
 int tigrClosed(Tigr* bmp) {
     TigrInternal* win = tigrInternal(bmp);
     int val = win->closed;
+#if 0 //< @r-lyeh
     win->closed = 0;
+#endif
     return val;
 }
 
