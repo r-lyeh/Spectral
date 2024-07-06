@@ -12,6 +12,7 @@
 #include "3rd_tigrobjc.h"
 #include "3rd_tigrmousecursor.h"
 #include "3rd_tigrdragndrop.h"
+#include "3rd_tigrtitle.h"
 #undef border
 #undef run
 

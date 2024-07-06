@@ -2,7 +2,7 @@
 
 zxdb ZXDB2;
 
-rgba* thumbnail(const byte *VRAM_, int len, unsigned downfactor) {
+rgba* thumbnail(const byte *VRAM_, int len, unsigned downfactor, int ZXFlashFlag) {
     int w = 256 / downfactor, h = 192 / downfactor;
 
     rgba *texture = malloc( w * h * 4 ), *cpy = texture;
@@ -220,7 +220,9 @@ uint16_t cache_set(unsigned zxdb, uint16_t v) {
     return v;
 }
 
-const byte* screens[65536][4]; // as-is, 2:1 shrink, 4:1 shrink, 8:1 shrink
+// screens + thumbnails
+// 64K ZXDB entries max, x2 flash versions (on/off) each, x4 versions each (1:1,2:1,4:1,8:1 shrinks)
+const byte* screens[65536][2][4];
 unsigned short screens_len[65536];
 
 
@@ -259,23 +261,32 @@ int worker_fn( void* userdata ) {
             }
 
             {
-                screens[id][0] =
-                screens[id][1] =
-                screens[id][2] =
-                screens[id][3] = (const byte*)bin;
+                screens[id][0][0] =
+                screens[id][0][1] =
+                screens[id][0][2] =
+                screens[id][0][3] =
+                screens[id][1][0] =
+                screens[id][1][1] =
+                screens[id][1][2] =
+                screens[id][1][3] = (const byte*)bin;
 
                 int ix,iy,in;
                 rgba *bitmap = (rgba*)stbi_load_from_memory(bin, len, &ix, &iy, &in, 4);
                 if( bitmap ) {
-                    screens[id][1] = (const byte*)ui_resize(bitmap, ix, iy, 256/2, 192/2, 1);
-                    screens[id][2] = (const byte*)ui_resize(bitmap, ix, iy, 256/4, 192/4, 1);
-                    screens[id][3] = (const byte*)ui_resize(bitmap, ix, iy, 256/8, 192/8, 1);
+                    screens[id][0][1] = screens[id][1][1] = (const byte*)ui_resize(bitmap, ix, iy, 256/2, 192/2, 1);
+                    screens[id][0][2] = screens[id][1][2] = (const byte*)ui_resize(bitmap, ix, iy, 256/4, 192/4, 1);
+                    screens[id][0][3] = screens[id][1][3] = (const byte*)ui_resize(bitmap, ix, iy, 256/8, 192/8, 1);
                     stbi_image_free(bitmap);
                 } else {
-                    bitmap = thumbnail(bin, len, 1); ix = 256, iy = 192;
-                    screens[id][1] = (const byte*)ui_resize(bitmap, ix, iy, 256/2, 192/2, 1);
-                    screens[id][2] = (const byte*)ui_resize(bitmap, ix, iy, 256/4, 192/4, 1);
-                    screens[id][3] = (const byte*)ui_resize(bitmap, ix, iy, 256/8, 192/8, 1);
+                    bitmap = thumbnail(bin, len, 1, 0); ix = 256, iy = 192;
+                    screens[id][0][1] = (const byte*)ui_resize(bitmap, ix, iy, 256/2, 192/2, 1);
+                    screens[id][0][2] = (const byte*)ui_resize(bitmap, ix, iy, 256/4, 192/4, 1);
+                    screens[id][0][3] = (const byte*)ui_resize(bitmap, ix, iy, 256/8, 192/8, 1);
+                    free(bitmap);
+                    bitmap = thumbnail(bin, len, 1, 1); ix = 256, iy = 192;
+                    screens[id][1][1] = (const byte*)ui_resize(bitmap, ix, iy, 256/2, 192/2, 1);
+                    screens[id][1][2] = (const byte*)ui_resize(bitmap, ix, iy, 256/4, 192/4, 1);
+                    screens[id][1][3] = (const byte*)ui_resize(bitmap, ix, iy, 256/8, 192/8, 1);
                     free(bitmap);
                 }
 
@@ -316,7 +327,7 @@ char *zxdb_screen_async(const char *id, int *len, int factor) {
                     screens_len[zxdb_id] = 1;
             }
             if( screens_len[zxdb_id] > 1 ) {
-                return *len = screens_len[zxdb_id], screens[zxdb_id][factor & 3];
+                return *len = screens_len[zxdb_id], screens[zxdb_id][ZXFlashFlag][factor & 3];
             }
         }
     }
@@ -834,7 +845,7 @@ char* game_browser_v2() {
                             background_texture = ui_resize(bitmap, ix, iy, 256/1, 192/1, 1);
                             stbi_image_free(bitmap);
                         } else {
-                            background_texture = thumbnail(data, len, 1);
+                            background_texture = thumbnail(data, len, 1, ZXFlashFlag);
                         }
                     }
                 }

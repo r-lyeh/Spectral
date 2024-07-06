@@ -65,7 +65,7 @@ if "%1"=="" (
 )
 
 if "%1"=="-h" (
-    echo make [dbg^|dev^|opt^|rel] [compiler-flags]
+    echo make [deb^|dev^|opt^|rel] [compiler-flags]
     exit /b
 )
 
@@ -124,13 +124,14 @@ if "%1"=="dev" (
     src\res\embed Spectral.exe src\res\zxdb\Spectral.db.gz
     src\res\embed Spectral.exe @SpectralEmBeDdEd
 
-    tasklist /fi "ImageName eq remedybg.exe" 2>NUL | find /I "exe">NUL || (where /q remedybg.exe && start remedybg -q -g Spectral.exe)
-
     exit /b
 )
 
-if "%1"=="dbg" (
+if "%1"=="deb" (
     call make dev /fsanitize=address %ALL_FROM_2ND% || goto error
+
+    tasklist /fi "ImageName eq remedybg.exe" 2>NUL | find /I "exe">NUL || (where /q remedybg.exe && start remedybg -q -g Spectral.exe)
+
     exit /b
 )
 

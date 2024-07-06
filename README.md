@@ -20,7 +20,7 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - [x] Kempston mouse. <!-- @todo: AMX mouse.-->
 - [x] Kempston/Fuller/Cursor/Sinclair joysticks.
 - [x] RF/CRT experience (not physically accurate though).
-- [x] TAP/TZX/CSW tapes. Z80/SNA snaps. ROM/IF2 roms. <!-- @todo: tzx info on window title -->
+- [x] TAP/TZX/PZX/CSW tapes. Z80/SNA snaps. ROM/IF2 roms. <!-- @todo: tzx info on window title -->
 - [x] DSK/EDSK/TRD/SCL/FDI/MGT/IMG/HOBETA disks.
 - [x] SCR/PNG screenshots. <!-- @todo: ulaplus screenshots. video recording -->
 - [x] ZIP/RAR/GZ archives.

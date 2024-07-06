@@ -10,11 +10,11 @@
 // key2/3, +2a/+3, fdc, dsk, autotape, gui, KL modes, load "" code, +3 fdc sounds, +3 speedlock, issue 2/3,
 // pentagon, trdos, trdos (boot), translate game menus, 50/60 hz, game2exe,
 // zxdb, custom tiny zxdb fmt, embedded zxdb, zxdb cache, zxdb download on demand, zxdb gallery
-// ay player,
+// ay player, pzx, 
 // glue sequential tzx/taps in zips (side A) -> side 1 etc)
 // sequential tzx/taps/dsks do not reset model
 
-#define SPECTRAL "v1.0"
+#define SPECTRAL "v1.01"
 
 #define README \
 "Spectral can be configured with a mouse.\n\n" \
@@ -58,6 +58,11 @@
 // [ ] db interface (F2 to rename)
 //     on hover: show animated state if exists. show loading screen otherwise.
 // [ ] embed torrent server/client to mirror the WOS/ZXDB/NVG/Archive.org distros
+//     http://www.kristenwidman.com/blog/33/how-to-write-a-bittorrent-client-part-1/
+//     https://wiki.theory.org/BitTorrentSpecification
+//     http://bittorrent.org/beps/bep_0003.html
+//     https://github.com/willemt/yabtorrent
+//     https://github.com/jech/dht
 //
 // idea: when stop-block is off
 // - turn autoplay=off
@@ -167,8 +172,11 @@ int screenshot(const char *filename) {
 int load_config() {
     int errors = 0;
     if( !ZX_PLAYER ) for( FILE *fp = fopen(".Spectral/Spectral.ini", "rt"); fp; fclose(fp), fp = 0 ) {
-        #define INI_LOAD(opt) errors += fscanf(fp, "%*[^=]=%d\n", &opt) > 1;
-        INI_OPTIONS(INI_LOAD)
+        while( !feof(fp) ) {
+        int tmp; char buf[128]; errors += fscanf(fp, "%[^=]=%d ", buf, &tmp) > 1;
+        #define INI_LOAD(opt) if( strcmpi(buf, #opt) == 0 ) opt = tmp; else 
+        INI_OPTIONS(INI_LOAD) {}
+        }
     }
     return !errors;
 }
@@ -216,6 +224,11 @@ void input() {
         if(window_pressed(app, TK_ALT))         ZXKey(ZX_CTRL);
     }
 
+    // z80_opdone() returns 0 indefinitely while z80 is in halt state, often seen during BASIC sessions.
+    // hack: force a benign keypress when user wants to close window; so z80_opdone() returns 1 hopefully.
+    if( !window_alive(app) ) {
+        static int flip = 0; if( flip ^= 1 ) ZXKey(ZX_SHIFT);
+    }
 
     // prepare command keys
     if( window_trigger(app, TK_ESCAPE) ) cmdkey = 'ESC';
@@ -255,8 +268,9 @@ void help() {
     char *help = va(
         "Spectral " SPECTRAL " (Public Domain).\n"
         "https://github.com/r-lyeh/Spectral\n\n"
-        "Library: %d games found (%d%%)\n\n"
-        README "\n", numgames, 100 - (numerr * 100 / (total + !total)));
+        "ZXDB %s: %d entries\n"
+        "Local Library: %d games found (%d%%)\n\n"
+        README "\n", ZXDB_VERSION, zxdb_count(), numgames, 100 - (numerr * 100 / (total + !total)));
     (alert)("Spectral " SPECTRAL, help);
 }
 
@@ -1123,7 +1137,11 @@ if( do_runahead == 0 ) {
     active *= window_alive(app);
 
     #if NEWCORE
-    } while( !z80_opdone(&cpu) );
+    // ensure there is no pending opcode before exiting main loop: spectral.sav would be corrupt otherwise.
+    // also, do not loop indefinitely on invalid DI+HALT combo, which we use in our .SCR viewer.
+    // update: moved logic that bypasses z80_opdone(&cpu) in HALT state. rewritten as a forced/benign ZX_Key(ZX_SHIFT) operation; see: input() function.
+    // printf("%d %018llx %d %d %d\n", z80_opdone(&cpu), cpu.pins, cpu.step, IFF1(cpu), IFF2(cpu));
+    } while( z80_opdone(&cpu) ? 0 : 1 ); // (cpu.pins & Z80_HALT) && (cpu.step == 1) ? 0 : 1 ); // (cpu.pins & Z80_HALT) && (cpu.step == 1 || cpu.step==_z80_special_optable[4] || cpu.step==_z80_special_optable[5]) ? 0 : 1 );
     #endif
 
     } while( window_alive(app) );

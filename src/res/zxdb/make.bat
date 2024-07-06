@@ -3,13 +3,14 @@
 rem checks. compile if needed
 where /q python.exe || (echo cannot find python.exe in path && exit /b)
 where /q sqlite3.exe || (cl sqlite3.c shell.c /MT || exit /b)
-where /q zxdb2txt.exe || (cl zxdb2txt.c sqlite3.c /MT /Ox /Oy || exit /b)
+where /q zxdb2txt.exe || (cl zxdb2txt.c sqlite3.c -DDEV=0 /MT /Ox /Oy || exit /b)
 if exist *.obj del *.obj
 if exist Z*.sql* del Z*.sql*
 
 rem clone
 rd /q /s ZXDB >nul 2>nul
 git clone --depth 1 https://github.com/ZXDB/ZXDB && ^
+pushd ZXDB && (git log --oneline --pretty="#define ZXDB_VERSION \"%%s\"" ZXDB_mysql.sql.zip > ..\ZXDB_version.h) && popd && ^
 python -m zipfile -e ZXDB\ZXDB_mysql.sql.zip . && ^
 python ZXDB\scripts\ZXDB_to_SQLite.py && ^
 rd /q /s ZXDB >nul 2>nul
@@ -33,5 +34,9 @@ choice /C YN /M "Convert? "
 
 rem convert if requested
 if "%errorlevel%"=="1" (
+python -m gzip -d Spectral.db.gz && git add Spectral.db
+
 zxdb2txt 0..65535 > Spectral.db && python -m gzip --best Spectral.db && echo Ok!
+
+git diff Spectral.db >> Spectral.db.diff && git add Spectral.db.diff && git rm Spectral.db
 )

@@ -51,7 +51,7 @@ void tape_reset(void) {
     memset(&q, 0, sizeof(struct tape_block));
 }
 
-#define tape_push(d,l,c,u) do { assert((u)>0); \
+#define tape_push(d,l,c,u) do { assert((u)>=0); \
     voc[voc_len++] = ((struct tape_block){c,u,l,2[d] }); } while(0)
 
 void tape_render_polarity(unsigned level) {
@@ -75,7 +75,7 @@ void tape_render_stop(void) {
     tape_push("stop", LEVEL_LOW, COUNT_PER_MS, 1); // st(o)p
     ++tape_num_stops;
 }
-void tape_render_pause(unsigned pause_ms) { // Used to be x1.03 for longer pauses
+void tape_render_pause2(unsigned pause_ms, int level) { // Used to be x1.03 for longer pauses
     // Barbarian(Melbourne), Hijack128(EDS), Italy1990(Winners), Dogfight2187, HudsonHawk
     // pauses for decompression: JmenoRuze.tap, MoonAndThePirates.tap
 #if !ALT_TIMINGS
@@ -83,7 +83,10 @@ void tape_render_pause(unsigned pause_ms) { // Used to be x1.03 for longer pause
     // pause_ms *= 1.03;
 #endif
     // this version improves tape_preview[] accuracy
-    for(unsigned i = 0; i < pause_ms; ++i) tape_push("pause", LEVEL_LOW, COUNT_PER_MS, 1); // pa(u)se
+    for(unsigned i = 0; i < pause_ms; ++i) tape_push("pause", level, COUNT_PER_MS, 1); // pa(u)se
+}
+void tape_render_pause(unsigned pause_ms) {
+    tape_render_pause2(pause_ms, LEVEL_LOW);
 }
 void tape_render_bit(int bit, int states_per_bit) { // rate 79 for 44100, 158 for 22050
 #if ALT_TIMINGS

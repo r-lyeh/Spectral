@@ -10,7 +10,7 @@
 #define window_pressed(win, keycode) (!!(tigrKeyDown(win, keycode) || tigrKeyHeld(win, keycode)))
 #define window_trigger(win, keycode) (!!tigrKeyDown(win, keycode))
 void    window_override_icons();
-char*   window_title(window *win, const char *title);
+#define window_title(win, title) tigrTitle(win,title)
 
 
 int window_keyrepeat(window *app, unsigned char vk) {
@@ -82,28 +82,6 @@ char* prompt(const char *title, const char *body, const char *defaults ) {
 
 #endif
 
-
-char* window_title(window *win, const char *title) {
-    static char copy[128] = {0};
-    if( title ) {
-#ifdef __APPLE__
-
-#elif defined _WIN32
-        SetWindowTextA((HWND)(((Tigr*)win)->handle), title);
-#else
-        XTextProperty prop;
-        int result = Xutf8TextListToTextProperty(dpy, (char**)&title, 1, XUTF8StringStyle, &prop);
-        if (result == Success) {
-            Atom wmName = XInternAtom(dpy, "_NET_WM_NAME", 0);
-            XSetTextProperty(tigrInternal(win)->dpy, tigrInternal(win)->win, &prop, wmName);
-            XFree(prop.value);
-        }
-#endif
-        snprintf(copy, 128, "%s", title);
-    }
-    return copy;
-}
-
 int (alert)(const char *title, const char *body) {
 #ifdef _WIN32
     MessageBoxA(0, body, title, MB_OK);
@@ -126,4 +104,3 @@ void die(const char *msg) {
 #endif
     exit(-1);
 }
-

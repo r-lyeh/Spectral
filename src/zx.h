@@ -1,6 +1,6 @@
 // known issues:
 
-// starts in turborom mode ??? see battle valley
+// woodster "for me any tstate count is relative to /INT going low and the ULA starts contention on 14335 tstates"
 
 // runahead
 // - bonanza bros.dsk
@@ -14,10 +14,14 @@
 // - crash by pressing F12 after main window is displayed
 
 // media
-// scl not being saved on exit (borderbreak)
+// - scl not being saved on exit (borderbreak)
 
 // ini
 // - add setting: games folder
+
+// pzx
+// - load_flowcontrol\HollywoodPoker.pzx
+// - load_gdb\Book Of The Dead - Part 1 (CRL).pzx
 
 // gui
 // - utf8 no czech/hungarian/slovak: ČĎĚŇŘŠŤŽ čďěňřšťž Ýý ÔôŐő ŰűŮů Ĺĺ Ľľ Ŕŕ (see tabs: d,k,m,p,r,t)
@@ -26,20 +30,18 @@
 
 // gallery
 // - 0-byte .zips on Linux
-// - no flashcolor x2
 // - thumbnail() wont decode ifl/mlt/mc
 
 // zxdb
 // - infos get lost between different .sav sessions
 // - overlay: no scroll (mouse/key), no zooming
 // - JACKNIP.TAP ; difficult to get it right without hyphenation. best we could do for now is search JACKNIP%
-// - reset does not clear zxdb
 // - instructions: wordwrap, utf8 bom
 // - no mp3s
 // - no ays
 // - maps: battle valley
 
-// zxplayer
+// embedded zxplayer
 // - cant load zip/rar files because FILE *fp is not pointing at seek pos
 
 // trdos+L mode
@@ -119,7 +121,7 @@ int ZX_FREQ;
 int ZX_RF = !DEV;
 int ZX_CRT = !DEV;
 int ZX; // 16, 48, 128, 200 (+2), 210 (+2A), 300 (+3)
-int ZX_AY = 1; // 0: no, 1: ayumi, 2: flooh's, 3: both (ZX_AY is a mask)
+int ZX_AY = 2; // 0: no, 1: ayumi, 2: flooh's, 3: both (ZX_AY is a mask)
 int ZX_TURBOROM = 0; // 0: no, 1: patch rom so loading standard tape blocks is faster (see: .tap files)
 int ZX_JOYSTICK = 3; // 0: no, 1: sinclair1, 2: sinclair2, 3: cursor/fuller/kempston/protek, 4..: other mappings
 int ZX_AUTOPLAY = 0; // yes/no: auto-plays tapes based on #FE port reads
@@ -162,7 +164,7 @@ int ZX_ALTROMS = 0; // 0:(no, original), 1:(yes, custom)
     X(ZX_FPS) \
     X(ZX_AUTOLOCALE) \
     X(ZX_FASTTAPE) \
-    X(ZX_BROWSER) \
+    /*X(ZX_BROWSER)*/ \
     X(ZX_ALTROMS)
 
 void logport(word port, byte value, int is_out);
@@ -304,10 +306,10 @@ int medias;
 void media_reset() { medias = 0; for(int i=0;i<16;++i) media[i].bin = realloc(media[i].bin, media[i].len = media[i].pos = 0); }
 void media_mount(const byte *bin, int len) { media[medias].bin = memcpy(realloc(media[medias].bin, media[medias].len = len), bin, len), media[medias].pos = 0, medias++; }
 
-enum { ALL_FILES = 0, GAMES_ONLY = 6*4, TAPES_AND_DISKS_ONLY = 9*4, DISKS_ONLY = 12*4 };
+enum { ALL_FILES = 0, GAMES_ONLY = 6*4, TAPES_AND_DISKS_ONLY = 9*4, DISKS_ONLY = 13*4 };
 int file_is_supported(const char *filename, int skip) {
     const char *ext = strrchr(filename ? filename : "", '.');
-    return ext && strstri(skip+".gz .zip.rar.pok.scr.ay .rom.sna.z80.tap.tzx.csw.dsk.img.mgt.trd.fdi.scl.$b.$c.$d.", ext);
+    return ext && strstri(skip+".gz .zip.rar.pok.scr.ay .rom.sna.z80.tap.tzx.pzx.csw.dsk.img.mgt.trd.fdi.scl.$b.$c.$d.", ext);
 }
 
 #include "zx_ay.h"
@@ -358,6 +360,15 @@ int loadbin_(const byte *ptr, int size, int preloader) {
     }
 
     // tapes first
+    if( pzx_load(ptr, (int)size) ) {
+        int slots[] = { [1]=0,[3]=1,[8]=2,[12]=3,[13]=4,[18]=5 };
+        int is_bin = tape_type == 3, choose = slots[ZX/16] + 6 * is_bin;
+        if(preloader) preload_snap(bins[choose], lens[choose]);
+        //if(tape_has_turbo) rom_restore(); // rom_restore(), rom_patch(tape_has_turbo ? 0 : do_rompatch);
+        ZX_AUTOSTOP = tape_num_stops > 1 ? 0 : size > 65535;
+        //alert(va("numstops:%d", tape_num_stops));
+        return 2;
+    }
     if( tzx_load(ptr, (int)size) ) {
         int slots[] = { [1]=0,[3]=1,[8]=2,[12]=3,[13]=4,[18]=5 };
         int is_bin = tape_type == 3, choose = slots[ZX/16] + 6 * is_bin;
@@ -460,7 +471,7 @@ void *zip_read(const char *filename, size_t *size) {
             rar_free(r,data);
 
             // keeping glueing tapes
-            if(strstr(rar_name(r,i),".tap") || strstr(rar_name(r,i),".tzx")) {
+            if(strstr(rar_name(r,i),".tap") || strstr(rar_name(r,i),".tzx") || strstr(rar_name(r,i),".pzx")) {
             continue;
             }
             break;
@@ -504,7 +515,7 @@ void *zip_read(const char *filename, size_t *size) {
             free(data);
 
             // keeping glueing tapes
-            if(strstr(zip_name(z,i),".tap") || strstr(zip_name(z,i),".tzx")) {
+            if(strstr(zip_name(z,i),".tap") || strstr(zip_name(z,i),".tzx") || strstr(zip_name(z,i),".pzx")) {
             continue;
             }
             break;

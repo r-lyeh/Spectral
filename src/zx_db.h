@@ -1,5 +1,7 @@
 // header
 
+#include "res/zxdb/ZXDB_version.h"
+
 typedef struct zxdb {
     char *copy, *tok;
     char *ids[9];        // "#id|year|title|alias|publisher|type|score|genre|#tags"
@@ -314,7 +316,7 @@ static char *zxdb_filename2title(const char *filename) {
 
     // convert case edges into spaces (@fixme: utf8 games; russian? spanish? czech?)
     // there x2 room for worst case: aBcDeF>a*B*c*D*e*F, and also extra room for further string patches
-    char *spaced = va("%*.s", strlen(s)*2+5, "");
+    char *spaced = memset(va("%*.s", strlen(s)*2+5, ""), 0, strlen(s)*2+5);
     for( int i = 0, j = 0; s[i]; ++i ) {
         if( i > 1 ) {
             int upper = islower(s[i-1]) && isupper(s[i]);
@@ -399,16 +401,24 @@ zxdb zxdb_search(const char *id) { // game.tap or #13372
     char *s = zxdb_filename2title(id);
     zxdb z = zxdb_search_by_name( s );
 
-    // if it fails, try again replacing trailing 2>"% II", 3>"% III", 4>"% IV", 5>"% V"
+    // if it fails, try again replacing trailing 2>"% II", 3>"% III", 4>"% IV", 5>"% V" and viceversa.
     // lines ago, we did pre-allocate room space for this patch.
-    if( !z.ids[0] && strstri(s,   "*2") ) strcpy((char*)strstri(s,  "*2"), "* II*"), z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strstri(s,   "*3") ) strcpy((char*)strstri(s,  "*3"),"* III*"), z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strstri(s,   "*4") ) strcpy((char*)strstri(s,  "*4"), "* IV*"), z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strstri(s,   "*5") ) strcpy((char*)strstri(s,  "*5"),  "* V*"), z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strstri(s, "*III") ) strcpy((char*)strstri(s,"*III"),  "* 3*"), z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strstri(s,  "*II") ) strcpy((char*)strstri(s, "*II"),  "* 2*"), z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strstri(s,  "*IV") ) strcpy((char*)strstri(s, "*IV"),  "* 4*"), z = zxdb_search_by_name(s);
-    if( !z.ids[0] && strstri(s,   "*V") ) strcpy((char*)strstri(s,  "*V"),  "* 5*"), z = zxdb_search_by_name(s);
+    if( !z.ids[0] && strendi(s,   "*2") ) strcpy((char*)strendi(s,  "*2"), "* II"),     z = zxdb_search_by_name(s);
+    if( !z.ids[0] && strstri(s,   "*2") ) memcpy((char*)strstri(s,  "*2"), "* II*", 5), z = zxdb_search_by_name(s);
+    if( !z.ids[0] && strendi(s,   "*3") ) strcpy((char*)strendi(s,  "*3"),"* III"),     z = zxdb_search_by_name(s);
+    if( !z.ids[0] && strstri(s,   "*3") ) memcpy((char*)strstri(s,  "*3"),"* III*", 6), z = zxdb_search_by_name(s);
+    if( !z.ids[0] && strendi(s,   "*4") ) strcpy((char*)strendi(s,  "*4"), "* IV"),     z = zxdb_search_by_name(s);
+    if( !z.ids[0] && strstri(s,   "*4") ) memcpy((char*)strstri(s,  "*4"), "* IV*", 5), z = zxdb_search_by_name(s);
+    if( !z.ids[0] && strendi(s,   "*5") ) strcpy((char*)strendi(s,  "*5"),  "* V"),     z = zxdb_search_by_name(s);
+    if( !z.ids[0] && strstri(s,   "*5") ) memcpy((char*)strstri(s,  "*5"),  "* V*", 4), z = zxdb_search_by_name(s);
+    if( !z.ids[0] && strendi(s, "*III") ) strcpy((char*)strendi(s,"*III"),  "* 3"),     z = zxdb_search_by_name(s);
+    if( !z.ids[0] && strstri(s, "*III") ) memcpy((char*)strstri(s,"*III"),  "* 3*", 4), z = zxdb_search_by_name(s);
+    if( !z.ids[0] && strendi(s,  "*II") ) strcpy((char*)strendi(s, "*II"),  "* 2"),     z = zxdb_search_by_name(s);
+    if( !z.ids[0] && strstri(s,  "*II") ) memcpy((char*)strstri(s, "*II"),  "* 2*", 4), z = zxdb_search_by_name(s);
+    if( !z.ids[0] && strendi(s,  "*IV") ) strcpy((char*)strendi(s, "*IV"),  "* 4"),     z = zxdb_search_by_name(s);
+    if( !z.ids[0] && strstri(s,  "*IV") ) memcpy((char*)strstri(s, "*IV"),  "* 4*", 4), z = zxdb_search_by_name(s);
+    if( !z.ids[0] && strendi(s,   "*V") ) strcpy((char*)strendi(s,  "*V"),  "* 5"),     z = zxdb_search_by_name(s);
+    if( !z.ids[0] && strstri(s,   "*V") ) memcpy((char*)strstri(s,  "*V"),  "* 5*", 4), z = zxdb_search_by_name(s);
     return z;
 }
 
@@ -468,6 +478,7 @@ char* zxdb_download_(const char *url, int *len) {
         }
         else if( !strncmp(url, "/pub/", 5) ) {
             // ok, redirection
+            // mirror = "https://worldofspectrum.net/";
             mirror = "https://archive.org/download/World_of_Spectrum_June_2017_Mirror/World%20of%20Spectrum%20June%202017%20Mirror.zip/World%20of%20Spectrum%20June%202017%20Mirror/";
             url += 5;
         }

@@ -4042,6 +4042,11 @@ void _tigrOnCocoaEvent(id event, id window) {
                 }
             }
 
+#if 1 // @r-lyeh
+            if( win->keys[TK_ALT] && win->keys[TK_RETURN] && !win->prev[TK_RETURN] )
+            objc_msgSend_void_id(window, sel("toggleFullScreen:"), window);
+#endif
+
             // Pass through cmd+key
             if (win->keys[TK_LWIN]) {
                 break;
@@ -5283,6 +5288,32 @@ static void tigrInterpretChar(TigrInternal* win, Window root, unsigned int keyco
     }
 }
 
+#if 1 // @r-lyeh
+#ifndef _NET_WM_STATE_TOGGLE
+#define _NET_WM_STATE_TOGGLE 2
+#endif
+static int tigrToggleFullscreen(TigrInternal* win)
+{
+    XEvent xev;
+    long evmask = SubstructureRedirectMask | SubstructureNotifyMask;
+
+    xev.type = ClientMessage;
+    xev.xclient.window = win->win;
+    xev.xclient.message_type = XInternAtom(dpy, "_NET_WM_STATE", False); //_NET_WM_STATE;
+    xev.xclient.format = 32;
+    xev.xclient.data.l[0] = _NET_WM_STATE_TOGGLE; /* action */
+    xev.xclient.data.l[1] = XInternAtom(dpy, "_NET_WM_STATE_FULLSCREEN", False); /* first property to toggle */
+    xev.xclient.data.l[2] = 0;  /* no second property to toggle */
+    xev.xclient.data.l[3] = 1;  /* source indication: application */
+    xev.xclient.data.l[4] = 0;  /* unused */
+
+    if(!XSendEvent(win->dpy, DefaultRootWindow(win->dpy), 0, evmask, &xev)) {
+        return -1;
+    }
+    return 0;
+}
+#endif
+
 static void tigrProcessInput(TigrInternal* win, int winWidth, int winHeight) {
     {
         Window focused;
@@ -5347,6 +5378,13 @@ static void tigrProcessInput(TigrInternal* win, int winWidth, int winHeight) {
         }
     }
     memcpy(prevKeys, keys, 32);
+
+#if 1 // @r-lyeh
+    if( win->keys[TK_LALT] || win->keys[TK_RALT] )
+    if( win->keys[TK_RETURN] && !win->prev[TK_RETURN] ) {
+        tigrToggleFullscreen(win);
+    }
+#endif
 
     XEvent event;
     while (XCheckTypedWindowEvent(win->dpy, win->win, ClientMessage, &event)) {

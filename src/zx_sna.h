@@ -424,6 +424,7 @@ int guess(const byte *ptr, int size) { // guess required model type for given da
     if( size > 0x08 && !memcmp(ptr, "ZXTape!\x1a", 8) ) return ZX;
     if( size > 0x02 && !memcmp(ptr, "\x13\x00", 2) ) return ZX;
     if( size > 0x17 && !memcmp(ptr, "Compressed Square Wave\x1a", 0x17) ) return ZX;
+    if( size > 0x04 && !memcmp(ptr, "PZXT", 4) ) return ZX;
 
     // headerless fixed-size formats now, sorted by ascending file size.
     if( size == 6912 ) return 48;

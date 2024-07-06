@@ -495,3 +495,92 @@ int csw_load(const byte *fp, int len) {
     tape_finish();
     return 1;
 }
+
+
+int pzx_load(const byte *fp, int len) {
+    if( memcmp(fp, "PZXT", 4) ) return 0;
+
+    tape_reset();
+
+    do {
+        unsigned tag = 0[(unsigned *)fp];
+        unsigned bytes = 1[(unsigned *)fp];
+        const char *ptr = fp + 8;
+
+        if(DEV) printf("%.*s (%d bytes)\n", 4, (char*)&tag, bytes);
+
+        if( !memcmp(&tag, "PZXT", 4) ) {
+            int major = ptr[0];
+            int minor = ptr[1];
+            if( major > 1 ) return alert(va("invalid pzx version found (%d,%d)", major, minor)), 0;
+            if( bytes > 2 ) puts(ptr + 2);
+        }
+        else
+        if( !memcmp(&tag, "PULS", 4) ) {
+            for( unsigned num = bytes; num; ) {
+                uint16_t count = 1;
+                uint16_t duration = *(uint16_t*)ptr; ptr += 2; num -= 2;
+                if( duration > 0x8000 ) {
+                    count = duration & 0x7FFF;
+                    duration = *(uint16_t*)ptr; ptr += 2; num -= 2;
+                }
+                if( duration >= 0x8000 ) {
+                    duration &= 0x7FFF;
+                    duration <<= 16;
+                    duration |= *(uint16_t*)ptr; ptr += 2; num -= 2;
+                }
+
+                tape_render_pilot(count, duration);
+            }
+        }
+        else
+        if( !memcmp(&tag, "DATA", 4) ) {
+            unsigned bits = *(unsigned*)ptr; ptr += 4;
+            unsigned level = bits >> 31; bits &= 0x7FFFFFFF;
+            uint16_t tail = *(uint16_t*)ptr; ptr += 2;
+            byte p0 = *ptr; ptr++;
+            byte p1 = *ptr; ptr++;
+            const word *s0 = (word*)ptr; ptr += p0 * 2;
+            const word *s1 = (word*)ptr; ptr += p1 * 2;
+            const byte *data = ptr;
+
+            for( ; bits > 0; ++data )
+            for( int i = 0; i < 8 && bits; ++i, --bits ) {
+                int bit = !!((*data) & (1<<(7-i)));
+                byte count = bit ? p1 : p0;
+                const word *pulses = bit ? s1 : s0;
+
+                for( byte j = 0; j < count; ++j) {
+                    tape_push("piLot", level ^ 1 ? LEVEL_HIGH : LEVEL_LOW, 1, pulses[j]); level ^= 1;
+                }
+            }
+
+            tape_push("piLot", level ^ 1 ? LEVEL_HIGH : LEVEL_LOW, 1, tail);
+        }
+        else
+        if( !memcmp(&tag, "PAUS", 4) ) {
+            unsigned duration = *(unsigned*)ptr; ptr += 4;
+            unsigned level = duration >> 31; duration &= 0x7FFFFFFF;
+            unsigned ms = duration / 3500.000;
+            tape_render_pause2(ms, level ? LEVEL_HIGH : LEVEL_LOW);
+        }
+        else
+        if( !memcmp(&tag, "BRWS", 4) ) {
+            const char *text = ptr; // @fixme: add this into tape_preview[] (as color?)
+            printf("%.*s\n", bytes, text);
+        }
+        else
+        if( !memcmp(&tag, "STOP", 4) ) {
+            uint16_t flags = *(uint16_t*)ptr; ptr += 2;
+            if(flags == 1 ? ZX < 128 : 1) tape_render_stop();
+        }
+
+        fp += 4 + 4 + bytes;
+        len -= 4 + 4 + bytes;
+    }
+    while( len > 0 );
+
+    tape_finish();
+    return 1;
+}
+
