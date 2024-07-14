@@ -14,7 +14,7 @@
 // glue sequential tzx/taps in zips (side A) -> side 1 etc)
 // sequential tzx/taps/dsks do not reset model
 
-#define SPECTRAL "v1.01"
+#define SPECTRAL "v1.02 wip"
 
 #define README \
 "Spectral can be configured with a mouse.\n\n" \
@@ -353,11 +353,21 @@ void draw_ui() {
                 if( len == 6912 ) memcpy(VRAM, data, len);
             }
         }
-        if( zxdb_url(ZXDB, "instructions") && ui_click(va("- Toggle Instructions -"), "Help\n")) { // @todo: word wrap. mouse panning. rmb close
-            for( char *data = zxdb_download(ZXDB,zxdb_url(ZXDB, "instructions"), &len); data; free(data), data = 0 ) {
-                do_overlay ^= 1;
-                tigrClear(ui, !do_overlay ? tigrRGBA(0,0,0,0) : tigrRGBA(0,0,0,OVERLAY_ALPHA));
-                if( do_overlay ) ui_monospaced = 0, ui_print(overlay, 4,4, ui_colors, as_utf8(replace(data, "\t", " ")));
+        if( zxdb_url(ZXDB, "ay") && ui_click(va("- Toggle Music Tracks -"), "Tunes\n")) {
+            int scrlen; char *scrdata = zxdb_download(ZXDB,zxdb_url(ZXDB, "screen"), &scrlen);
+
+            // load & play tune
+            for( char *data = zxdb_download(ZXDB,zxdb_url(ZXDB, "ay"), &len); data; free(data), data = 0 ) {
+                loadbin(data, len, false);
+            }
+
+            // use loading screen as a background
+            if( scrlen == 6912 ) memcpy(VRAM, scrdata, scrlen);
+            free(scrdata);
+        }
+        if( zxdb_url(ZXDB, "mp3") && ui_click(va("- Toggle Bonus Track -"), "Bonus\n")) {
+            for( char *data = zxdb_download(ZXDB,zxdb_url(ZXDB, "mp3"), &len); data; free(data), data = 0 ) {
+                // loadbin(data, len, false);
             }
         }
         if( zxdb_url(ZXDB, "map") && ui_click(va("- Toggle Game Map -"), "Maps\n")) {
@@ -373,15 +383,16 @@ void draw_ui() {
                 }
             }
         }
-        if( zxdb_url(ZXDB, "mp3") && ui_click(va("- Toggle Bonus Track -"), "Bonus\n")) {
-            for( char *data = zxdb_download(ZXDB,zxdb_url(ZXDB, "mp3"), &len); data; free(data), data = 0 ) {
-                // loadbin(data, len, false);
-                // if( len == 6912 ) memcpy(VRAM, data, len);
-            }
-        }
         if( zxdb_url(ZXDB, "poke") && ui_click("- Cheats -", "Cheats\n") ) { // @todo: selector
             for( char *data = zxdb_download(ZXDB,zxdb_url(ZXDB, "poke"), &len); data; free(data), data = 0 ) {
                 loadbin(data, len, false);
+            }
+        }
+        if( zxdb_url(ZXDB, "instructions") && ui_click(va("- Toggle Instructions -"), "Help\n")) { // @todo: word wrap. mouse panning. rmb close
+            for( char *data = zxdb_download(ZXDB,zxdb_url(ZXDB, "instructions"), &len); data; free(data), data = 0 ) {
+                do_overlay ^= 1;
+                tigrClear(ui, !do_overlay ? tigrRGBA(0,0,0,0) : tigrRGBA(0,0,0,OVERLAY_ALPHA));
+                if( do_overlay ) ui_monospaced = 0, ui_print(overlay, 4,4, ui_colors, as_utf8(replace(data, "\t", " ")));
             }
         }
 
@@ -1090,7 +1101,7 @@ if( do_runahead == 0 ) {
 
             break; case 'TROM':  ZX_TURBOROM ^= 1; boot(ZX, 0|KEEP_MEDIA); if(!loadfile(last_load,1)) zxdb_reload(0); // toggle turborom and reload
             break; case 'F5':    reset(0|KEEP_MEDIA); if(!loadfile(last_load, 1)) zxdb_reload(0);
-            break; case 'NMI':   if( pins & Z80_NMI ) pins &= ~Z80_NMI; else pins |= Z80_NMI; // @todo: verify
+            break; case 'NMI':   if( pins & Z80_NMI ) pins &= ~Z80_NMI; else pins |= Z80_NMI; RZX_reset(); // @todo: verify
             break; case 'BOMB':  reset(0); ZXDB = zxdb_free(ZXDB); // clear media    KEEP_MEDIA/*|QUICK_RESET*/); // if(last_load) free(last_load), last_load = 0;
             break; case 'SWAP':  // toggle model and reload
             {

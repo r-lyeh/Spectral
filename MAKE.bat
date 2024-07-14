@@ -137,7 +137,8 @@ if "%1"=="deb" (
 
 if "%1"=="opt" (
     rem do not use /O1 or /O2 below. ayumi drums will be broken in AfterBurner.dsk otherwise
-    call make nil /Ox /MT /DNDEBUG /GL /GF /arch:AVX2 %ALL_FROM_2ND% || goto error
+    rem do not use /arch:AVX2 to maximize compatibility. see issue #4
+    call make nil /Ox /MT /DNDEBUG /GL /GF %ALL_FROM_2ND% || goto error
     where /q upx.exe && upx Spectral.exe
     src\res\embed Spectral.exe @SpectralEmBeDdEd
     copy /y Spectral.exe SpectralNoZXDB.exe

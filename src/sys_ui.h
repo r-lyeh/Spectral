@@ -863,8 +863,8 @@ void ui_notify_draw() {
         // draw black panel
         int y2 = y-(theFontH+theFontPaddingH);
         TPixel transp = { 0,0,0, 192 * smooth };
-        tigrFillRect(ui_layer, -1,y2, _320+1,_240, transp);
-        tigrLine(ui_layer, -1,y2, _320+1,y2, ((TPixel){255,255,255,240*smooth}));
+        tigrFillRect(ui_layer, -1,y2, _320+2,_240, transp);
+        tigrLine(ui_layer, -1,y2, _320+2,y2, ((TPixel){255,255,255,240*smooth}));
     }
 
     // text

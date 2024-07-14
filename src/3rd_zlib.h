@@ -1,5 +1,24 @@
 #pragma once
 
+#define deflate mz_deflate
+#define deflateInit2 mz_deflateInit2
+#define inflate mz_inflate
+#define inflateInit2 mz_inflateInit2
+#define z_stream mz_stream
+
+#define Z_ADLER32_INIT MZ_ADLER32_INIT
+#define Z_DEFAULT_STRATEGY MZ_DEFAULT_STRATEGY
+#define Z_DEFAULT_WINDOW_BITS MZ_DEFAULT_WINDOW_BITS
+#define Z_DEFLATED MZ_DEFLATED
+#define Z_EMPTY MZ_EMPTY
+#define Z_FINISH MZ_FINISH
+#define Z_NO_FLUSH MZ_NO_FLUSH
+#define Z_NULL MZ_NULL
+#define Z_OK MZ_OK
+#define Z_RLE MZ_RLE
+#define Z_STREAM_END MZ_STREAM_END
+#define Z_STREAM_ERROR MZ_STREAM_ERROR
+
 #ifndef MINIZ_EXPORT
 #define MINIZ_EXPORT
 #endif
@@ -74,6 +93,30 @@ enum
     MZ_VERSION_ERROR = -6,
     MZ_PARAM_ERROR = -10000
 };
+
+enum
+{
+    MZ_DEFAULT_STRATEGY = 0,
+    MZ_FILTERED = 1,
+    MZ_HUFFMAN_ONLY = 2,
+    MZ_RLE = 3,
+    MZ_FIXED = 4
+};
+
+/* Compression levels: 0-9 are the standard zlib-style levels, 10 is best possible compression (not zlib compatible, and may be very slow), MZ_DEFAULT_COMPRESSION=MZ_DEFAULT_LEVEL. */
+enum
+{
+    MZ_NO_COMPRESSION = 0,
+    MZ_BEST_SPEED = 1,
+    MZ_BEST_COMPRESSION = 9,
+    MZ_UBER_COMPRESSION = 10,
+    MZ_DEFAULT_LEVEL = 6,
+    MZ_DEFAULT_COMPRESSION = -1
+};
+
+#define MZ_ADLER32_INIT 1
+#define MZ_DEFLATED 8
+#define MZ_DEFAULT_WINDOW_BITS 15
 
 typedef void *(*mz_alloc_func)(void *opaque, size_t items, size_t size);
 typedef void (*mz_free_func)(void *opaque, void *address);
@@ -369,4 +412,157 @@ int mz_uncompress2(unsigned char *pDest, mz_ulong *pDest_len, const unsigned cha
 int mz_uncompress(unsigned char *pDest, mz_ulong *pDest_len, const unsigned char *pSource, mz_ulong source_len)
 {
     return mz_uncompress2(pDest, pDest_len, pSource, &source_len);
+}
+
+// ----------------------------------------------------------------------------
+
+static const mz_uint s_tdefl_num_probes[11] = { 0, 1, 6, 32, 16, 32, 128, 256, 512, 768, 1500 };
+
+mz_uint32 tdefl_get_adler32(tdefl_compressor *d)
+{
+    return d->m_adler32;
+}
+
+/* level may actually range from [0,10] (10 is a "hidden" max level, where we want a bit more compression and it's fine if throughput to fall off a cliff on some files). */
+mz_uint tdefl_create_comp_flags_from_zip_params(int level, int window_bits, int strategy)
+{
+    mz_uint comp_flags = s_tdefl_num_probes[(level >= 0) ? MZ_MIN(10, level) : MZ_DEFAULT_LEVEL] | ((level <= 3) ? TDEFL_GREEDY_PARSING_FLAG : 0);
+    if (window_bits > 0)
+        comp_flags |= TDEFL_WRITE_ZLIB_HEADER;
+
+    if (!level)
+        comp_flags |= TDEFL_FORCE_ALL_RAW_BLOCKS;
+    else if (strategy == MZ_FILTERED)
+        comp_flags |= TDEFL_FILTER_MATCHES;
+    else if (strategy == MZ_HUFFMAN_ONLY)
+        comp_flags &= ~TDEFL_MAX_PROBES_MASK;
+    else if (strategy == MZ_FIXED)
+        comp_flags |= TDEFL_FORCE_ALL_STATIC_BLOCKS;
+    else if (strategy == MZ_RLE)
+        comp_flags |= TDEFL_RLE_MATCHES;
+
+    return comp_flags;
+}
+
+int mz_deflateInit2(mz_streamp pStream, int level, int method, int window_bits, int mem_level, int strategy);
+int mz_deflateEnd(mz_streamp pStream);
+
+int mz_deflateInit(mz_streamp pStream, int level)
+{
+    return mz_deflateInit2(pStream, level, MZ_DEFLATED, MZ_DEFAULT_WINDOW_BITS, 9, MZ_DEFAULT_STRATEGY);
+}
+
+int mz_deflateInit2(mz_streamp pStream, int level, int method, int window_bits, int mem_level, int strategy)
+{
+    tdefl_compressor *pComp;
+    mz_uint comp_flags = TDEFL_COMPUTE_ADLER32 | tdefl_create_comp_flags_from_zip_params(level, window_bits, strategy);
+
+    if (!pStream)
+        return MZ_STREAM_ERROR;
+    if ((method != MZ_DEFLATED) || ((mem_level < 1) || (mem_level > 9)) || ((window_bits != MZ_DEFAULT_WINDOW_BITS) && (-window_bits != MZ_DEFAULT_WINDOW_BITS)))
+        return MZ_PARAM_ERROR;
+
+    pStream->data_type = 0;
+    pStream->adler = MZ_ADLER32_INIT;
+    pStream->msg = NULL;
+    pStream->reserved = 0;
+    pStream->total_in = 0;
+    pStream->total_out = 0;
+    if (!pStream->zalloc)
+        pStream->zalloc = miniz_def_alloc_func;
+    if (!pStream->zfree)
+        pStream->zfree = miniz_def_free_func;
+
+    pComp = (tdefl_compressor *)pStream->zalloc(pStream->opaque, 1, sizeof(tdefl_compressor));
+    if (!pComp)
+        return MZ_MEM_ERROR;
+
+    pStream->state = (struct mz_internal_state *)pComp;
+
+    if (tdefl_init(pComp, NULL, NULL, comp_flags) != TDEFL_STATUS_OKAY)
+    {
+        mz_deflateEnd(pStream);
+        return MZ_PARAM_ERROR;
+    }
+
+    return MZ_OK;
+}
+
+int mz_deflateReset(mz_streamp pStream)
+{
+    if ((!pStream) || (!pStream->state) || (!pStream->zalloc) || (!pStream->zfree))
+        return MZ_STREAM_ERROR;
+    pStream->total_in = pStream->total_out = 0;
+    tdefl_init((tdefl_compressor *)pStream->state, NULL, NULL, ((tdefl_compressor *)pStream->state)->m_flags);
+    return MZ_OK;
+}
+
+int mz_deflate(mz_streamp pStream, int flush)
+{
+    size_t in_bytes, out_bytes;
+    mz_ulong orig_total_in, orig_total_out;
+    int mz_status = MZ_OK;
+
+    if ((!pStream) || (!pStream->state) || (flush < 0) || (flush > MZ_FINISH) || (!pStream->next_out))
+        return MZ_STREAM_ERROR;
+    if (!pStream->avail_out)
+        return MZ_BUF_ERROR;
+
+    if (flush == MZ_PARTIAL_FLUSH)
+        flush = MZ_SYNC_FLUSH;
+
+    if (((tdefl_compressor *)pStream->state)->m_prev_return_status == TDEFL_STATUS_DONE)
+        return (flush == MZ_FINISH) ? MZ_STREAM_END : MZ_BUF_ERROR;
+
+    orig_total_in = pStream->total_in;
+    orig_total_out = pStream->total_out;
+    for (;;)
+    {
+        tdefl_status defl_status;
+        in_bytes = pStream->avail_in;
+        out_bytes = pStream->avail_out;
+
+        defl_status = tdefl_compress((tdefl_compressor *)pStream->state, pStream->next_in, &in_bytes, pStream->next_out, &out_bytes, (tdefl_flush)flush);
+        pStream->next_in += (mz_uint)in_bytes;
+        pStream->avail_in -= (mz_uint)in_bytes;
+        pStream->total_in += (mz_uint)in_bytes;
+        pStream->adler = tdefl_get_adler32((tdefl_compressor *)pStream->state);
+
+        pStream->next_out += (mz_uint)out_bytes;
+        pStream->avail_out -= (mz_uint)out_bytes;
+        pStream->total_out += (mz_uint)out_bytes;
+
+        if (defl_status < 0)
+        {
+            mz_status = MZ_STREAM_ERROR;
+            break;
+        }
+        else if (defl_status == TDEFL_STATUS_DONE)
+        {
+            mz_status = MZ_STREAM_END;
+            break;
+        }
+        else if (!pStream->avail_out)
+            break;
+        else if ((!pStream->avail_in) && (flush != MZ_FINISH))
+        {
+            if ((flush) || (pStream->total_in != orig_total_in) || (pStream->total_out != orig_total_out))
+                break;
+            return MZ_BUF_ERROR; /* Can't make forward progress without some input.
+                                  */
+        }
+    }
+    return mz_status;
+}
+
+int mz_deflateEnd(mz_streamp pStream)
+{
+    if (!pStream)
+        return MZ_STREAM_ERROR;
+    if (pStream->state)
+    {
+        pStream->zfree(pStream->opaque, pStream->state);
+        pStream->state = NULL;
+    }
+    return MZ_OK;
 }

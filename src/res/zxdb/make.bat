@@ -38,5 +38,5 @@ python -m gzip -d Spectral.db.gz && git add Spectral.db
 
 zxdb2txt 0..65535 > Spectral.db && python -m gzip --best Spectral.db && echo Ok!
 
-git diff Spectral.db >> Spectral.db.diff && git add Spectral.db.diff && git rm Spectral.db
+git diff Spectral.db >> Spectral.db.diff && git add Spectral.db.diff && git rm Spectral.db -f
 )

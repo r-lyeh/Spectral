@@ -63,6 +63,7 @@ typedef uint32_t mz_uint;
 #define MZ_MAX(a,b) (((a)>(b))?(a):(b))
 #define MZ_MIN(a,b) (((a)<(b))?(a):(b))
 #define MZ_CLEAR_OBJ(obj) memset(&(obj), 0, sizeof(obj))
+#define MZ_CLEAR_ARR(obj) memset((obj), 0, sizeof(obj))
 
 #if MINIZ_USE_UNALIGNED_LOADS_AND_STORES && MINIZ_LITTLE_ENDIAN
 #define MZ_READ_LE16(p) *((const uint16_t *)(p))
@@ -556,6 +557,9 @@ typedef enum
     TDEFL_FINISH = 4
 } tdefl_flush;
 
+/* Output stream interface. The compressor uses this interface to write compressed data. It'll typically be called TDEFL_OUT_BUF_SIZE at a time. */
+typedef mz_bool (*tdefl_put_buf_func_ptr)(const void *pBuf, int len, void *pUser);
+
 // tdefl's compression state structure.
 typedef struct
 {
@@ -581,6 +585,10 @@ typedef struct
     uint16_t m_next[TDEFL_LZ_DICT_SIZE];
     uint16_t m_hash[TDEFL_LZ_HASH_SIZE];
     uint8_t m_output_buf[TDEFL_OUT_BUF_SIZE];
+
+    tdefl_put_buf_func_ptr m_pPut_buf_func;
+    void *m_pPut_buf_user;
+
 } tdefl_compressor;
 
 // ------------------- zlib-style API's
@@ -1539,24 +1547,44 @@ tdefl_status tdefl_compress_buffer(tdefl_compressor *d, const void *pIn_buf, siz
     return tdefl_compress(d, pIn_buf, &in_buf_size, NULL, NULL, flush);
 }
 
-tdefl_status tdefl_init(tdefl_compressor *d, void *out, size_t outlen, int flags)
+tdefl_status tdefl_init(tdefl_compressor *d, tdefl_put_buf_func_ptr pPut_buf_func, void *pPut_buf_user, int flags)
 {
-#if 0
-    d->m_putbuf_callback = putbuf_callback; d->m_pPut_buf_user = pPut_buf_user;
-    d->m_flags = (mz_uint)(flags); d->m_max_probes[0] = 1 + ((flags & 0xFFF) + 2) / 3; d->m_greedy_parsing = (flags & TDEFL_GREEDY_PARSING_FLAG) != 0;
+    d->m_pPut_buf_func = pPut_buf_func;
+    d->m_pPut_buf_user = pPut_buf_user;
+    d->m_flags = (mz_uint)(flags);
+    d->m_max_probes[0] = 1 + ((flags & 0xFFF) + 2) / 3;
+    d->m_greedy_parsing = (flags & TDEFL_GREEDY_PARSING_FLAG) != 0;
     d->m_max_probes[1] = 1 + (((flags & 0xFFF) >> 2) + 2) / 3;
-    if (!(flags & TDEFL_NONDETERMINISTIC_PARSING_FLAG)) MZ_CLEAR_OBJ(d->m_hash);
+    if (!(flags & TDEFL_NONDETERMINISTIC_PARSING_FLAG))
+        MZ_CLEAR_ARR(d->m_hash);
     d->m_lookahead_pos = d->m_lookahead_size = d->m_dict_size = d->m_total_lz_bytes = d->m_lz_code_buf_dict_pos = d->m_bits_in = 0;
     d->m_output_flush_ofs = d->m_output_flush_remaining = d->m_finished = d->m_block_index = d->m_bit_buffer = d->m_wants_to_finish = 0;
-    d->m_pLZ_code_buf = d->m_lz_code_buf + 1; d->m_pLZ_flags = d->m_lz_code_buf; d->m_num_flags_left = 8;
-    d->m_pOutput_buf = d->m_output_buf; d->m_pOutput_buf_end = d->m_output_buf; d->m_prev_return_status = TDEFL_STATUS_OKAY;
-    d->m_saved_match_dist = d->m_saved_match_len = d->m_saved_lit = 0; d->m_adler32 = 1;
-    d->m_pIn_buf = NULL; d->m_pOut_buf = NULL;
-    d->m_pIn_buf_size = NULL; d->m_pOut_buf_size = NULL;
-    d->m_flush = TDEFL_NO_FLUSH; d->m_pSrc = NULL; d->m_src_buf_left = 0; d->m_out_buf_ofs = 0;
+    d->m_pLZ_code_buf = d->m_lz_code_buf + 1;
+    d->m_pLZ_flags = d->m_lz_code_buf;
+    *d->m_pLZ_flags = 0;
+    d->m_num_flags_left = 8;
+    d->m_pOutput_buf = d->m_output_buf;
+    d->m_pOutput_buf_end = d->m_output_buf;
+    d->m_prev_return_status = TDEFL_STATUS_OKAY;
+    d->m_saved_match_dist = d->m_saved_match_len = d->m_saved_lit = 0;
+    d->m_adler32 = 1;
+    d->m_pIn_buf = NULL;
+    d->m_pOut_buf = NULL;
+    d->m_pIn_buf_size = NULL;
+    d->m_pOut_buf_size = NULL;
+    d->m_flush = TDEFL_NO_FLUSH;
+    d->m_pSrc = NULL;
+    d->m_src_buf_left = 0;
+    d->m_out_buf_ofs = 0;
+    if (!(flags & TDEFL_NONDETERMINISTIC_PARSING_FLAG))
+        MZ_CLEAR_ARR(d->m_dict);
     memset(&d->m_huff_count[0][0], 0, sizeof(d->m_huff_count[0][0]) * TDEFL_MAX_HUFF_SYMBOLS_0);
     memset(&d->m_huff_count[1][0], 0, sizeof(d->m_huff_count[1][0]) * TDEFL_MAX_HUFF_SYMBOLS_1);
-#else
+    return TDEFL_STATUS_OKAY;
+}
+
+tdefl_status tdefl_init_mem(tdefl_compressor *d, void *out, size_t outlen, int flags)
+{
     tdefl_compressor zero = {0};
     *d = zero; // invalidated TDEFL_NONDETERMINISTIC_PARSING_FLAG option here
 
@@ -1570,7 +1598,6 @@ tdefl_status tdefl_init(tdefl_compressor *d, void *out, size_t outlen, int flags
     d->m_flush = TDEFL_NO_FLUSH; 
     //memset(&d->m_huff_count[0][0], 0, sizeof(d->m_huff_count[0][0]) * TDEFL_MAX_HUFF_SYMBOLS_0);
     //memset(&d->m_huff_count[1][0], 0, sizeof(d->m_huff_count[1][0]) * TDEFL_MAX_HUFF_SYMBOLS_1);
-#endif
     return TDEFL_STATUS_OKAY;
 }
 
@@ -1591,7 +1618,7 @@ unsigned deflate_encode(const void *in, unsigned inlen, void *out, unsigned outl
         mz_uint comp_flags = tdefl_num_probes[level % 12] | (level <= 3 ? TDEFL_GREEDY_PARSING_FLAG : 0);// | TDEFL_WRITE_ZLIB_HEADER );
 
         tdefl_compressor *pComp = (tdefl_compressor*)MZ_REALLOC(0,sizeof(tdefl_compressor)); if (!pComp) return MZ_FALSE;
-        if(tdefl_init(pComp, out, outlen, (int)comp_flags) == TDEFL_STATUS_OKAY) {
+        if(tdefl_init_mem(pComp, out, outlen, (int)comp_flags) == TDEFL_STATUS_OKAY) {
             if(tdefl_compress_buffer(pComp, in, inlen, TDEFL_FINISH) == TDEFL_STATUS_DONE) {
                 bytes = pComp->m_outbuffer[1] - pComp->m_outbuffer[0];
             }

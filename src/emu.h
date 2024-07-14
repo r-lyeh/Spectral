@@ -18,6 +18,8 @@ int play(int sample, unsigned count); // this is from sys headers actually
 #include "emu_ayumi.h"
 #include "emu_fdc.h"
 #include "emu_wd1793.h"
+#define block block2
+#include "emu_rzx.h"
 
 #if! REDCODE
 

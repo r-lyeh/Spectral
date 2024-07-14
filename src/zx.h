@@ -306,10 +306,10 @@ int medias;
 void media_reset() { medias = 0; for(int i=0;i<16;++i) media[i].bin = realloc(media[i].bin, media[i].len = media[i].pos = 0); }
 void media_mount(const byte *bin, int len) { media[medias].bin = memcpy(realloc(media[medias].bin, media[medias].len = len), bin, len), media[medias].pos = 0, medias++; }
 
-enum { ALL_FILES = 0, GAMES_ONLY = 6*4, TAPES_AND_DISKS_ONLY = 9*4, DISKS_ONLY = 13*4 };
+enum { ALL_FILES = 0, GAMES_ONLY = 6*4, TAPES_AND_DISKS_ONLY = 11*4, DISKS_ONLY = 15*4 };
 int file_is_supported(const char *filename, int skip) {
     const char *ext = strrchr(filename ? filename : "", '.');
-    return ext && strstri(skip+".gz .zip.rar.pok.scr.ay .rom.sna.z80.tap.tzx.pzx.csw.dsk.img.mgt.trd.fdi.scl.$b.$c.$d.", ext);
+    return ext && strstri(skip+".gz .zip.rar.pok.scr.ay .rom.sna.z80.rzx.szx.tap.tzx.pzx.csw.dsk.img.mgt.trd.fdi.scl.$b.$c.$d.", ext);
 }
 
 #include "zx_ay.h"
@@ -321,11 +321,22 @@ int file_is_supported(const char *filename, int skip) {
 #include "zx_sna.h" // requires page128, ZXBorderColor
 #include "zx_ula.h"
 #include "zx_db.h"
+#include "zx_rzx.h"
 
-// 0: cannot load, 1: snapshot loaded, 2: tape loaded, 3: disk loaded
+// 0: cannot load, 1: snapshot loaded, 2: tape loaded, 3: disk loaded, 4: ay loaded
 int loadbin_(const byte *ptr, int size, int preloader) {
     if(!(ptr && size > 10))
         return 0;
+
+    // is it a zip? unzip & try to recurse...
+    if( size > 4 && !memcmp(ptr, "PK\3\4", 4) ) {
+        for( FILE *fp = fopen(".Spectral.loadbin.zip","wb"); fp; fclose(fp), fp = 0) {
+            fwrite(ptr, size, 1, fp);
+        }
+        int len2; char *ptr2 = unzip(".Spectral.loadbin.zip/*", &len2);
+        int ret2 = loadbin_(ptr2, len2, preloader);
+        return unlink(".Spectral.loadbin.zip"), free(ptr2), ret2;
+    }
 
     if( preloader ) {
         int model = guess(ptr, size);
@@ -350,7 +361,7 @@ int loadbin_(const byte *ptr, int size, int preloader) {
     };
 
     if( load_ay(ptr, (int)size) ) {
-        return 1;
+        return 4;
     }
 
     // dsk first
@@ -392,6 +403,13 @@ int loadbin_(const byte *ptr, int size, int preloader) {
         rom_restore(); // rom_restore(), rom_patch(tape_has_turbo ? 0 : do_rompatch);
         ZX_AUTOSTOP = 1;
         return 2;
+    }
+
+    if( RZX_load(ptr, size) ) {
+        return 1;
+    }
+    if( szx_load(ptr, size) ) {
+        return 1;
     }
 
     // headerless fixed-size formats now, sorted by ascending file size.
@@ -1180,6 +1198,8 @@ void run(unsigned TS) {
 
             // hold the INT pin for 32 ticks
             int_counter = 32; // - (4 - (tick & 3)); // 23?
+
+            RZX_tick();
         }
         
         // clear INT pin after 32 ticks
@@ -1816,10 +1836,21 @@ byte inport_(word port) {
 }
 
 byte inport(word port) {
+
+    if( rzx.mode == RZX_PLAYBACK ) {
+        rzx_last_port = rzx_get_input();
+        if( rzx_last_port >= 0 ) return rzx_last_port;
+    }
+
     byte v = inport_(port);
 #if NDEBUG <= 0
     logport(port, v, 0);
 #endif
+
+    if( rzx.mode == RZX_RECORD ) {
+        rzx_store_input(v);
+    }
+
     return v;
 }
 
