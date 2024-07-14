@@ -413,9 +413,108 @@ int pok_load(const byte *src, int len) {
     return 0;
 }
 
+int szx_load(const byte *src, int len) {
+    const byte *eof = src + len;
+
+    if( len <= 0x08 || memcmp(src, "ZXST", 4))
+        return 0;
+
+    src += 4;
+
+    int models[17] = { 16,48,128,200,210,300,300,-128,0*2048,0*2068,0*'scor',0*'se',0*2068,0*512,0*1024,48,128};
+
+    byte major = *src++;
+    byte minor = *src++;
+    int machine = models[*src++];
+    int flags = *src++; // alt_timings: == 1
+
+    unsigned size;
+    char id[5] = {0};
+    int fix_af = 0;
+
+    for( ; src < eof; ) {
+        memcpy(id, src, 4); src += 4;
+        memcpy(&size, src, 4); src += 4;
+
+        const byte *p = src;
+        src += size;
+
+        if( !strcmp(id, "CRTR") ) {
+            // Early versions of libspectrum (prior to 1.0.0) mistakengly swapped A<>F A'<>F' pairs
+            fix_af = !strcmp(p, "libspectrum: 0.");
+        }
+        else
+        if( !strcmp(id, "Z80R") ) {
+            int O = fix_af, l = !O;
+
+            AF(cpu)  = p[l] * 256 + p[O]; p += 2;
+            BC(cpu)  = p[1] * 256 + p[0]; p += 2;
+            DE(cpu)  = p[1] * 256 + p[0]; p += 2;
+            HL(cpu)  = p[1] * 256 + p[0]; p += 2;
+            AF2(cpu) = p[l] * 256 + p[O]; p += 2;
+            BC2(cpu) = p[1] * 256 + p[0]; p += 2;
+            DE2(cpu) = p[1] * 256 + p[0]; p += 2;
+            HL2(cpu) = p[1] * 256 + p[0]; p += 2;
+            IX(cpu)  = p[1] * 256 + p[0]; p += 2;
+            IY(cpu)  = p[1] * 256 + p[0]; p += 2;
+            SP(cpu)  = p[1] * 256 + p[0]; p += 2;
+            PC(cpu)  = p[1] * 256 + p[0]; p += 2;
+            IR(cpu)  = p[1] * 256 + p[0]; p += 2;
+
+            IFF1(cpu) = *p++;
+            IFF2(cpu) = *p++;
+            IM(cpu) = *p++;
+
+            enum { ZXSTZF_EILAST = 1, ZXSTZF_HALTED = 2, ZXSTZF_FSET = 4 };
+
+            // @fix: DWORD dwCyclesStart;
+            // @fix: BYTE chHoldIntReqCycles;
+            // @fix: BYTE chFlags;
+            // @fix: WORD wMemPtr;
+        }
+        else
+        if( !strcmp(id, "SPCR") ) {
+            byte border = *p++;
+            byte p7ffd = *p++;
+            byte p1ffd = *p++;
+            byte pfe = *p++;
+
+            outport(0x7ffd, p7ffd);
+            outport(0x1ffd, p1ffd);
+            outport(0xfe, pfe);
+            ZXBorderColor = border;
+        }
+        else
+        if( !strcmp(id, "RAMP") ) {
+            enum { ZXSTRF_COMPRESSED = 1 };
+            word flags = p[1] * 256 + p[0]; p += 2;
+            byte page = *p++;
+
+            if( flags & ZXSTRF_COMPRESSED ) {
+                // deflate_decode(p, size - 3, MEMr[page], 16384);
+                mz_ulong cap = 16384;
+                int ok = mz_uncompress(RAM_BANK(page), &cap, p, size - 3) == MZ_OK;
+            } else {
+                memcpy(RAM_BANK(page), p, 16384);
+            }
+        }
+    }
+
+    return 1;
+}
+
 int guess(const byte *ptr, int size) { // guess required model type for given data
     // ay first
     if( size > 0x08 &&(!memcmp(ptr, "ZXAYEMUL", 8) )) return 128;
+
+    // szx
+    if( size > 0x08 &&!(memcmp(ptr, "ZXST", 4))) {
+        int models[17] = { 16,48,128,200,210,300,300,-128,0,0,0,0,0,0,0,48,128};
+        return ptr[7] < 17 ? models[ptr[7]] : 0;
+    }
+
+    // rzx
+    if( size > 0x04 &&(!memcmp(ptr, "RZX!", 4) )) return 128; // @fixme: parse inner .z80/.sna instead
 
     // dsk first
     if( size > 0x08 &&(!memcmp(ptr, "MV - CPC", 8) || !memcmp(ptr, "EXTENDED", 8)) ) return 300;

@@ -137,9 +137,14 @@ if "%1"=="deb" (
 
 if "%1"=="opt" (
     rem do not use /O1 or /O2 below. ayumi drums will be broken in AfterBurner.dsk otherwise
-    call make nil /Ox /MT /DNDEBUG /GL /GF /arch:AVX2 %ALL_FROM_2ND% || goto error
-    where /q upx.exe && upx Spectral.exe
+    rem do not use /arch:AVX2 to maximize compatibility. see issue #4
+    rem false positives: +1 (vs19) .. +4 (vs22) - secureage (bc of DNDEBUG and optimization flags lol)
+    call make nil /Ox /MT /DNDEBUG /GL /GF %ALL_FROM_2ND% || goto error
+    rem false positives: +12
+    rem where /q upx.exe && upx Spectral.exe
+    rem false positives: +2 - crowdstrike falcon, cylance
     src\res\embed Spectral.exe @SpectralEmBeDdEd
+    rem false positives: +1 - microsoft (defender)
     copy /y Spectral.exe SpectralNoZXDB.exe
     src\res\embed Spectral.exe src\res\zxdb\Spectral.db.gz
     src\res\embed Spectral.exe @SpectralEmBeDdEd

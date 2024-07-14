@@ -304,6 +304,7 @@ typedef struct {
     bool prefix_active; // true if any prefix currently active (only needed in z80_opdone())
     uint64_t pins;      // last pin state, used for NMI detection
     uint64_t int_bits;  // track INT and NMI state
+    uint64_t fetches;   // track number of opcode fetches //< @r-lyeh
     union { struct { uint8_t pcl; uint8_t pch; }; uint16_t pc; };
 
     // NOTE: These unions are fine in C, but not C++.
@@ -1653,6 +1654,7 @@ static inline uint64_t _z80_refresh(z80_t* cpu, uint64_t pins) {
 
 // initiate a fetch machine cycle for regular (non-prefixed) instructions, or initiate interrupt handling
 static inline uint64_t _z80_fetch(z80_t* cpu, uint64_t pins) {
+    ++cpu->fetches; //< @r-lyeh
     cpu->hlx_idx = 0;
     cpu->prefix_active = false;
     // shortcut no interrupts requested

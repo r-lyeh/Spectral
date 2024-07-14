@@ -181,6 +181,7 @@ void zxdb_add_downloads(zxdb *z, const char **downloads) {
             17, // Computer/ZX Interface 2 cartridge ROM image dump
             18, // DOCK cartridge ROM image dump
             22, // BUGFIX tape image
+            23, // Ripped in-game/theme music in AY format
             27, // Bonus soundtrack(s) in MP3 format
             28, // Instructions
             29, // Scanned instructions

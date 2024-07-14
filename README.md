@@ -20,7 +20,7 @@ Code is highly experimental and prone to change in the future. I will keep alter
 - [x] Kempston mouse. <!-- @todo: AMX mouse.-->
 - [x] Kempston/Fuller/Cursor/Sinclair joysticks.
 - [x] RF/CRT experience (not physically accurate though).
-- [x] TAP/TZX/PZX/CSW tapes. Z80/SNA snaps. ROM/IF2 roms. <!-- @todo: tzx info on window title -->
+- [x] TAP/TZX/PZX/CSW tapes. Z80/SNA/SZX snaps. ROM/IF2 roms.
 - [x] DSK/EDSK/TRD/SCL/FDI/MGT/IMG/HOBETA disks.
 - [x] SCR/PNG screenshots. <!-- @todo: ulaplus screenshots. video recording -->
 - [x] ZIP/RAR/GZ archives.
@@ -83,7 +83,7 @@ This software is released into the [public domain](https://unlicense.org/). Also
 - [SpecEmu](https://specemu.zxe.io/), my favourite ZX emulator on Windows.
 - [SpectrumComputing](https://spectrumcomputing.co.uk/), [WorldOfSpectrum](https://worldofspectrum.net/), [ZXArt](https://zxart.ee/), [Virtual TRDOS](https://vtrd.in/) and [ZXInfo](https://zxinfo.dk/) are the best online resources (imho).
 - [Crash](https://archive.org/details/crash-magazine), [YourSinclair](https://archive.org/details/your-sinclair-magazine), [SinclairUser](https://archive.org/details/sinclair-user-magazine) and [MicroHobby(ES)](https://archive.org/details/microhobby-magazine) are great old paper magazines.
-- [ZXDB](https://github.com/zxdb/ZXDB), [game maps](https://maps.speccy.cz/), [game cheats](https://www.the-tipshop.co.uk/) and [game longplays](https://www.youtube.com/@rzxarchive).
+- [ZXDB](https://github.com/zxdb/ZXDB), [game maps](https://maps.speccy.cz/), [game cheats](https://www.the-tipshop.co.uk/), [RZX](https://worldofspectrum.net/RZXformat.html)[replays](https://www.rzxarchive.co.uk/) and [game longplays](https://www.youtube.com/@rzxarchive).
 - [Daily ZX videos](https://www.youtube.com/results?search_query=zx+spectrum&sp=CAI%253D), on YouTube.
 
 [![](https://github.com/r-lyeh/Spectral/actions/workflows/build.yml/badge.svg)](https://github.com/r-lyeh/Spectral/actions/workflows/build.yml)

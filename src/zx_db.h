@@ -135,6 +135,7 @@ void zxdb_add_downloads(zxdb *z, char **downloads) {
             17, // Computer/ZX Interface 2 cartridge ROM image dump
             18, // DOCK cartridge ROM image dump
             22, // BUGFIX tape image
+            23, // Ripped AY
             27, // Bonus soundtrack(s) in MP3 format
             28, // Instructions
             29, // Scanned instructions
@@ -446,6 +447,7 @@ char* zxdb_url(const zxdb z, const char *hint) {
     else if( strstri(hint, "snap")) hint = "|10|S", check_media = 1;
     else if( strstri(hint, "disk")) hint = "|11|D", check_media = 1;
     else if( strstri(hint, "rom")) hint = "|17|C", check_media = 1;
+    else if( strstri(hint, "ay")) hint = "|23|R";
     else if( strstri(hint, "mp3")) hint = "|27|B";
     else if( strstri(hint, "scanned")) hint = "|29|S";
     else if( strstri(hint, "instr")) hint = "|28|I";
@@ -458,7 +460,7 @@ char* zxdb_url(const zxdb z, const char *hint) {
     for( int i = 0; z.downloads[i]; ++i ) {
         if( strstri(z.downloads[i], hint) ) {
             char *url = va("%.*s", strchr(z.downloads[i],'|') - z.downloads[i], z.downloads[i]);
-            if( strstri(url, ".szx") || strstri(url, ".slt") ) continue;
+            if( /*strstri(url, ".szx") ||*/ strstri(url, ".slt") ) continue;
             return url;
         }
     }
