@@ -15,7 +15,7 @@
 // glue sequential tzx/taps in zips (side A) -> side 1 etc)
 // sequential tzx/taps/dsks do not reset model
 
-#define SPECTRAL "v1.04"
+#define SPECTRAL "v1.05-wip"
 
 #if NDEBUG >= 2
 #define DEV 0
