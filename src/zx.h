@@ -119,28 +119,37 @@ int ZX_CRT = !DEV;
 int ZX_BLUR = 50; // 0:off .. 100:max
 int ZX_BLOOM = 0; // 0:off .. 100:max
 int ZX = 128; // 16, 48, 128, 200 (+2), 210 (+2A), 300 (+3)
-int ZX_AY = 2; // 0: no, 1: fast, 2: accurate
+int ZX_AY = 1; // 0: no, 1: fast, 2: accurate
 int ZX_PALETTE = 0; // 0: own, N: others
+int ZX_PAUSE = 1; // 0: always on, 1: pause if app is minimized/blurred
 int ZX_TURBOROM = 0; // 0: no, 1: patch rom so loading standard tape blocks is faster (see: .tap files)
 int ZX_JOYSTICK = 1|2|16; // 0: no, |1: cursor/protek/agf, |2: kempston, |4: sinclair1, |8: sinclair2, |16: fuller, |32:kempston2, >=256:... custom mappings
-int ZX_AUTOFIRE = 0; // 0: no, 1: slow, 2: fast
+int ZX_JOYSTICK_AUTOFIRE = 0; // 0: no, 1: slow, 2: fast, 3:faster
+int ZX_MOUSE = 1; // 0: no, 1:kempston mouse, 2:gunstick/lightgun
+int ZX_MOUSE_AUTOFIRE = 0; // 0: no, 1: slow, 2: fast, 3:faster
 int ZX_AUTOPLAY = 0; // yes/no: auto-plays tapes based on #FE port reads
 int ZX_AUTOSTOP = 0; // yes/no: auto-stops tapes based on #FE port reads
 int ZX_RUNAHEAD = 0; // 0: no, 1: 1-frame run-ahead, 2: 2-frame run-ahead (improved input latency)
-int ZX_MOUSE = 1; // yes/no: kempston mouse
 int ZX_ULAPLUS = 2; // 0:classic, 1: ulaplus 64color mode, 2: ulaplus/ultrawide
-int ZX_GUNSTICK = 0; // yes/no: gunstick/lightgun @fixme: conflicts with kempston & kmouse
 int ZX_FPSMUL = 100; // fps multiplier: 0 (max), x100 (50 pal), x120 (60 ntsc), x200 (7mhz), x400 (14mhz)
 int ZX_AUTOLOCALE = 0; // yes/no: automatically patches games from foreign languages into english
 int ZX_FASTCPU = 0; // yes/no: max cpu speed
 int ZX_FASTTAPE = 1; // yes/no: max tape speed
+int ZX_FLASHLOAD = 1; // yes/no: flashload standard tape blocks
 int ZX_LENSLOK = 0; // yes/no: lenslok glass
+int ZX_CONSOLE = 0; // yes/no
+#define ZX_GUNSTICK (ZX_MOUSE==2)
+
+#define ZX_JOYSTICK_AUTOFIRE_BUTTON (!!(ZX_AUTOFIRE_&1))
+#define ZX_MOUSE_AUTOFIRE_BUTTON (!!(ZX_AUTOFIRE_&2))
+int ZX_AUTOFIRE_ = 0; // internal variable. not exposed
 
 int ZX_PENTAGON = 0; // DEV; // whether the 128 model emulates the pentagon or not
 
 int ZX_KLMODE = 0; // 0:(K mode in 48, default), 1:(L mode in 48)
 int ZX_KLMODE_PATCH_NEEDED = 0; // helper internal variable, must be init to match ZX_KLMODE
 
+int ZX_STEREO = 1; // 0: mono, 1: stereo
 int ZX_WAVES = 0; // 0: no, 1: yes
 int ZX_HORACE = 0; // 0: no, 1: player1 controlled (keys), 2: player2 controller (gamepad)
 int ZX_LOBBY = 0; // 0: no, 1: yes
@@ -150,11 +159,11 @@ const char *ZX_FN_STR[] = {"ESC","F1","F2","F3","F4","F5","F6","F7","F8","F9","F
 int ZX_FN[12+1] = {'GAME'}; // redefineable function keys. FN[0] = ESC, FN[1..12] = F1..F12
 
 const char *ZX_PAD_STR[] = {"⭠","⭢","⭡","⭣","\4A\7","\2B\7","\5X\7","\6Y\7","LB","RB","LT","RT","LS","RS","Bk","St"};
-int ZX_PAD[16] = {TK_LEFT,TK_RIGHT,TK_UP,TK_DOWN,TK_TAB,'Z',TK_UP};  // redefineable gamepad keys
+int ZX_PAD[16] = {TK_LEFT,TK_RIGHT,TK_UP,TK_DOWN,TK_TAB,'Z'};  // redefineable gamepad keys
 int ZX_PAD_[16] = {0}; // temporary values while remapping. array not serialized
+int ZX_PAD_PRESET_[16] = {TK_LEFT,TK_RIGHT,TK_UP,TK_DOWN,TK_TAB,'Z'};
 
-const
-char *ZX_TAB = "A"; // current game letter being browsed. may be a letter or special char.
+int   ZX_TABS = 2; // [2]=>'A' current game letter being browsed. may be a letter or special char.
 char *ZX_TITLE = 0; // current titlebar
 char *ZX_MEDIA = 0; // current mounted game
 
@@ -164,7 +173,7 @@ int   ZX_SHADED = 0; // is ZX_SHADER enabled or not
 char *ZX_SHADER = 0; // path to the custom shader file
 
 #define INI_OPTIONS_STR(X) \
-    X(ZX_FOLDER) X(ZX_TITLE) X(ZX_MEDIA) X(ZX_TAB) X(ZX_SHADER)
+    X(ZX_FOLDER) X(ZX_TITLE) X(ZX_MEDIA) X(ZX_SHADER)
 
 #define INI_OPTIONS_NUM(X) \
     X(ZX) \
@@ -173,17 +182,17 @@ char *ZX_SHADER = 0; // path to the custom shader file
     X(ZX_AY) \
     X(ZX_TURBOROM) \
     X(ZX_JOYSTICK) \
+    X(ZX_JOYSTICK_AUTOFIRE) \
     X(ZX_RUNAHEAD) \
     X(ZX_MOUSE) \
+    X(ZX_MOUSE_AUTOFIRE) \
     X(ZX_ULAPLUS) \
-    X(ZX_GUNSTICK) \
     X(ZX_FPSMUL) \
     X(ZX_AUTOLOCALE) \
     X(ZX_FASTTAPE) \
     /*X(ZX_BROWSER)*/ \
     X(ZX_ALTROMS) \
     X(ZX_PALETTE) X(ZX_PALETTE_PREVIEW) \
-    X(ZX_AUTOFIRE) \
     X(ZX_MULTIFACE) \
     X(ZX_FN[0]) X(ZX_FN[1]) X(ZX_FN[2]) X(ZX_FN[3]) X(ZX_FN[4]) X(ZX_FN[5]) \
     X(ZX_FN[6]) X(ZX_FN[7]) X(ZX_FN[8]) X(ZX_FN[9]) X(ZX_FN[10]) X(ZX_FN[11]) X(ZX_FN[12]) \
@@ -191,7 +200,7 @@ char *ZX_SHADER = 0; // path to the custom shader file
     X(ZX_PAD[6]) X(ZX_PAD[7]) X(ZX_PAD[8]) X(ZX_PAD[9]) X(ZX_PAD[10]) X(ZX_PAD[11]) \
     X(ZX_PAD[12]) X(ZX_PAD[13]) X(ZX_PAD[14]) X(ZX_PAD[15]) \
     X(ZX_ZOOM) X(ZX_FULLSCREEN) X(ZX_WAVES) X(ZX_LENSLOK) X(ZX_SHADED) X(ZX_LOBBY) X(ZX_HORACE) \
-    X(ZX_BLUR) X(ZX_BLOOM)
+    X(ZX_BLUR) X(ZX_BLOOM) X(ZX_TABS) X(ZX_STEREO) X(ZX_FLASHLOAD) X(ZX_PAUSE) X(ZX_CONSOLE)
 
 void logport(word port, byte value, int is_out);
 void outport(word port, byte value);
@@ -340,6 +349,7 @@ int file_is_supported(const char *filename, int skip) {
 #include "zx_sna.h" // requires page128, ZXBorderColor
 #include "zx_db.h"
 #include "zx_rzx.h"
+#include "zx_pal.h"
 #include "zx_ula.h"
 #include "zx_lenslok.h"
 
@@ -758,7 +768,7 @@ byte inport_0xfffd(void) {
         // 110X 1111 bit4: light sensor   (0=None, 1=Light)
 
         int lightgun();
-        byte val = mouse().lb ? 0xCF : 0xEF; // set button
+        byte val = mouse().lb || ZX_MOUSE_AUTOFIRE_BUTTON ? 0xCF : 0xEF; // set button
         val |= 0x10 * lightgun(); // set light
 
         r[14] = val;
@@ -1228,7 +1238,7 @@ byte gunstick(byte code) { // out: FF(no), FE(fire), FB(lit)
     // lmb should last at least 6 frames (see: Guillermo Tell)
     static uint64_t down = 0;
     struct mouse m = mouse();
-    if( m.lb || m.rb ) down = ticks;
+    if( m.lb || m.rb || ZX_MOUSE_AUTOFIRE_BUTTON ) down = ticks;
     int64_t lapsed = ticks - down;
 
     int hit = ( lapsed >= 0 && lapsed < (70908 * 6));
@@ -1344,7 +1354,7 @@ byte inport_(word port) {
         // kempston mouse
         if( kempston_mouse == 3 ) { // was: 7 before. arkanoid does not use Y.
             struct mouse m = mouse();
-            if(!(port & (0xFFFF^0xFADF))) return mouse_clip(1), mouse_cursor(0), 0xFF&~(1*m.rb+2*m.lb+4*m.mb); // ----.--10.--0-.----  =  Buttons: D0 = RMB, D1 = LMB, D2 = MMB
+            if(!(port & (0xFFFF^0xFADF))) return mouse_clip(1), mouse_cursor(0), 0xFF&~(1*m.rb+2*(m.lb|ZX_MOUSE_AUTOFIRE_BUTTON)+4*m.mb); // ----.--10.--0-.----  =  Buttons: D0 = RMB, D1 = LMB, D2 = MMB
             if(!(port & (0xFFFF^0xFBDF))) return mouse_clip(1), mouse_cursor(0),  m.x;                         // ----.-011.--0-.----  =  X-axis:  $00 … $FF
             if(!(port & (0xFFFF^0xFFDF))) return mouse_clip(1), mouse_cursor(0), -m.y;                         // ----.-111.--0-.----  =  Y-axis:  $00 … $FF
         }
@@ -1722,6 +1732,8 @@ struct quicksave {
     int autoplay_freq;
     uint64_t autoplay_last;
     unsigned autoplay_numreads;
+    // flashload
+    const byte *TAP_sof, *TAP_pof, *TAP_eof;
 
 } quicksaves[10+1] = {0}; // user[0..9], sys/run-ahead reserved[10]
 
@@ -1827,6 +1839,10 @@ void* quicksave(unsigned slot) {
     c->autoplay_freq = autoplay_freq;
     c->autoplay_last = autoplay_last;
     c->autoplay_numreads = autoplay_numreads;
+    // flashload
+    c->TAP_sof = TAP_sof;
+    c->TAP_pof = TAP_pof;
+    c->TAP_eof = TAP_eof;
 
     return c;
 }
@@ -1932,6 +1948,10 @@ void* quickload(unsigned slot) {
     autoplay_freq = c->autoplay_freq;
     autoplay_last = c->autoplay_last;
     autoplay_numreads = c->autoplay_numreads;
+    // flashload
+    TAP_sof = c->TAP_sof;
+    TAP_pof = c->TAP_pof;
+    TAP_eof = c->TAP_eof;
 
     return c;
 }
@@ -2432,7 +2452,7 @@ repeat:;
             }
 
             // is it a zip? unzip & try to recurse...
-            if( len > 4 && !memcmp(ptr, "PK\3\4", 4) ) {
+            if( len > 8 && (!memcmp(ptr, "PK\3\4", 4) || !memcmp(ptr, "PK00PK\3\4", 8)) ) {
                 for( FILE *fp = fopen(".Spectral/loadbin.zip","wb"); fp; fclose(fp), fp = 0) {
                     fwrite(ptr, len, 1, fp);
                 }

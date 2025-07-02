@@ -46,11 +46,11 @@ unsigned char *readfile(const char *pathfile, int *size) {
     for( FILE *fp = fopen8(pathfile,"rb"); fp; fclose(fp), fp = 0) {
         fseek(fp, 0L, SEEK_END);
         size_t len = ftell(fp);
-        if(size) *size = (int)len;
         fseek(fp, 0L, SEEK_SET);
         bin = (unsigned char*)malloc(len+1);
         if( bin && fread(bin, 1, len, fp) == len ) bin[len] = '\0';
         else free(bin), bin = 0;
+        if(size && bin) *size = (int)len;
     }
     return bin;
 }
@@ -188,8 +188,8 @@ const char *cmppath(const char *a, const char *b) { // returns byte in `a` where
         if(eq) { ++a; ++b; continue; }
         eq = strchr("\\/", *a) && strchr("\\/", *b);
         if(eq) {
-            do ++a; while(/**a &&*/ strchr("\\/", *a));
-            do ++b; while(/**b &&*/ strchr("\\/", *b));
+            do ++a; while(*a && strchr("\\/", *a));
+            do ++b; while(*b && strchr("\\/", *b));
             continue;
         }
         #ifdef _WIN32
@@ -198,8 +198,8 @@ const char *cmppath(const char *a, const char *b) { // returns byte in `a` where
         #endif
         return a;
     }
-    while(/**a &&*/ strchr("\\/", *a)) ++a;
-    while(/**b &&*/ strchr("\\/", *b)) ++b;
+    while(*a && strchr("\\/", *a)) ++a;
+    while(*b && strchr("\\/", *b)) ++b;
     return *a == *b ? NULL : a;
 }
 

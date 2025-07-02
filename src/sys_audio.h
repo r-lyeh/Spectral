@@ -15,14 +15,14 @@ typedef union { float l,r; } float2;
 #endif
 
 // Circular buffer for audio channels
-float audio_buffer1[AUDIO_BUFFERLEN] = {0}; // beeper
-float audio_buffer2[AUDIO_BUFFERLEN] = {0}; // AY1, ch0
-float audio_buffer3[AUDIO_BUFFERLEN] = {0}; // AY1, ch1
-float audio_buffer4[AUDIO_BUFFERLEN] = {0}; // AY1, ch2
-float audio_buffer5[AUDIO_BUFFERLEN] = {0}; // AY2, ch0
-float audio_buffer6[AUDIO_BUFFERLEN] = {0}; // AY2, ch1
-float audio_buffer7[AUDIO_BUFFERLEN] = {0}; // AY2, ch2
-float2 audio_mixed[AUDIO_BUFFERLEN] = {0};   // Mixed output
+float audio_buffer1[AUDIO_BUFFERLEN*2] = {0}; // beeper
+float audio_buffer2[AUDIO_BUFFERLEN*2] = {0}; // AY1, ch0
+float audio_buffer3[AUDIO_BUFFERLEN*2] = {0}; // AY1, ch1
+float audio_buffer4[AUDIO_BUFFERLEN*2] = {0}; // AY1, ch2
+float audio_buffer5[AUDIO_BUFFERLEN*2] = {0}; // AY2, ch0
+float audio_buffer6[AUDIO_BUFFERLEN*2] = {0}; // AY2, ch1
+float audio_buffer7[AUDIO_BUFFERLEN*2] = {0}; // AY2, ch2
+float2 audio_mixed[AUDIO_BUFFERLEN*2] = {0};   // Mixed output
 
 int audio_write = 0;         // Write position
 int audio_read = 0;          // Read position
@@ -86,20 +86,24 @@ void audio_queue(float sample, float samples[7], int ays) {
     // Queue sample
     int next_pos = (audio_write + 1) % AUDIO_BUFFERLEN;
     if (next_pos != audio_read) {
+        audio_mixed[audio_write].l =
+        audio_mixed[audio_write].r = sample;
 #if AUDIO_CHANNELS == 2
-        float BUZZ = samples[0];
-        float AY_A =(samples[1] + samples[4]) / ays;
-        float AY_B =(samples[2] + samples[5]) / ays;
-        float AY_C =(samples[3] + samples[6]) / ays;
-        float AY_L = AY_A + AY_C * 0.50; AY_L /= 1.5;
-        float AY_R = AY_B + AY_C * 0.50; AY_R /= 1.5;
-        float master = 0.98f * !!sample; // * !!ZX_AY;
+        extern int ZX_STEREO;
+        if( ZX_STEREO )
+        {
+            float BUZZ = samples[0];
+            float AY_A =(samples[1] + samples[4]) / ays;
+            float AY_B =(samples[2] + samples[5]) / ays;
+            float AY_C =(samples[3] + samples[6]) / ays;
+            float AY_L = AY_A + AY_C * 0.50; AY_L /= 1.5;
+            float AY_R = AY_B + AY_C * 0.50; AY_R /= 1.5;
+            float master = 0.98f * !!sample; // * !!ZX_AY;
 
-        // Store the samples in the circular buffer
-        audio_mixed[audio_write].l = (sample * 0.50 + AY_L * 0.50) * master; // (BUZZ * 0.75 + AY_L * 0.25) * master;
-        audio_mixed[audio_write].r = (sample * 0.50 + AY_R * 0.50) * master; // (BUZZ * 0.75 + AY_R * 0.25) * master;
-#else
-        audio_mixed[audio_write].l = sample;
+            // Store the samples in the circular buffer
+            audio_mixed[audio_write].l = (sample * 0.50 + AY_L * 0.50) * master; // (BUZZ * 0.75 + AY_L * 0.25) * master;
+            audio_mixed[audio_write].r = (sample * 0.50 + AY_R * 0.50) * master; // (BUZZ * 0.75 + AY_R * 0.25) * master;
+        }
 #endif
 
         audio_buffer1[audio_write] = samples[0];

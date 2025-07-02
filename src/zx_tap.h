@@ -110,6 +110,7 @@ void tape_render_standard(byte *data, unsigned bytes, float pilot_len) {
     tape_render_full(data, bytes, 8, pilot_len, PILOT, SYNC1, SYNC2, ZERO, ONE, END_MS);
 }
 
+const byte *TAP_sof, *TAP_pof, *TAP_eof; // start,position,eof of binary contents (FlashLoad)
 
 void tape_reset(void) {
     memset(tape_preview, 0, sizeof(tape_preview));
@@ -123,6 +124,8 @@ void tape_reset(void) {
     tape_issue2 = 0;
     tape_type = 0xFF;
     tape_counter = 0;
+
+    TAP_sof = TAP_pof = TAP_eof = 0;
 
     mic = 0;
     mic_on = 0;
@@ -330,6 +333,12 @@ int tap_load(const void *fp, int siz) {
 
     tape_reset();
 
+    if(ZX_FLASHLOAD) {
+    TAP_sof = TAP_pof = fp; // used for flashload
+    TAP_eof = TAP_sof + siz; // used for flashload
+    //return 1;
+    }
+
     byte *begin=(byte *)fp, *pos = begin, *end=begin+siz;
     for( int block = 0; pos < end; ++block ) {
         //length in bytes
@@ -355,17 +364,49 @@ int tap_load(const void *fp, int siz) {
 
 // --- tape utils
 
-#define tape_level() (!!mic)
-#define tape_inserted() (voc_len > LEAD_SILENCE) // (!!voc_len)
-#define tape_seeki(at) ( voc_pos = voc && voc_len && at >= 0 && at < voc_len ? at : voc_pos )
-#define tape_seekf(at) ( voc_pos = voc && voc_len && at >= 0 && at <= 1 ? at * (voc_len - 1) : voc_pos )
-#define tape_peek() ( voc_pos < voc_len ? voc[voc_pos].debug : ' ' )
-#define tape_tellf() ( voc_pos / (float)(voc_len+!voc_len) )
-//#define tape_play(on) ( mic_on = !!(on) )
-#define tape_playing() (mic_on && voc_len)
-#define tape_feeding() (tape_playing() && !strchr("uo", tape_peek()))
-#define tape_stop() tape_play(0)
+#define tape_level() tape_level_()
+int tape_level_() {
+    if(ZX_FLASHLOAD) if(TAP_sof) return 0;
+    return !!mic;
+}
+int tape_inserted() {
+    if(ZX_FLASHLOAD) if(TAP_sof) return TAP_pof < TAP_eof;
+    return voc_len > LEAD_SILENCE; // (!!voc_len)
+}
+int tape_seeki(int at) {
+    if(ZX_FLASHLOAD) if(TAP_sof) return 0;
+    return voc_pos = voc && voc_len && at >= 0 && at < voc_len ? at : voc_pos;
+}
+int tape_seekf(int at) {
+    if(ZX_FLASHLOAD) if(TAP_sof) return 0;
+    return voc_pos = voc && voc_len && at >= 0 && at <= 1 ? at * (voc_len - 1) : voc_pos;
+}
+int tape_peek() {
+    if(ZX_FLASHLOAD) if(TAP_sof) return 'u';
+    return voc_pos < voc_len ? voc[voc_pos].debug : ' ';
+}
+float tape_tellf() {
+    if(ZX_FLASHLOAD) if(TAP_sof) return (TAP_pof - TAP_sof) / (float)(TAP_eof - TAP_sof);
+    return voc_pos / (float)(voc_len+!voc_len);
+}
+int tape_playing() {
+    if(ZX_FLASHLOAD) if(TAP_sof) return mic_on && (TAP_pof > TAP_sof);
+    return (mic_on && voc_len);
+}
+int tape_feeding() {
+    return tape_playing() && !strchr("uo", tape_peek());
+}
+void tape_play(int);
+void tape_stop() {
+    tape_play(0);
+}
 
+
+/*
+int tape_play(on) {
+    return mic_on = !!(on);
+}
+*/
 void tape_play(int on) {
     mic_on = !!on;
     if( on && tape_inserted() ) {

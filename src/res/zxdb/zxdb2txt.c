@@ -11,6 +11,7 @@
 
 #ifdef _WIN32
 #include <winsock2.h>
+#pragma comment(lib, "shell32")
 #else
 #include <unistd.h>
 #endif

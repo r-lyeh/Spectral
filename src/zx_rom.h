@@ -136,6 +136,169 @@ void rom_restore() {
 #endif
 }
 
+byte TAP_load(byte id_a, unsigned start_ix, unsigned length_de)
+{
+    extern const byte *TAP_sof, *TAP_pof, *TAP_eof;
+
+    if(!TAP_sof) return 0; /* fail, no file */
+
+    if(TAP_pof >= TAP_eof) TAP_pof = TAP_sof; /* Back to start */
+    int remain = (TAP_eof - TAP_pof);
+    if(remain<3) return 0;
+
+    unsigned length = (TAP_pof[1] << 8 | TAP_pof[0]) - 2; TAP_pof += 2;
+    byte id_tape = *TAP_pof++;
+    byte calc_checksum=id_tape;
+
+    if( 1 ) // id_tape == id_a ) /* Yes, the correct ID, proceed. */
+    {
+        if( length_de <= length ) /* Length <= so OK */
+        {
+            byte data = 0;
+
+            // read_block(start_ix, length_de)
+            for( int i = 0; i < length_de; ++i ) {
+                data = *TAP_pof++;
+                calc_checksum ^= data;
+                WRITE8(start_ix+i, data);
+            }
+
+            // skip_block(length-length_de);
+            TAP_pof += length-length_de;
+
+            byte checksum = *TAP_pof++;
+            HL(cpu) = (checksum << 8) | data;
+            IX(cpu) += length_de;
+            DE(cpu) = 0; /* checksum in this case? */
+            return checksum == calc_checksum;
+        }
+        else /* Too many bytes requested */
+        {
+            byte data = 0;
+
+            int excess = length_de-length;
+
+            // read_block(start_ix,length);
+            for( int i = 0; i < length_de; ++i ) {
+                data = i < excess ? id_tape/*A(cpu)*/ : *TAP_pof++;
+                calc_checksum ^= data;
+                WRITE8(start_ix+i, data);
+            }
+
+            byte checksum = *TAP_pof++;
+            HL(cpu) = (0/*checksum*/ << 8) | data;
+            IX(cpu) += length_de;
+            DE(cpu) = 0;
+            //return 0; /* fail */
+            return 1; /* ok */
+        }
+    }
+    else /* Wrong ID! */
+    {
+        // skip_block(length.W);
+        TAP_pof += length;
+        byte checksum = *TAP_pof++;
+        return 0; /* fail */
+    }
+}
+bool TAP_load2(byte id_a, unsigned start_ix, unsigned length_de) {
+    unsigned where  = start_ix; //IX(cpu);
+    unsigned amount = length_de; //DE(cpu);
+    unsigned errors = 0;
+
+    // auto tape-rewind function on end-of-file
+    extern const byte *TAP_sof, *TAP_pof, *TAP_eof;
+    if( TAP_pof > TAP_eof ) TAP_pof = TAP_sof;
+    const byte *src = TAP_pof;
+
+    int bytes = (TAP_pof[1] << 8) | TAP_pof[0]; TAP_pof+=2; //size of header
+    if( bytes == 0 ) return 0; // error
+    if( bytes == 1 ) return TAP_pof++, 0; // error
+    bytes -= 2;
+
+    byte id_tape = *TAP_pof++;
+#if 0
+    if( id_tape != id_a )
+        return TAP_pof += bytes+2-1, 0; // if id not ok then skip block+checksum and return error
+#endif
+
+    // if there are more bytes in the tap than requested (ie, Gregory
+    // Loses His Clock.tap has a header of 26 bytes instead of 13) then
+    // read only the initial bytes and skip later the other bytes.
+
+    DE(cpu) = 0;
+    IX(cpu) += amount;
+
+    int skip = amount > bytes ? amount - bytes : 0;
+    if( skip ) amount = bytes/*, ++errors*/;
+
+    byte crc = 0 ^ id_tape, last = id_tape, verify = 0; // F(cpu) & Z80_CF;
+    for( int i = 0; i < amount+skip; i++ ) {
+//        if( i >= skip ) // ? id_tape/*A(cpu)*/ : *TAP_pof++;
+        crc ^= ( last = i >= skip ? *TAP_pof++ : last );
+//        if( i >= amount ) continue;
+        errors += verify ? READ8(where + i) != last : (WRITE8(where + i, last), 0);
+    }
+
+last = TAP_pof[0];
+//if(skip) MessageBoxA(0,va("%d %d %d %d\n", last, TAP_pof[0], TAP_pof[1], TAP_pof[2]),0,0);
+
+    TAP_pof += bytes - amount; // skip unused bytes, if any
+
+//last = TAP_pof[0];
+
+    byte checksum = *TAP_pof++;
+    HL(cpu) = 0/*(checksum << 8)*/ | last;
+    BC(cpu) = 0xCB01; //start_ix + (TAP_pof - src) + length_de + 1; //0xCB01;
+    PC(cpu) = 0x05E2;
+
+//    if(errors) A(cpu) = 0, F(cpu) &= ~(Z80_CF|Z80_ZF);
+//    else       A(cpu) = 0, F(cpu) |=  (Z80_CF|Z80_ZF);
+
+    return errors ? 0 : 1;
+}
+int rom_patch_trap() {
+    if( !ZX_FLASHLOAD ) return 0;
+
+//    byte *rombank = ROM_BANK(GET_BASIC_ROMBANK());
+//    if( rombank != rom ) return 0;
+    int rombank = GET_MAPPED_ROMBANK();
+    int basicbank = GET_BASIC_ROMBANK();
+    if( rombank != basicbank ) return 0;
+
+    extern const byte *TAP_sof, *TAP_pof, *TAP_eof;
+    if(!TAP_sof) return 0;
+
+    if(PC(cpu)==1388+1) //1388
+    {
+#if 1
+        unsigned af=AF(cpu); AF(cpu) = AF2(cpu);
+//        int r = TAP_load(A(cpu),IX(cpu),DE(cpu));
+        int r = TAP_load2(A(cpu),IX(cpu),DE(cpu));
+        if(!r)
+        {
+            A(cpu) = 0;
+            F(cpu) &= ~(Z80_CF|Z80_ZF);
+        }
+        else
+        {
+            A(cpu) = 0;
+            F(cpu) |= Z80_ZF;
+        }
+        AF2(cpu)=AF(cpu);
+        AF(cpu)=af;
+
+        af=AF(cpu); AF(cpu)=AF2(cpu); AF2(cpu)=af; /* ex af,af' */
+#endif
+
+        PC(cpu)=1506;
+
+        return 1;
+    }
+
+    return 0;
+}
+
 void rom_patch_turbo() {
     if(rom_patches & TURBO_PATCH) return;
 

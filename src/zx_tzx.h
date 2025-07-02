@@ -591,9 +591,17 @@ int pzx_load(const byte *fp, int len) {
                 byte count = bit ? p1 : p0;
                 const word *pulses = bit ? s1 : s0;
 
-                tape_has_turbo |= (*pulses == 1710 && *pulses == 855 ? 0 : 1);
+                tape_has_turbo |= (*pulses == 1710 || *pulses == 855 ? 0 : 1);
 
                 for( byte j = 0; j < count; ++j) {
+                    #if 1
+                    // @fixme: a 0-pulse acts like a glue block, but there must be a better way to handle this
+                    if( (j+2) < count && pulses[j+1] == 0 && pulses[j+2] != 0 ) {
+                        tape_push("piLot", level ^ 1 ? LEVEL_HIGH : LEVEL_LOW, 1, pulses[j] + pulses[j+2]); level ^= 1;
+                        j+=2;
+                        continue;
+                    }
+                    #endif
                     tape_push("piLot", level ^ 1 ? LEVEL_HIGH : LEVEL_LOW, 1, pulses[j]); level ^= 1;
                 }
             }

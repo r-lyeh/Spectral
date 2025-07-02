@@ -535,7 +535,7 @@ int tigrGAPIBegin(Tigr* bmp);
 int tigrGAPIEnd(Tigr* bmp);
 void tigrGAPIPresent(Tigr* bmp, int w, int h);
 
-#if __has_include("3rd_tigrdragndrop.h")
+#if defined(__has_include) && __has_include("3rd_tigrdragndrop.h")
 #include "3rd_tigrdragndrop.h" //< @r-lyeh
 #endif
 
@@ -2626,7 +2626,9 @@ LRESULT CALLBACK tigrWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         win = tigrInternal(bmp);
 
     switch (message) {
+#if defined(__has_include) && __has_include("3rd_tigrdragndrop.h")
         TIGR_HANDLE_DRAG_N_DROP(hWnd, wParam) // @r-lyeh
+#endif
 
         case WM_PAINT:
             if (!tigrGAPIBegin(bmp)) {
@@ -2777,15 +2779,15 @@ LRESULT CALLBACK tigrWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
             // fall-thru
         case WM_KEYDOWN:
             if (win)
-                win->keys[wParam] = 1;
-            if( win ) win->keys[MapLeftRightKeys(wParam, lParam)] = 1; //< @r-lyeh
+                win->keys[tigrWinVK(wParam)] = 1; //< @r-lyeh
+            if( win ) win->keys[tigrWinVK(MapLeftRightKeys(wParam, lParam))] = 1; //< @r-lyeh
             return DefWindowProcW(hWnd, message, wParam, lParam);
         case WM_SYSKEYUP:
             // fall-thru
         case WM_KEYUP:
             if (win)
-                win->keys[wParam] = 0;
-            if( win ) win->keys[MapLeftRightKeys(wParam, lParam)] = 0; //< @r-lyeh
+                win->keys[tigrWinVK(wParam)] = 0; //< @r-lyeh
+            if( win ) win->keys[tigrWinVK(MapLeftRightKeys(wParam, lParam))] = 0; //< @r-lyeh
             return DefWindowProcW(hWnd, message, wParam, lParam);
         case WM_MOUSEWHEEL:
             if (win)
@@ -3063,7 +3065,7 @@ float tigrMouseWheel(Tigr* bmp) {
     return win->mouseWheel;
 }
 
-static int tigrWinVK(int key) {
+static int tigrWinVK_DEPRECATED(int key) { //< @r-lyeh
     if (key >= 'A' && key <= 'Z')
         return key;
     if (key >= '0' && key <= '9')
@@ -3216,15 +3218,245 @@ static int tigrWinVK(int key) {
     return 0;
 }
 
+static int tigrWinVK(int key) {
+    if (key >= 'A' && key <= 'Z')
+        return key;
+    if (key >= '0' && key <= '9')
+        return key;
+    switch (key) {
+        case VK_BACK:
+            return TK_BACKSPACE;
+                
+        case VK_TAB:
+            return TK_TAB;
+                
+        case VK_RETURN:
+            return TK_RETURN;
+                
+        case VK_SHIFT:
+            return TK_SHIFT;
+                
+        case VK_CONTROL:
+            return TK_CONTROL;
+                
+        case VK_MENU:
+            return TK_ALT;
+                
+        case VK_PAUSE:
+            return TK_PAUSE;
+                
+        case VK_CAPITAL:
+            return TK_CAPSLOCK;
+                
+        case VK_ESCAPE:
+            return TK_ESCAPE;
+                
+        case VK_SPACE:
+            return TK_SPACE;
+                
+        case VK_PRIOR:
+            return TK_PAGEUP;
+                
+        case VK_NEXT:
+            return TK_PAGEDN;
+                
+        case VK_END:
+            return TK_END;
+                
+        case VK_HOME:
+            return TK_HOME;
+                
+        case VK_LEFT:
+            return TK_LEFT;
+                
+        case VK_UP:
+            return TK_UP;
+                
+        case VK_RIGHT:
+            return TK_RIGHT;
+                
+        case VK_DOWN:
+            return TK_DOWN;
+                
+        case VK_INSERT:
+            return TK_INSERT;
+                
+        case VK_DELETE:
+            return TK_DELETE;
+                
+        case VK_LWIN:
+            return TK_LWIN;
+                
+        case VK_RWIN:
+            return TK_RWIN;
+                
+        // case VK_APPS: return TK_APPS; // this key doesn't exist on OS X
+
+        case VK_NUMPAD0:
+            return TK_PAD0;
+                
+        case VK_NUMPAD1:
+            return TK_PAD1;
+                
+        case VK_NUMPAD2:
+            return TK_PAD2;
+                
+        case VK_NUMPAD3:
+            return TK_PAD3;
+                
+        case VK_NUMPAD4:
+            return TK_PAD4;
+                
+        case VK_NUMPAD5:
+            return TK_PAD5;
+                
+        case VK_NUMPAD6:
+            return TK_PAD6;
+                
+        case VK_NUMPAD7:
+            return TK_PAD7;
+                
+        case VK_NUMPAD8:
+            return TK_PAD8;
+                
+        case VK_NUMPAD9:
+            return TK_PAD9;
+                
+        case VK_MULTIPLY:
+            return TK_PADMUL;
+                
+        case VK_ADD:
+            return TK_PADADD;
+                
+        case VK_SEPARATOR:
+            return TK_PADENTER;
+                
+        case VK_SUBTRACT:
+            return TK_PADSUB;
+                
+        case VK_DECIMAL:
+            return TK_PADDOT;
+                
+        case VK_DIVIDE:
+            return TK_PADDIV;
+                
+        case VK_F1:
+            return TK_F1;
+                
+        case VK_F2:
+            return TK_F2;
+                
+        case VK_F3:
+            return TK_F3;
+                
+        case VK_F4:
+            return TK_F4;
+                
+        case VK_F5:
+            return TK_F5;
+                
+        case VK_F6:
+            return TK_F6;
+                
+        case VK_F7:
+            return TK_F7;
+                
+        case VK_F8:
+            return TK_F8;
+                
+        case VK_F9:
+            return TK_F9;
+                
+        case VK_F10:
+            return TK_F10;
+                
+        case VK_F11:
+            return TK_F11;
+                
+        case VK_F12:
+            return TK_F12;
+                
+        case VK_NUMLOCK:
+            return TK_NUMLOCK;
+                
+        case VK_SCROLL:
+            return TK_SCROLL;
+                
+        case VK_LSHIFT:
+            return TK_LSHIFT;
+                
+        case VK_RSHIFT:
+            return TK_RSHIFT;
+                
+        case VK_LCONTROL:
+            return TK_LCONTROL;
+                
+        case VK_RCONTROL:
+            return TK_RCONTROL;
+                
+        case VK_LMENU:
+            return TK_LALT;
+                
+        case VK_RMENU:
+            return TK_RALT;
+                
+        case VK_OEM_1:
+            return TK_SEMICOLON;
+                
+        case VK_OEM_PLUS:
+            return TK_EQUALS;
+                
+        case VK_OEM_COMMA:
+            return TK_COMMA;
+                
+        case VK_OEM_MINUS:
+            return TK_MINUS;
+                
+        case VK_OEM_PERIOD:
+            return TK_DOT;
+                
+        case VK_OEM_2:
+            return TK_SLASH;
+                
+        case VK_OEM_3:
+            return TK_BACKTICK;
+                
+        case VK_OEM_4:
+            return TK_LSQUARE;
+                
+        case VK_OEM_5:
+            return TK_BACKSLASH;
+                
+        case VK_OEM_6:
+            return TK_RSQUARE;
+                
+        case VK_OEM_7:
+            return TK_TICK;
+                
+#if 1 //< @r-lyeh
+        case VK_SNAPSHOT:
+            return TK_PRINT;
+                
+#endif
+    }
+    return 0;
+}
+
 char* tigrKeys(Tigr* bmp) { //< @r-lyeh
     TigrInternal* win = tigrInternal(bmp);
+    return win->keys;
+/*
+    static char keys[512];
+    return memcpy(keys, win->keys, 256), memcpy(keys+256, win->prev, 256), keys;
+*/
+/*
     static char keys[512];
     memset(keys, 0, sizeof(keys));
     if (GetFocus() == bmp->handle) {
         static int remap1[256] = {0}, remap2[256] = {0}, *init = NULL;
         if(!init) {
             init = remap1;
-            for( int i = 0; i < TK_PRINT; ++i ) {
+            for( int i = 0; i <= TK_PRINT; ++i ) {
                 int vk = tigrWinVK(i);
                 assert(i < 256);
                 assert(vk < 256);
@@ -3238,11 +3470,12 @@ char* tigrKeys(Tigr* bmp) { //< @r-lyeh
         }
     }
     return keys;
+*/
 }
 
 int tigrKeyDown(Tigr* bmp, int key) {
     TigrInternal* win;
-    int k = tigrWinVK(key);
+    int k = key; //tigrWinVK(key);
     if (GetFocus() != bmp->handle)
         return 0;
     win = tigrInternal(bmp);
@@ -3253,14 +3486,14 @@ int tigrKeyUp(Tigr* bmp, int key) { //< @r-lyeh
     TigrInternal* win;
     if (GetFocus() != bmp->handle)
         return 0;
-    int k = tigrWinVK(key);
+    int k = key; //tigrWinVK(key);
     win = tigrInternal(bmp);
     return !win->keys[k] && win->prev[k];
 }
 
 int tigrKeyHeld(Tigr* bmp, int key) {
     TigrInternal* win;
-    int k = tigrWinVK(key);
+    int k = key; //tigrWinVK(key);
     if (GetFocus() != bmp->handle)
         return 0;
     win = tigrInternal(bmp);
@@ -4217,12 +4450,12 @@ void _tigrOnCocoaEvent(id event, id window) {
             keys.mask = (modifiers & 0xffff0000UL) >> 16;
 
             // TODO L,R variation of keys?
-            win->keys[TK_CONTROL] = keys.alpha_shift;
-            win->keys[TK_SHIFT] = keys.shift;
-            win->keys[TK_CONTROL] = keys.control;
-            win->keys[TK_ALT] = keys.alternate;
-            win->keys[TK_LWIN] = keys.command;
-            win->keys[TK_RWIN] = keys.command;
+            win->keys[TK_CONTROL] = !!keys.alpha_shift; //< @r-lyeh: added !!
+            win->keys[TK_SHIFT] = !!keys.shift; //< @r-lyeh: added !!
+            win->keys[TK_CONTROL] = !!keys.control; //< @r-lyeh: added !!
+            win->keys[TK_ALT] = !!keys.alternate; //< @r-lyeh: added !!
+            win->keys[TK_LWIN] = !!keys.command; //< @r-lyeh: added !!
+            win->keys[TK_RWIN] = !!keys.command; //< @r-lyeh: added !!
             break;
         }
         case 10:  // NSKeyDown
@@ -4406,8 +4639,11 @@ float tigrMouseWheel(Tigr* bmp) {
 
 char* tigrKeys(Tigr* bmp) { //< @r-lyeh
     TigrInternal* win = tigrInternal(bmp);
+    return win->keys;
+/*
     static char keys[512];
     return memcpy(keys, win->keys, 256), memcpy(keys+256, win->prev, 256), keys;
+*/
 }
 
 int tigrKeyDown(Tigr* bmp, int key) {
@@ -4836,7 +5072,7 @@ Tigr* tigrWindow(int w, int h, const char* title, int flags) {
 }
 
 void processEvents(TigrInternal* win) {
-    memset(win->keys, 0, 255);
+    memset(win->keys, 0, 255); //< @r-lyeh: isnt it 256?
 
     TigrMessageData data;
 
@@ -4956,8 +5192,11 @@ int tigrGAPIEnd(Tigr* bmp) {
 
 char* tigrKeys(Tigr* bmp) { //< @r-lyeh
     TigrInternal* win = tigrInternal(bmp);
+    return win->keys;
+/*
     static char keys[512];
     return memcpy(keys, win->keys, 256), memcpy(keys+256, win->prev, 256), keys;
+*/
 }
 
 int tigrKeyDown(Tigr* bmp, int key) {
@@ -5360,8 +5599,11 @@ int tigrGAPIEnd(Tigr* bmp) {
 
 char* tigrKeys(Tigr* bmp) { //< @r-lyeh
     TigrInternal* win = tigrInternal(bmp);
+    return win->keys;
+/*
     static char keys[512];
     return memcpy(keys, win->keys, 256), memcpy(keys+256, win->prev, 256), keys;
+*/
 }
 
 int tigrKeyDown(Tigr* bmp, int key) {
@@ -5668,7 +5910,7 @@ static void tigrProcessInput(TigrInternal* win, int winWidth, int winHeight) {
                     KeySym keySym = XkbKeycodeToKeysym(win->dpy, keyCode, 0, 0);
                     if (keySym != NoSymbol) {
                         int key = tigrKeyFromX11(keySym);
-                        win->keys[key] = thisBit;
+                        win->keys[key] = !!thisBit; //< @r-lyeh: added !!
                         tigrUpdateModifiers(win);
 
                         if (thisBit) {
@@ -6408,8 +6650,11 @@ int tigrGAPIEnd(Tigr* bmp) {
 
 char* tigrKeys(Tigr* bmp) { //< @r-lyeh
     TigrInternal* win = tigrInternal(bmp);
+    return win->keys;
+/*
     static char keys[512];
     return memcpy(keys, win->keys, 256), memcpy(keys+256, win->prev, 256), keys;
+*/
 }
 
 int tigrKeyDown(Tigr* bmp, int key) {

@@ -50,6 +50,8 @@ int play(int sample, unsigned count); // this belongs to sys headers actually
 #define IY(cpu)    (cpu).iy
 #define PC(cpu)    (cpu).pc
 #define SP(cpu)    (cpu).sp
+#define A(cpu)     (cpu).a
+#define F(cpu)     (cpu).f
 #define I(cpu)     (cpu).i
 #define R(cpu)     (cpu).r
 #define IR(cpu)    (cpu).ir

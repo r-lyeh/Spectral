@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-#if defined _MSC_VER && !defined __clang__
+#if defined _MSC_VER && _MSC_VER > 1900 && !defined __clang__
 __declspec(no_sanitize_address)
 #endif
 char* tempvl(const char *fmt, va_list vl) {
@@ -13,12 +13,19 @@ char* tempvl(const char *fmt, va_list vl) {
     int needed = stbsp_vsnprintf( 0, 0, fmt, copy ) + 1; assert(needed >= 1);
     va_end(copy);
 
-    static __thread int STACK_ALLOC = 256*1024;
-    static __thread char *buf = 0; if(!buf) buf = (char*)REALLOC(0, STACK_ALLOC);
-    static __thread int cur = 0;
+#if 1
+    enum { BUFFERS = 1024 };
+    static __thread int cur = 0; cur = (cur+1)%BUFFERS;
+    static __thread char *buf[BUFFERS] = {0}; buf[cur] = (char*)REALLOC(buf[cur], needed);
+    char *ptr = buf[cur]; ptr[0] = ptr[needed-1] = 0;
+#else
+    char *ptr = calloc(1,needed);
+#endif
 
-    char* ptr = buf + (cur *= (cur+needed) < (STACK_ALLOC - 1), (cur += needed) - needed); assert(ptr);
-    int rc = (*ptr = 0, stbsp_vsnprintf( ptr, needed, fmt, vl )); assert(rc >= 0);
+int rc = stbsp_vsnprintf( ptr, needed, fmt, vl ); assert(rc >= 0);
+
+//    char* ptr = buf + (cur *= (cur+needed) < (STACK_ALLOC - 1), (cur += needed) - needed); assert(ptr);
+//    int rc = (*ptr = 0, stbsp_vsnprintf( ptr, needed, fmt, vl )); assert(rc >= 0);
     return (char *)ptr;
 }
 char* va(const char *fmt, ...) {

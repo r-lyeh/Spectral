@@ -51,7 +51,7 @@ int tigrMouseCursor_(Tigr *app, int mode) { // -1(getter),0(hide),1(arrow),2(han
     }
     if( mode >= 0 ) {
         if( mode != last )
-        SetClassLongPtr((HWND)app->handle, GCLP_HCURSOR, (LONG_PTR)cursor[last = mode % 5]);
+        SetClassLongPtr((HWND)app->handle, GCLP_HCURSOR, (LONG_PTR)cursor[(last = mode) % 5]);
     }
     return last;
 }
@@ -78,7 +78,7 @@ int tigrMouseCursor_(Tigr *app, int mode) { // -1(getter),0(hide),1(arrow),2(han
 
     if( mode >= 0 ) {
         if( mode != last )
-        XDefineCursor(tigrInternal(app)->dpy, tigrInternal(app)->win, cursor[last = mode % 5]);
+        XDefineCursor(tigrInternal(app)->dpy, tigrInternal(app)->win, cursor[(last = mode) % 5]);
     }
     return last;
 }

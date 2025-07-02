@@ -88,10 +88,14 @@
 
 #include "3rd_jompeg.h"
 
-#include "3rd_irc.h"
-
+#pragma push_macro("printf")
+#ifdef printf
+#undef printf
+#endif
 #define STB_SPRINTF_IMPLEMENTATION
 #include "3rd_stb_sprintf.h"
+#include "3rd_irc.h"
+#pragma pop_macro("printf")
 
 #define DR_MP3_IMPLEMENTATION
 #include "3rd_drmp3.h"

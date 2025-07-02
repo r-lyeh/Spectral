@@ -1,3 +1,39 @@
+#include <stdio.h>
+
+int dummy1(const char *s) { return 1; }
+int dummy0(const char *fmt, ...) { return 0; }
+
+#if !DEV // disable console logging in release builds (needed for linux/osx targets)
+int (*putx)(const char *t) = dummy1;
+int (*printfx)(const char *fmt, ...) = dummy0;
+#else
+int (*putx)(const char *t) = puts;
+int (*printfx)(const char *fmt, ...) = printf;
+#endif
+
+static void loggers_(int m) {
+    if(m) {
+        putx = puts;
+        printfx = printf;
+    } else {
+        putx = dummy1;
+        printfx = dummy0;
+    }
+}
+#define puts putx
+#define printf printfx
+
+void loggers(int m);
+
+#define ui_alert(title, ...) do { \
+    ui_dialog_new(NULL); \
+    ui_dialog_option(0,title,NULL, 0,NULL ); \
+    ui_dialog_separator(), ui_dialog_separator(); \
+    ui_dialog_option(0,va("<" __VA_ARGS__),NULL, 0,NULL ); \
+    ui_dialog_separator(), ui_dialog_separator(), ui_dialog_separator(); \
+    ui_dialog_ok(); \
+} while(0)
+
 // # build (windows)
 // cl app.c /FeSpectral.exe /O2 /MT /DNDEBUG=3 /GL /GF /arch:AVX
 //
@@ -44,6 +80,7 @@
 // [ ] tape idea: do not add mega silence if "side A/1" is first block (HuntForRedOctober, italy1990winnersedition)
 // [ ] tape idea: remove most of extremely large ending silences (krakatoa)
 // [ ] tape idea: eat contiguous silences while tape polarity does not change and autoplay is on (welcometohollywood)
+// [ ] try 48k syntax highlighting: https://github.com/reclaimed/prettybasic
 // [ ] gallery: search should use our textinput widget
 // [ ] gallery: local favourites not showing up in fav tab
 // [ ] gallery: find tab misses key shortcuts, bookmark/issue icons and thumbnails mode, and filtering
@@ -235,7 +272,7 @@
 // [ ] XL1 (Compilation)
 #endif
 
-#define SPECTRAL "v1.12"
+#define SPECTRAL "v1.13-WIP"
 
 #ifndef DEV
 #if NDEBUG >= 2
@@ -346,11 +383,6 @@
 #include <ctype.h>
 #include <time.h>
 
-#if !DEV // disable console logging in release builds (needed for linux/osx targets)
-#define printf(...) 0
-#define puts(...)   1
-#endif
-
 // 384x304 to fit border_break.trd resolution
 enum { _256 = 384, _255 = _256-1, _257 = _256+1, _32 = (_256-256)/2 };
 enum { _192 = 304, _191 = _192-1, _193 = _192+1, _24 = (_192-192)/2 };
@@ -379,6 +411,7 @@ int do_overlay;
 enum {
     SLOT_PNG,
     SLOT_MP4,
+    SLOT_EXE,
 };
 
 uint16_t file_counter(unsigned slot) {
@@ -442,15 +475,11 @@ int load_config() {
     {
         int size;
         // load custom shader. revert option if file cannot be loaded or does not exist
-        for( unsigned char *fx = readfile(".Spectral/Spectral.fx", &size); fx; free(fx), fx = 0 ) {
-            ZX_SHADED *= !load_shaderbin(fx, size);
-        }
-        ZX_SHADED *= !!size;
+        unsigned char *fx = readfile(".Spectral/Spectral.fx", &size);
+        ZX_SHADED *= fx && size ? load_shaderbin(fx, size), free(fx), 1 : 0;
         // load custom palette. revert option if file cannot be loaded or does not exist
-        for( unsigned char *pal = readfile(".Spectral/Spectral.pal", &size); pal; free(pal), pal = 0 ) {
-            ZX_PALETTE *= !pal_loadbin(pal, size);
-        }
-        ZX_PALETTE *= !!size;
+        unsigned char *pal = readfile(".Spectral/Spectral.pal", &size);
+        ZX_PALETTE *= pal && size ? pal_loadbin(pal, size), free(pal), 1 : 0;
     }
     {
         // convert relative to absolute paths
@@ -505,7 +534,7 @@ int app_resize() {
     return 1;
 }
 void app_apply_shader() {
-    if( ZX_SHADED && ZX_CRT ) ZX_SHADED = ZX_CRT = 0, alert("Simultaneous shaders are not yet allowed.");
+    if( ZX_SHADED && ZX_CRT ) ZX_SHADED = ZX_CRT = 0, alert("Both internal+external shaders are not yet supported.");
     if( ZX_SHADED ) ZX_SHADED = !!is_file(".Spectral/Spectral.fx");
     if( ZX_SHADED ) ZX_CRT = 0;
     if( ZX_CRT ) ZX_SHADED = 0;
@@ -764,39 +793,41 @@ void input() {
         char* keys = tigrKeys(app);
 
         // custom gamepad mappings
-        if( pad ) {
-        if( pad&0x0001 ) keys[ZX_PAD[ 0]]|=1;
-        if( pad&0x0002 ) keys[ZX_PAD[ 1]]|=1;
-        if( pad&0x0004 ) keys[ZX_PAD[ 2]]|=1;
-        if( pad&0x0008 ) keys[ZX_PAD[ 3]]|=1;
-        if( pad&0x0010 ) keys[ZX_PAD[ 4]]|=1;
-        if( pad&0x0020 ) keys[ZX_PAD[ 5]]|=1;
-        if( pad&0x0040 ) keys[ZX_PAD[ 6]]|=1;
-        if( pad&0x0080 ) keys[ZX_PAD[ 7]]|=1;
-        if( pad&0x0100 ) keys[ZX_PAD[ 8]]|=1;
-        if( pad&0x0200 ) keys[ZX_PAD[ 9]]|=1;
-        if( pad&0x0400 ) keys[ZX_PAD[10]]|=1;
-        if( pad&0x0800 ) keys[ZX_PAD[11]]|=1;
-        if( pad&0x1000 ) keys[ZX_PAD[12]]|=1;
-        if( pad&0x2000 ) keys[ZX_PAD[13]]|=1;
-        if( pad&0x4000 ) keys[ZX_PAD[14]]|=1;
-        if( pad&0x8000 ) keys[ZX_PAD[15]]|=1;
-        }
+        enum { hit = 2 }; // use bitmask that works differently than any of tigr backends: win,osx,linux
+        if( pad&0x0001 ) keys[ZX_PAD[ 0]]|=hit; else keys[ZX_PAD[ 0]] &= ~hit;
+        if( pad&0x0002 ) keys[ZX_PAD[ 1]]|=hit; else keys[ZX_PAD[ 1]] &= ~hit;
+        if( pad&0x0004 ) keys[ZX_PAD[ 2]]|=hit; else keys[ZX_PAD[ 2]] &= ~hit;
+        if( pad&0x0008 ) keys[ZX_PAD[ 3]]|=hit; else keys[ZX_PAD[ 3]] &= ~hit;
+        if( pad&0x0010 ) keys[ZX_PAD[ 4]]|=hit; else keys[ZX_PAD[ 4]] &= ~hit;
+        if( pad&0x0020 ) keys[ZX_PAD[ 5]]|=hit; else keys[ZX_PAD[ 5]] &= ~hit;
+        if( pad&0x0040 ) keys[ZX_PAD[ 6]]|=hit; else keys[ZX_PAD[ 6]] &= ~hit;
+        if( pad&0x0080 ) keys[ZX_PAD[ 7]]|=hit; else keys[ZX_PAD[ 7]] &= ~hit;
+        if( pad&0x0100 ) keys[ZX_PAD[ 8]]|=hit; else keys[ZX_PAD[ 8]] &= ~hit;
+        if( pad&0x0200 ) keys[ZX_PAD[ 9]]|=hit; else keys[ZX_PAD[ 9]] &= ~hit;
+        if( pad&0x0400 ) keys[ZX_PAD[10]]|=hit; else keys[ZX_PAD[10]] &= ~hit;
+        if( pad&0x0800 ) keys[ZX_PAD[11]]|=hit; else keys[ZX_PAD[11]] &= ~hit;
+        if( pad&0x1000 ) keys[ZX_PAD[12]]|=hit; else keys[ZX_PAD[12]] &= ~hit;
+        if( pad&0x2000 ) keys[ZX_PAD[13]]|=hit; else keys[ZX_PAD[13]] &= ~hit;
+        if( pad&0x4000 ) keys[ZX_PAD[14]]|=hit; else keys[ZX_PAD[14]] &= ~hit;
+        if( pad&0x8000 ) keys[ZX_PAD[15]]|=hit; else keys[ZX_PAD[15]] &= ~hit;
 
     if( !ZX_DEVTOOLS ) {
 
-        // autofire
-        static byte frame = 0;
-        int autofire = 0;
-        /**/ if(ZX_AUTOFIRE == 1) autofire = !!(++frame & 0x08);
-        else if(ZX_AUTOFIRE == 2) autofire = !!(++frame & 0x04);
-        else if(ZX_AUTOFIRE == 3) autofire = !!(++frame & 0x02);
+        // autofire per joystick/mouse devices
+        static byte frameJ = 0, frameM = 0;
+        ZX_AUTOFIRE_ = 0;
+        /**/ if(ZX_JOYSTICK_AUTOFIRE == 1) ZX_AUTOFIRE_ |= 1*!!(++frameJ & 0x08);
+        else if(ZX_JOYSTICK_AUTOFIRE == 2) ZX_AUTOFIRE_ |= 1*!!(++frameJ & 0x04);
+        else if(ZX_JOYSTICK_AUTOFIRE == 3) ZX_AUTOFIRE_ |= 1*!!(++frameJ & 0x02);
+        /**/ if(ZX_MOUSE_AUTOFIRE    == 1) ZX_AUTOFIRE_ |= 2*!!(++frameM & 0x08);
+        else if(ZX_MOUSE_AUTOFIRE    == 2) ZX_AUTOFIRE_ |= 2*!!(++frameM & 0x04);
+        else if(ZX_MOUSE_AUTOFIRE    == 3) ZX_AUTOFIRE_ |= 2*!!(++frameM & 0x02);
 
         // joysticks
         int left = keys[TK_LEFT], right = keys[TK_RIGHT];
         int up   = keys[TK_UP],   down = keys[TK_DOWN];
         int fire = keys[TK_TAB];
-        ZXJoysticks(up,down,left,right,fire ^ (fire && ZX_AUTOFIRE ? autofire : 0));
+        ZXJoysticks(up,down,left,right,fire ^ (fire && ZX_JOYSTICK_AUTOFIRE ? ZX_JOYSTICK_AUTOFIRE_BUTTON : 0));
 
         // keyboard
         #define KEYS(k) \
@@ -848,6 +879,8 @@ void input() {
                     KEYS(K); // for gamepads
                 }
             }
+            // patch unicode 8220/8221(“”) as \"
+            if( chr >= 8220 && chr <= 8221 ) chr = '\"';
             // regular chars
             if( chr ) for( const char *sym = "0123456789abcdefghijklmnopqrstuvwxyz " ifdef(win32, "\n", "\r"), *peek = strchr(sym, chr); peek; peek = 0, chr = 0) {
                 ZXKey(ZX_0 + (peek - sym));
@@ -902,9 +935,16 @@ void input() {
     KEYBINDING(12);
 }
 
-
-
-
+void draw_redefinables() {
+    ui_dialog_option(0,"<ESC" PLAY_STR "\f","Game browser", 0,NULL );
+    for( int i = 1; i <= 12; ++i ) {
+        int cmd = vk_find(ZX_FN[i]);
+        const char *icon = cmd >= 0 ? commands[cmd - 1] : "";
+        const char *text = cmd >= 0 ? commands[cmd] + 5 : NULL;
+        if( text && strchr(text, '\n') ) text = va("%.*s", (int)(strchr(text, '\n') - text), text);
+        ui_dialog_option(1,va("\b\bF%d%s",i,icon),text, 'F00'+i,NULL );
+    }
+}
 
 
 
@@ -917,15 +957,7 @@ void help() {
     ui_dialog_option(1,"<https://spectral.zxe.io\n\n",NULL, 'LINK',"https://spectral.zxe.io" );
     ui_dialog_option(0,va("<ZXDB Library %s: %d entries\n",ZXDB_VERSION + countof("version"),zxdb_count()), NULL, 0,NULL );
     ui_dialog_option(0,va("<Local Library: %d games found (%d%%%% ✓)\n\n",numgames, 100 - (numerr * 100 / (total + !total))), NULL, 0,NULL );
-    ui_dialog_option(0,"<ESC" PLAY_STR "\f","Game browser", 0,NULL );
-    for( int i = 1; i <= 12; ++i ) {
-        int cmd = vk_find(ZX_FN[i]);
-        const char *icon = cmd >= 0 ? commands[cmd - 1] : "";
-        const char *text = cmd >= 0 ? commands[cmd] + 5 : NULL;
-        if( text && strchr(text, '\n') ) text = va("%.*s", (int)(strchr(text, '\n') - text), text);
-        ui_dialog_option(1,va("\b\bF%d%s",i,icon),text, 'F00'+i,NULL );
-    }
-    ui_dialog_option(0,"\n\n\n",NULL, 0,NULL );
+    ui_dialog_option(0,"\n",NULL, 0,NULL );
     ui_dialog_ok();
 }
 
@@ -954,8 +986,6 @@ void draw_ui() {
     struct mouse m = mouse();
     if( m.cursor == 0 ) {
         m.x = _320/2, m.y = _240/2; // ignore mouse; already clipped & hidden (in-game)
-    } else {
-        if( !browser ) mouse_cursor(ZX_GUNSTICK ? 4 : 1);
     }
 
     // ui animation
@@ -1069,7 +1099,7 @@ void draw_ui() {
 //          if( ui_click("- Multicolour (Rainbow Graphics) -", "Feat.\n"));
 
         if( ui_click(va("- %s -", strchr(ZXDB.ids[5], ',')+1), "Model\n"));
-        if( ui_click("- Change media -", "Media\n")) cmdkey = 'LIST', cmdarg = va("#%s", ZXDB.ids[0]);
+        if( ui_click("- Select media -", "Media\n")) cmdkey = 'LIST', cmdarg = va("#%s", ZXDB.ids[0]);
 
         if( zxdb_url(ZXDB, "inlay") && ui_click("- Toggle Inlay -", "Inlay\n")) { // @todo: include scanned instructions and tape scan
             for( char *data = zxdb_download(ZXDB,zxdb_url(ZXDB, "inlay"), &len); data; free(data), data = 0 ) {
@@ -1109,7 +1139,7 @@ void draw_ui() {
             free(scrdata);
         }
         static int timer = 0; timer = (timer + 1) % 100;
-        if( zxdb_url(ZXDB, "mp3") && ui_click("- Toggle Bonus Track(s) -", va("Bonus%s\n", !play_findvoice('mp3') ? "" : (timer > 50) * 2 + "\f\f\f\f♪"))) {
+        if( zxdb_url(ZXDB, "mp3") && ui_click("- Toggle Bonus Track(s) -", va("Bonus%s\n", !play_findvoice('mp3') ? "" : (timer > 50) * 2 + "\f\f\f\f♬"/*♪"*/))) {
             cmdkey = 'MP3L'; // mp3 list
         }
         if( zxdb_url(ZXDB, "poke") && ui_click("- Enable Cheats -", "Cheats\n") ) {
@@ -1161,11 +1191,18 @@ void draw_ui() {
         }
     }
 
-    // expert mode
+    // lmb: default mode
+    static int lmb_prev = 0, lmb_then = 0, lmb_now = 0;
+    lmb_prev = lmb_then;
+    lmb_then = lmb_now;
+    lmb_now = m.lb;
+    int lmb_up = lmb_then > lmb_now;
+
+    // rmb: expert mode
     static int rmb_prev = 0, rmb_then = 0, rmb_now = 0;
     rmb_prev = rmb_then;
     rmb_then = rmb_now;
-    rmb_now = mouse().rb;
+    rmb_now = m.rb;
     int rmb_held = rmb_now, rmb_up = rmb_prev;
 
     int shift = key_pressed( TK_SHIFT);
@@ -1202,24 +1239,44 @@ void draw_ui() {
 
         ui_at(ui,chr_x - 4/*ui_x - 8*/,ui_y + 11*3);
 
-        const char *models[] = { [1]=" 16",[3]=" 48",[8]="128K",[9]="P128",[12]=" +2",[13]="+2A",[18]=" +3" };
-        ui_y--;
-        if( ui_click("- Clear Medias -", "\f\f") ) cmdkey = 'WIPE';
-        if( ui_click(rmb_held*23+"- Magic button (NMI) -\0- Magic button (NMI) -\nGenerates a Non-Maskable Interrupt", "\f") ) cmdkey = 'NMI';
-        ui_y++;
-        if( ui_click(rmb_held*17+"- Toggle Model -\0- Toggle Model -\n16, 48, 128, +2, +2A, +3, Pentagon\n", "%s%s\n",models[(ZX/16)|ZX_PENTAGON],ZX_ALTROMS ? "!":"")) if(rmb_up) cmdkey = 'MODE'; else
+        ui_y-=1*0;
+          if( ui_click("- Reset -", "\f🗲\f"/**/) ) cmdkey = 'WIPE'; //'MODE', cmdarg = va("%d",ZX+ZX_PENTAGON);
+//        if( ui_click("- Clear Medias -", "\f\f") ) cmdkey = 'WIPE';
+//        if( ui_click(rmb_held*23+"- Magic button (NMI) -\0- Magic button (NMI) -\nGenerates a Non-Maskable Interrupt", "") ) cmdkey = 'NMI';
+        ui_y+=1*0;
+
+        const int zxmodes[] = {[0]=16,[1]=48,[2]=128,[3]=200,[4]=210,[5]=300,[6]=128|1,[16]=0,[48]=1,[128]=2,[200]=3,[210]=4,[300]=5,[128|1]=6};
+        static int zx_prev1, zx_prev2; do_once zx_prev1 = zx_prev2 = zxmodes[ZX|ZX_PENTAGON];
+        if( zx_prev1 != zx_prev2 ) if( !lmb_now ) cmdkey = 'MODE', cmdarg = va("%d", zxmodes[zx_prev2 = zx_prev1]);
+
+        const int z80modes[] = {[0]=50,[1]=60,[2]=100,[3]=120,[4]=150,[5]=200,[6]=400,[50]=0,[60]=1,[100]=2,[120]=3,[150]=4,[200]=5,[400]=6};
+        static int z80_prev1, z80_prev2; do_once z80_prev1 = z80_prev2 = z80modes[ZX_FPSMUL];
+        if( z80_prev1 != z80_prev2 ) if( !lmb_now ) cmdkey = 'CPU', cmdarg = va("%d", z80modes[z80_prev2 = z80_prev1]);
+
+        const char *models[] = { [1]=" 16K",[3]=" 48K",[8]="128K",[9]="P128",[12]=" +2",[13]=" +2A",[18]=" +3" };
+        if( ui_click(rmb_held*17+"- Toggle Model -\0- Toggle Model -\n16, 48, 128, +2, +2A, +3, Pentagon\n", "%s%s\n\n",models[(ZX/16)|ZX_PENTAGON],ZX_ALTROMS ? "!":"")) if(rmb_up) cmdkey = 'MODE'; else
         {
             int mode = ZX + ZX_PENTAGON;
             ui_dialog_new("- Toggle Model -");
-            ui_dialog_option(1,(mode!=16)+"\00516K\n", "Basic model with 16KB RAM", 'MODE',"16");
-            ui_dialog_option(1,(mode!=48)+"\00548K\n", "Popular model with 48KB RAM", 'MODE',"48");
-            ui_dialog_option(1,(mode!=128)+"\005128K\n", "Upgraded model with 128KB RAM and AY sound chip", 'MODE',"128");
-            ui_dialog_option(1,(mode!=200)+"\005+2\n", "128K with built-in tape recorder", 'MODE',"200");
-            ui_dialog_option(1,(mode!=210)+"\005+2A\n", "Rebranded +2 model with 64K ROM", 'MODE',"210");
-            ui_dialog_option(1,(mode!=300)+"\005+3\n", "+2A compatible with built-in 3\" floppy disk drive", 'MODE',"300");
-            ui_dialog_option(1,(mode!=129)+"\005Pentagon\n", "Soviet ZX Spectrum 128 clone with BetaDisk drive", 'MODE',"129");
+
+            ui_dialog_combo(1,"<ZX Spectrum \00516K|ZX Spectrum \00548K|ZX Spectrum \005128K|ZX Spectrum \005+2|ZX Spectrum \005+2A|ZX Spectrum \005+3|ZX \005Pentagon",NULL,&zx_prev1,0,6);
+            ui_dialog_separator();
+            ui_dialog_separator();
+
+            ui_dialog_combo(1,"<CPU speed \00550%%|CPU speed \00560%%|CPU speed \005100%%|CPU speed \005120%%|CPU speed \005150%%|CPU speed \005200%%|CPU speed \005400%%",NULL,&z80_prev1,0,6);
+            ui_dialog_separator();
+            ui_dialog_separator();
+
+            ui_dialog_combo(1,"<Input latency \5x1|Input latency \5x2|Input latency \5x3",NULL,&ZX_RUNAHEAD,0,2);
+            ui_dialog_separator();
+            ui_dialog_separator();
+
+            ui_dialog_separator();
+            ui_dialog_option(1,1/*( ZX_AUTOLOCALE)*/+"\5NMI\f\f","- Generate a Non-Maskable Interrupt (Magic Button) -",'NMI',0);
+            ui_dialog_ok();
         }
 
+#if 0
         int tableHz[] = {[50]=0,[60]=1,[100]=2,[120]=3,[150]=4,[200]=5,[400]=6};
         if( ui_click(rmb_held*21+"- Toggle Z80 speed -\0- Toggle Z80 speed -\n0:25Hz, 1:30Hz, 2:50Hz, 3:60Hz, 4:75Hz, 5:7MHz, 6:14MHz", "🗲\f%d", tableHz[(int)ZX_FPSMUL]) ) if(rmb_up) cmdkey = 'CPU'; else
         {
@@ -1236,28 +1293,11 @@ void draw_ui() {
         if( ui_click(rmb_held*19+"- Toggle ULAplus -\0- Toggle ULAplus -\n0:off, 1:on, 2:on+ultrawide", "%c\f%d\n", ZX_ULAPLUS ? 'U':'u'/*CHIP_CHR '+'*/, ZX_ULAPLUS) ) if(rmb_up) cmdkey = 'ULA'; else
         {
             ui_dialog_new("- Toggle ULAplus -");
-            ui_dialog_option(1,(ZX_ULAPLUS!=2)+"\5Ultrawide ULA+\n",NULL,'ULA',"2");
-            ui_dialog_option(1,(ZX_ULAPLUS!=1)+"\5Enhanced ULA+\n",NULL,'ULA',"1");
-            ui_dialog_option(1,(ZX_ULAPLUS!=0)+"\5Classic ULA\n",NULL,'ULA',"0");
         }
+#endif
 
-        if( ui_click(rmb_held*16+"- Toggle Zoom -\0- Toggle Zoom -\nx1, x2, x3, x4, x8", "X\f%d",ZX_ZOOM>4?8:ZX_ZOOM+!ZX_ZOOM) ) if(rmb_up) cmdkey = 'ZOOM'; else
-        {
-            int w, h; tigrGetDesktop(&w, &h);
-
-            ui_dialog_new("- Toggle Zoom -");
-            for( int i = 1; i <= 5; ++i ) {
-                if( app_wouldfit(i) )
-                    ui_dialog_option(1,va((ZX_ZOOM!=i)+"\005X%d\n",i>4?8:i), NULL,'ZOOM',va("%d",i));
-            }
-        }
-        ui_x += 8;
-        if( ui_click(rmb_held*22+"- Toggle Fullscreen -\0- Toggle Fullscreen -\n0:off, 1:on", "\f%d\n", ZX_FULLSCREEN) ) if(rmb_up) cmdkey = 'FULL'; else
-        {
-            ui_dialog_new("- Toggle Fullscreen -");
-            ui_dialog_option(1,(!ZX_FULLSCREEN)+"\5Fullscreen\n",NULL,'FULL',"1");
-            ui_dialog_option(1,( ZX_FULLSCREEN)+"\5Windowed\n",NULL,'FULL',"0");
-        }
+        static int zoom_prev; do_once zoom_prev = ZX_ZOOM;
+        if( zoom_prev != ZX_ZOOM && !lmb_now ) cmdkey = 'ZOOM', cmdarg = va("%d", zoom_prev = ZX_ZOOM), ZX_ZOOM = -1;
 
         if( ui_click(rmb_held*19+"- Toggle TV mode -\0- Toggle TV mode -\n0:off, 1:crt, 2:rf, 3:rf+crt, 4:ext", "▒\f%d", ZX_SHADED ? 4 : (ZX_RF << 1 | ZX_CRT)) ) if(rmb_up) cmdkey = 'TV'; else
         {
@@ -1271,32 +1311,57 @@ void draw_ui() {
             ui_dialog_separator();
             ui_dialog_separator();
 
-            ui_dialog_checkbox2(&ZX_RF,"<RF mode (extra CPU cost)\n","- Enable RF mode -",app_apply_shader);
-            ui_dialog_checkbox2(&ZX_CRT,"<CRT shader\n","- Enable CRT mode -",app_apply_shader);
-            ui_dialog_checkbox2(&ZX_SHADED,"<External shader ","- Use external shader -",app_apply_shader);
+#if 0
+            int w, h, max_zoom = 1; tigrGetDesktop(&w, &h);
+            for( int i = 1; i <= 5; ++i ) if( app_wouldfit(i) ) max_zoom = i;
+            ui_dialog_slider(1,"<Zoom",NULL,&ZX_ZOOM,1,max_zoom); //x1,x2,x3,x4,x8
+            ui_dialog_separator();
+            ui_dialog_separator();
+#else
+            int w, h, max_zoom = 1; tigrGetDesktop(&w, &h);
+            for( int i = 1; i <= 5; ++i ) if( app_wouldfit(i) ) max_zoom = i;
+            ui_dialog_combo(1,"<Zoom \5x1|Zoom \5x2|Zoom \5x3|Zoom \5x4|Zoom \5x8",NULL,&ZX_ZOOM,1,max_zoom);
+            ui_dialog_separator();
+            ui_dialog_separator();
+#endif
+
+            ui_dialog_combo(1,"<ULA \5Classic|ULA+ \5Enhanced|ULA+ \5Ultrawide",NULL,&ZX_ULAPLUS,0,2);
+            ui_dialog_separator();
+            ui_dialog_separator();
+
+            ui_dialog_checkbox2cmd(&ZX_FULLSCREEN,"<Fullscreen\n\n","- Enable Fullscreen mode -",'FULL',NULL);
+
+            ui_dialog_checkbox2(&ZX_CRT,"<Internal shader (CRT)\n","- Enable CRT mode -",(void*)app_apply_shader);
+            ui_dialog_checkbox2(&ZX_SHADED,"<External shader ","- Use external shader -",(void*)app_apply_shader);
             ui_dialog_option(1|4,FOLDER_STR"\n\n","- Browse external .fx shader -",'SHAD',NULL);
 
-            ui_dialog_ok();
+            ui_dialog_checkbox2(&ZX_RF,"<RF mode (extra CPU cost)\n\n","- Enable RF mode -",(void*)app_apply_shader);
+
+            ui_dialog_option(1|4," Palettes ","- Change palette -",'PAL0',NULL);
+            ui_dialog_option(1|4,"Preset ","-Reset to default configuration-",'SETG',NULL);
+            ui_dialog_option(1,"OK\n",NULL, 0,NULL);
         }
         ui_x += 8;
-        if( ui_click(rmb_held*19+"- Toggle Palette -\0- Toggle Palette -\n0:Spectral, X:others", "\f%c\n", ZX_PALETTE + (ZX_PALETTE < 10 ? '0' : 'a'-10) ) ) if(rmb_up) cmdkey = 'PAL'; else
-        {
-            cmdkey = 'PAL0';
-        }
-
-        if( ui_click(rmb_held*19+"- Toggle AY core -\0- Toggle AY core -\n0:off, 1:fast, 2:accurate", /*𝄞*/"♬\f%d",ZX_AY) ) if(rmb_up) cmdkey = 'AY'; else
+        if( ui_click(rmb_held*19+"- Toggle AY core -\0- Toggle AY core -\n0:off, 1:fast, 2:accurate", /*𝄞♬*/"♪\f%d\n",ZX_AY) ) if(rmb_up) cmdkey = 'AY'; else
         {
             ui_dialog_new("- Toggle AY core -");
-            ui_dialog_option(1,(ZX_AY!=2)+"\5Accurate AY\n",NULL,'AY',"2");
-            ui_dialog_option(1,(ZX_AY!=1)+"\5Fast AY\n",NULL,'AY',"1");
-            ui_dialog_option(1,(ZX_AY!=0)+"\5Off\n",NULL,'AY',"0");
-        }
-        ui_x += 8;
-        if( ui_click(rmb_held*21+"- Toggle Waveforms -\0- Toggle Waveforms -\n0:off, 1:on", "\f%d\n",ZX_WAVES) ) if(rmb_up) cmdkey = 'WAVE'; else
-        {
-            ui_dialog_new("- Toggle Waveforms -");
-            ui_dialog_option(1,(ZX_WAVES!=1)+"\5Display waveforms\n",NULL,'WAVE',"1");
-            ui_dialog_option(1,(ZX_WAVES!=0)+"\5Off\n",NULL,'WAVE',"0");
+
+            // @todo: Mute beep
+            // @todo: Mute floppy disk
+
+            ui_dialog_combo(1,"<\5Mute|Fast \5AY|Accurate \5YM","-Select AY configuration-",&ZX_AY,0,2);
+            ui_dialog_separator();
+            ui_dialog_separator();
+
+            //ui_dialog_checkbox2cmd(&ZX_STEREO,"<Stereo\n\n","- Toggle stereo sound -",0,NULL);
+            ui_dialog_combo(1,"<\5Mono|Western Stereo|Eastern Stereo","-Select AY Stereo configuration-",&ZX_STEREO,0,2);
+            ui_dialog_separator();
+            ui_dialog_separator();
+
+            ui_dialog_checkbox2(&ZX_WAVES,"Display waveforms\n\n","- Display audio waveforms -",NULL);
+
+            ui_dialog_separator();
+            ui_dialog_option(1,"OK\n",NULL, 0,NULL);
         }
 
         const char joyicon[256] = {
@@ -1315,105 +1380,105 @@ void draw_ui() {
             cmdkey = 'JOY0';
         }
         ui_x += 8;
-        if( ui_click("- Gamepad bindings -", "\f%d\n", ZX_HORACE) ) if(rmb_up) cmdkey = 'HOR1'; else
-        {
-            cmdkey = 'PAD0';
-        }
-
-        if( ui_click(rmb_held*20+"- Toggle Lightgun -\0- Toggle Lightgun -\n0:off, 1:lightgun+gunstick", /**/"\xB\f%d", ZX_GUNSTICK) ) if(rmb_up) cmdkey = 'GUNS'; else
-        {
-            ui_dialog_new("- Toggle Lightgun -");
-            ui_dialog_option(1,(!ZX_GUNSTICK)+"\5Lightgun + Gunstick\n",NULL,'GUNS',"1");
-            ui_dialog_option(1,( ZX_GUNSTICK)+"\5No lightgun\n",NULL,'GUNS',"0");
-        }
-        ui_x += 8;
-        if( ui_click(rmb_held*20+"- Toggle Autofire -\0- Toggle Autofire -\n0:off, 1:slow, 2:fast, 3:faster", "\f%d\n", ZX_AUTOFIRE) ) if(rmb_up) cmdkey = 'FIRE'; else
-        {
-            ui_dialog_new("- Toggle Autofire -");
-            ui_dialog_option(1,(ZX_AUTOFIRE!=3)+"\5Faster autofire\n",NULL,'FIRE',"3");
-            ui_dialog_option(1,(ZX_AUTOFIRE!=2)+"\5Fast autofire\n",NULL,'FIRE',"2");
-            ui_dialog_option(1,(ZX_AUTOFIRE!=1)+"\5Slow autofire\n",NULL,'FIRE',"1");
-            ui_dialog_option(1,(ZX_AUTOFIRE!=0)+"\5No autofire\n",NULL,'FIRE',"0");
-        }
-
-        if( ui_click(rmb_held*17+"- Toggle Mouse -\0- Toggle Mouse -\n0:off, 1:kempston", "\x9\f%d", ZX_MOUSE) ) if(rmb_up) cmdkey = 'MICE'; else
+        if( ui_click(rmb_held*17+"- Toggle Mouse -\0- Toggle Mouse -\n0:off, 1:kempston", "\x9\f%d\n", ZX_MOUSE) ) if(rmb_up) cmdkey = 'MICE'; else
         {
             ui_dialog_new("- Toggle Mouse -");
-            ui_dialog_option(1,(!ZX_MOUSE)+"\5Kempston Mouse\n",NULL,'MICE',"1");
-            ui_dialog_option(1,( ZX_MOUSE)+"\5No mouse\n",NULL,'MICE',"0");
-        }
-        ui_x += 8;
-        if( ui_click(rmb_held*21+"- Toggle Run-Ahead -\0- Toggle Run-Ahead -\n0:off, 1:reduce latency, 2:improve latency", "🯆\f%d\n", ZX_RUNAHEAD) ) if(rmb_up) cmdkey = 'RUN'; else
-        {
-            ui_dialog_new("- Toggle Run-Ahead -");
-            ui_dialog_option(1,(ZX_RUNAHEAD!=2)+"\5Improved input latency (3x CPU cost)\n",NULL,'RUN',"2");
-            ui_dialog_option(1,(ZX_RUNAHEAD!=1)+"\5Reduced input latency (2x CPU cost)\n",NULL,'RUN',"1");
-            ui_dialog_option(1,(ZX_RUNAHEAD!=0)+"\5Normal input latency\n",NULL,'RUN',"0");
+
+            ui_dialog_combo(1,"<" MOUSE_STR " Mouse \5Off|"  MOUSE_STR " Mouse \5Kempston|" MOUSE_STR " \5Lightgun+Gunstick",NULL,&ZX_MOUSE,0,2);
+            ui_dialog_separator();
+            ui_dialog_separator();
+
+            ui_dialog_combo(1,"<" FIRE_STR " Autofire \5Off|" FIRE_STR " Autofire \5slow|" FIRE_STR " Autofire \5fast|" FIRE_STR " Autofire \5faster","-Select mouse autofire rate-",&ZX_MOUSE_AUTOFIRE,0,3);
+            ui_dialog_separator();
+            ui_dialog_separator();
+
+            ui_dialog_separator();
+            ui_dialog_option(1,"OK\n",NULL, 0,NULL);
         }
 
         if( ui_click(rmb_held*31+"- Toggle 48-BASIC input mode -\0- Toggle 48-BASIC input mode -\nK:token based, L:letter based", "~%c~\f%d", ZX_KLMODE ? 'L' : 'K', ZX_KLMODE) ) if(rmb_up) cmdkey = 'KL'; else
         {
-            ui_dialog_new("- Toggle 48-BASIC input mode -");
-            ui_dialog_option(1,( ZX_KLMODE)+"\5Tokens\n","Use traditional input mode",'KL',"0");
-            ui_dialog_option(1,(!ZX_KLMODE)+"\5Letters\n","Use modern input mode",'KL',"1");
-        }
-        ui_x += 8;
-        if( ui_click(rmb_held*30+"- Toggle Keyboard Issue 2/3 -\0- Toggle Keyboard Issue 2/3 -\n2:earlier, 3:classic keyboard", "k\f%d\n", issue2 ? 2 : 3)) if(rmb_up) cmdkey = 'KEYB'; else
-        {
-            ui_dialog_new("- Toggle Keyboard Issue 2/3");
-            ui_dialog_option(1,(!!issue2)+"\5Classic keyboard\n",NULL,'KEYB',"3");
-            ui_dialog_option(1,( !issue2)+"\5Earlier keyboard\n",NULL,'KEYB',"2");
-        }
+            ui_dialog_new("- Keyboard bindings and options -");
 
-        if( ui_click(rmb_held*24+"- Translate game menu -\0- Translate game menu -\n0:off, 1:poke game menu into English", "T\f%d", ZX_AUTOLOCALE)) if(rmb_up) cmdkey = 'TENG'; else
-        {
-            ui_dialog_new("- Translate game menu -");
-            ui_dialog_option(1,1/*(!ZX_AUTOLOCALE)*/+"\5Poke translation\n","Poke game menu into English",'TENG',"1");
-            ui_dialog_option(1,1/*( ZX_AUTOLOCALE)*/+"\5Cancel\n",NULL,'TENG',"0");
+            draw_redefinables();
+            ui_dialog_separator();
+            ui_dialog_separator();
+
+            //ui_dialog_option(1,( ZX_KLMODE)+"\5Tokens\n","Use traditional input mode",'KL',"0");
+            //ui_dialog_option(1,(!ZX_KLMODE)+"\5Letters\n","Use modern input mode",'KL',"1");
+            ui_dialog_checkbox2cmd(&ZX_KLMODE,"<Type letters in 48-BASIC mode\n","Whether to type tokens or letters in 48-BASIC",'KL',NULL);
+
+            //ui_dialog_option(1,(!!issue2)+"\5Classic keyboard (issue 2)\n",NULL,'KEYB',"3");
+            //ui_dialog_option(1,( !issue2)+"\5Earlier keyboard (issue 3)\n",NULL,'KEYB',"2");
+            ui_dialog_checkbox2cmd(&issue2,"<Earlier keyboard type (issue 2)\n\n","Improves compatibility with a few older games",'KEYB',NULL);
+
+            ui_dialog_option(0,"\n",NULL, 0,NULL );
+            ui_dialog_option(1,1/*(!ZX_AUTOLOCALE)*/+"\5Paste ","Paste clipboard contents",'CLIP',"1");
+            ui_dialog_ok();
         }
         ui_x += 8;
         if( ui_click("- Toggle Lenslok -\nFocus on the center of the encoded image", "𜲌\f%d\n", ZX_LENSLOK)) cmdkey = 'LENS';
 
-        if( ui_click("- Paste clipboard contents -", "~🮴~\f0") ) if(rmb_up) cmdkey = 'CLIP'; else
-        {
-            ui_dialog_new("- Paste clipboard contents? -");
-            ui_dialog_option(1,1/*(!ZX_AUTOLOCALE)*/+"\5Paste\n","Paste clipboard contents",'CLIP',"1");
-            ui_dialog_option(1,1/*( ZX_AUTOLOCALE)*/+"\5Cancel\n",NULL,0,0);
-        }
-        ui_x += 8;
-        if( ui_click("- Toggle chat/lobby -", "%s\f%d\n", ZX_LOBBY && ZXFlashFlag ? "":"", ZX_LOBBY) ) if(rmb_up) cmdkey = 'CHAT'; else
+        if( ui_click("- Toggle chat/lobby -", "%s\f%d", ZX_LOBBY && ZXFlashFlag ? "":"", ZX_LOBBY) ) if(rmb_up) cmdkey = 'CHAT'; else
         {
             cmdkey = 'CHAT';
+        }
+        ui_x += 8;
+        if( ui_click(rmb_held*24+"- Other options -\0- Translate game menu -\n0:off, 1:poke game menu into English", "T\f%d\n", ZX_AUTOLOCALE)) if(rmb_up) cmdkey = 'TENG'; else
+        {
+            ui_dialog_new("- Other options -");
+            ui_dialog_option(1,1/*(!ZX_AUTOLOCALE)*/+"\5Translate game menu\n\n","-Poke game menu into English-",'TENG',"1");
+            ui_dialog_option(1|4,"\6" FOLDER_STR " \7Build standalone player from game\n\n","- Select .z80 game -",'MAKE',NULL);
+            ui_dialog_checkbox2(&ZX_PAUSE,"<Paused while minimized\n\n","-Pause emulation when losing windows focus-",NULL);
+            ui_dialog_option(1,1/*( ZX_AUTOLOCALE)*/+"\5Cancel\n",NULL,'TENG',"0");
         }
 
         if( ui_click(rmb_held*20+"- Toggle FastLoad -\0- Toggle FastMedia -\n0:off, 1:faster media loading", "\f%d", ZX_FASTTAPE )) if(rmb_up) cmdkey = 'FAST'; else
         {
             ui_dialog_new("- Toggle FastLoad -");
+            /*
             ui_dialog_option(1,(!ZX_FASTTAPE)+"\5Faster loading speed\n",NULL,'FAST',"1");
             ui_dialog_option(1,( ZX_FASTTAPE)+"\5Normal loading speed\n",NULL,'FAST',"0");
+            ui_dialog_option(1,(!ZX_TURBOROM)+"\5Turbo ROM .tap loader\n",NULL,'TURB',"1");
+            ui_dialog_option(1,( ZX_TURBOROM)+"\5Compatible ROM loader\n",NULL,'TURB',"0");
+            */
+            /*
+            ui_dialog_checkbox2cmd(&ZX_FASTTAPE,"<Faster loading speed\n","- Speed up during media loading -",'FAST',NULL);
+            ui_dialog_checkbox2cmd(&ZX_TURBOROM,"<Turbo ROM .tap loader\n","- Patch Turbo ROM and .tap loader -",'TURB',NULL);
+            */
+            ui_dialog_checkbox2(&ZX_FASTTAPE,"<Max loading speed while loading\n","- Use 100% CPU while loading medias -",NULL);
+            ui_dialog_checkbox2(&ZX_FLASHLOAD,"<FlashLoad standard .tap files\n","- Load tape files instantly where possible -",NULL);
+            ui_dialog_checkbox2(&ZX_TURBOROM,"<Use TurboROM on standard tape blocks\n","- Convert standard tape blocks to Turbo -",NULL);
+
+            ui_dialog_separator();
+
+            // @todo: eject media + show tape counter
+            if(ZX_MEDIA)
+            ui_dialog_option(1,1/*( ZX_AUTOLOCALE)*/+"\5"EJECT_STR"\fSelect\f\f",NULL,'LIST',ZX_MEDIA);
+            else
+            ui_dialog_option(1,1/*( ZX_AUTOLOCALE)*/+"\5"EJECT_STR"\fEject\f\f",NULL,'WIPE',0);
+
+            ui_dialog_option(1,1/*( ZX_AUTOLOCALE)*/+"\5OK\n",NULL,0,0);
         }
         ui_x += 8;
-        if( ui_click(rmb_held*20+"- Toggle TurboROM -\0- Toggle TurboROM -\n0:off, 1:TurboROM .tap loader", va("\f%d\n",ZX_TURBOROM))) if(rmb_up) cmdkey = 'TURB'; else
+        if( ui_click(rmb_held*20+"- Toggle console -", ZXFlashFlag ? ">▂\n" : ">▁\n")) // if(rmb_up) cmdkey = 'TURB'; else
         {
-            ui_dialog_new("- Toggle TurboROM -");
-            ui_dialog_option(1,(!ZX_TURBOROM)+"\5Turbo ROM loader\n",NULL,'TURB',"1");
-            ui_dialog_option(1,( ZX_TURBOROM)+"\5Compatible ROM loader\n",NULL,'TURB',"0");
-        }
-
+            ZX_CONSOLE ^= 1;
+            loggers(ZX_CONSOLE);
 #if DEV
-        if( ui_click("- Toggle DevTools -", "d\f%d\n", ZX_DEVTOOLS)) cmdkey = 'DEVT';
+            //if(ZX_CONSOLE) cmdkey = 'DEVT';
 #endif
-
-#if 0
-        static int use_console = 0;
-//        if( DEV )
-        if( ui_click("- Toggle Console -", "\f%d\n", use_console)) { // cmdkey = 'TERM';
-            void logo();
-            use_console ^= 1;
-            if( use_console ) AllocConsole(), /*enable_ansi(),*/ logo();
-            else FreeConsole();
         }
-#endif
+
+        if( ui_click(rmb_held*14+"- Quicksave -\0- Quick savegame -\n0..9: Slot", DISK_STR "\f%d", 0) ) if(rmb_up) cmdkey = 'SAVE'; else
+        {
+            cmdkey = 'SAVE';
+        }
+        ui_x += 8;
+        if( ui_click(rmb_held*14+"- Quickplay -\0- Quick loadgame -\n0..9: Slot", PLAY_STR "\f%d\n", 0) ) if(rmb_up) cmdkey = 'LOAD'; else
+        {
+            cmdkey = 'LOAD';
+        }
 
         //if( ui_click("- Toggle TapePolarity -", "%c\f%d\n", mic_low ? '+':'-', !mic_low) ) cmdkey = 'POLR';
 
@@ -1720,13 +1785,6 @@ int main() {
     HRESULT lHResult = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 #endif
 
-#if !DEV && defined(_WIN32)
-    // do not print logo on win32 (release). we dont want to flash a console window
-#else
-    // logo can be printed on linux/macos builds (dev+release) and also on win32 (dev) builds.
-    logo();
-#endif
-
     // install icon hooks for any upcoming window or modal creation
     window_override_icons();
 
@@ -1811,8 +1869,18 @@ int main() {
         ZX_RF = strstri(__argv[0], "-rf") ? 1 : 0;
         ZX_CRT = strstri(__argv[0], "-crt") ? 1 : 0;
         ZX_HORACE = 0;
-        ZX_PALETTE = 4; // vivid
+        ZX_PALETTE = ZX_PLAYER_PALETTE; // vivid
     }
+
+    // console
+#if DEV
+    // forced console
+    loggers_(1);
+    logo();
+#else
+    // logo can be printed on linux/macos builds (dev+release) and also on win32 builds if terminal window is open.
+    loggers(ZX_CONSOLE);
+#endif
 
     // prepare title based on argv[0]
     char *apptitle = va("%s", __argv[0]);
@@ -1891,12 +1959,12 @@ int main() {
         tigrUpdate(app);
 
         // force pause when blurred
-        static int paused = 0; int running = tape_playing() || tigrFocused(app);
+        static int paused = 0; int running = (ZX_FLASHLOAD ? 0 : tape_playing()) || tigrFocused(app);
         paused = (paused + 1) * !running;
 #if DEV
         ifdef(win32, paused *= !IsDebuggerPresent());
 #endif
-        if( paused ) {
+        if( ZX_PAUSE && paused ) {
             if( paused > 1 ) {
                 ifdef(win32, Sleep(500), sys_sleep(500));
             } else {
@@ -1931,7 +1999,7 @@ int main() {
         key_read();
         ui_frame_begin();
         input();
-        if(do_overlay) ZXKeyboardClear(); // do not submit keys to ZX while overlay is drawn on top
+        if(do_overlay || cmdkey == 'PAD1') ZXKeyboardClear(); // do not submit keys to ZX while overlay is drawn on top
 
         // handle ESC/RMB (cancel buttons)
         int escape = key_trigger(TK_ESCAPE);
@@ -2209,7 +2277,7 @@ if( do_runahead == 0 ) {
         }
 
         // measure time & frame lock (50.01 fps)
-        int max_speed = media_accelerated || !ZX_FPSMUL || ZX_FASTCPU || key_held(TK_RSHIFT); // max speed if media_accelerated or no fps lock
+        int max_speed = browser ? 0 : media_accelerated || !ZX_FPSMUL || ZX_FASTCPU || key_held(TK_RSHIFT); // max speed if media_accelerated or no fps lock
         if( max_speed ) {
             dt = tigrTime();
             // constant time flashing when loading accelerated tapes (every 16 frames @ 50hz)
@@ -2266,7 +2334,7 @@ if( do_runahead == 0 ) {
         // calc fps
         static int frames = 0; ++frames;
         static double time_now = 0; time_now += dt;
-        if( time_now >= 1 ) { ZX_FPS = frames / time_now; time_now = frames = 0; }
+        if( time_now >= 1 ) { ZX_FPS = frames / time_now; time_now = frames = 0; /* printf("%5.2ffps\n", ZX_FPS); */ }
 
         // tape timer
         if(tape_playing()) timer += dt;
@@ -2293,7 +2361,12 @@ if( do_runahead == 0 ) {
             ptr += sprintf(ptr, "\n%dm%02ds ", (unsigned)(timer) / 60, (unsigned)(timer) % 60);
         }
 
-        if(ZX_PALETTE_PREVIEW) draw_palette(app, ZXPalette, ZXPaletteNames[ZX_PALETTE % countof(ZXPaletteNames)]);
+        if(!browser)
+        mouse_cursor(ZX_GUNSTICK ? 4 : 1);
+
+        if(ZX_PALETTE_PREVIEW)
+            if(draw_palette(app, ZXPalettes[ZX_PALETTE] /*ZXPalette*/, 2+ZXPaletteNames[ZX_PALETTE % countof(ZXPaletteNames)]))
+                palette_use(ZX_PALETTE);
 
         // rec before/after UI,
         int rec(Tigr*);
@@ -2397,6 +2470,18 @@ if( do_runahead == 0 ) {
             if(cmdkey_) hexdump(&cmdkey_, sizeof(cmdkey_));
             if(cmdkey_) alert(va("command not found `%08x`", cmdkey_));
             #endif
+            break; case 'SETG': ZX_BLUR = 50;
+                                ZX_BLOOM = 0;
+                                ZX_ULAPLUS = 2;
+                                palette_use(ZX_PALETTE = 0);
+                                ZX_PALETTE_PREVIEW = 0;
+                                ZX_SHADED = 0;
+                                ZX_RF = 1;
+                                ZX_CRT = 1;
+                                app_apply_shader();
+                                if( app_create(window_title(NULL), ZX_FULLSCREEN, 2) ) ZX_ZOOM = 2;
+                                if( app_create(window_title(NULL), 0, ZX_ZOOM) ) ZX_FULLSCREEN = 0;
+
             break; case 'GAME':  if( ZX_BROWSER == 1 ? numgames : 1 ) browser ^= 1, ui_dialog_new(NULL);
             break; case 'MAX':   ZX_FASTCPU ^= 1; // toggle fast-forward cpu
 
@@ -2430,7 +2515,7 @@ if( do_runahead == 0 ) {
 
             break; case 'TURB':  ZX_TURBOROM ^= 1; if(tape_inserted()) boot(ZX, 0|KEEP_MEDIA), reload(ZX, 1); // toggle turborom and reload
             break; case 'BOOT':  reset(0|KEEP_MEDIA), reload(ZX, 1);
-            break; case 'NMI':   if( pins & Z80_NMI ) pins &= ~Z80_NMI; else pins |= Z80_NMI; RZX_reset(); // @todo: verify
+            break; case 'NMI':   if( pins & Z80_NMI ) pins &= ~Z80_NMI; else pins |= Z80_NMI; RZX_reset(); if(rom[3]==0x76) boot(ZX, 0); // also wipe media on DI+HALT case (our .scr viewer) // @todo: verify
             break; case 'WIPE':
 
             #if ZX_CUSTOM_ROMS
@@ -2475,12 +2560,48 @@ if( do_runahead == 0 ) {
             break; case 'LENS':  ZX_LENSLOK ^= 1;                                 if(cmdarg_) ZX_LENSLOK=atoi(cmdarg_);
             break; case 'BLUR':  ZX_BLUR = (ZX_BLUR+10)%100;                      if(cmdarg_) ZX_BLUR=atoi(cmdarg_)%100;
             break; case 'BLUM':  ZX_BLOOM = (ZX_BLOOM+10)%100;                    if(cmdarg_) ZX_BLOOM=atoi(cmdarg_)%100;
-            break; case 'PALB':  { const char *file = app_loadfile(); if( file && strendi(file, ".pal") ) if( pal_load(file) ) palette_use(ZX_PALETTE = countof(ZXPaletteNames) - 1), cmdkey = 'PAL0'; }
-            break; case 'PAL':   ZX_PALETTE = (ZX_PALETTE+1)%countof(ZXPalettes); if(cmdarg_) ZX_PALETTE=atoi(cmdarg_);    palette_use(ZX_PALETTE);
+            break; case 'MAKE':  { 
+
+            const char *pathgame = cmdarg_ ? cmdarg_ : app_loadfile();
+
+            if( pathgame ) {
+                int gamelen;
+                unsigned char *game = readfile(pathgame, &gamelen);
+                if( !game ) ui_alert("", "\2Error\7: Cannot read input file");
+
+                int exelen;
+                unsigned char *exe = readfile(__argv[0], &exelen);
+                if( !exe ) ui_alert("", "\2Error\7: Cannot read Spectral executable");
+
+                if( game && gamelen && exe && exelen ) {
+                    const char *pathexe = va("%s.%s", pathgame, __argv[0]);
+ 
+                    char watermark[] = SPECTRAL_EMBED_WATERMARK;
+                    watermark[0] -= 32;
+
+                    exe = realloc(exe, exelen + 16 + gamelen); // may @leak
+                    if( exe ) {
+                        memcpy(exe+exelen, watermark, 16);
+                        memcpy(exe+exelen+16, game, gamelen);
+                    }
+
+                    if( exe && writefile(pathexe, exe, exelen + 16 + gamelen) )
+                        ui_alert("", "\5%s\7\n\n generated correctly.", basename(pathexe));
+                    else
+                        ui_alert("", "\2Error\7: Cannot create output executable.");
+
+                }
+
+                if(exe)  free(exe);
+                if(game) free(game);
+            }}
+
+            break; case 'PALB':  { const char *file = app_loadfile(); if( file && strendi(file, ".pal") ) if( pal_load(file) ) palette_use(ZX_PALETTE = countof(ZXPalettes) - 1), cmdkey = 'PAL0'; }
+            break; case 'PAL':   ZX_PALETTE = (ZX_PALETTE+1)%countof(ZXPalettes); if(cmdarg_) ZX_PALETTE=atoi(cmdarg_);    palette_use(ZX_PALETTE), ZX_BLOOM = atoi(ZXPaletteNames[ZX_PALETTE]);
             break; case 'PALP':  ZX_PALETTE_PREVIEW ^= 1;                         if(cmdarg_) ZX_PALETTE_PREVIEW=(ZX_PALETTE_PREVIEW * (cmdarg_[0] == '^')) ^ atoi(cmdarg_ + !isdigit(cmdarg_[0]));
-            break; case 'FIRE':  ZX_AUTOFIRE = (ZX_AUTOFIRE+1)%4;                 if(cmdarg_) ZX_AUTOFIRE=atoi(cmdarg_);
-            break; case 'GUNS':  ZX_GUNSTICK ^= 1;                                if(cmdarg_) ZX_GUNSTICK=atoi(cmdarg_);   if(ZX_GUNSTICK) ZX_MOUSE = 0, ZX_JOYSTICK = 0; // cycle guns
-            break; case 'MICE':  ZX_MOUSE ^= 1;                                   if(cmdarg_) ZX_MOUSE=atoi(cmdarg_);      if(ZX_MOUSE) ZX_GUNSTICK = 0;                  // cycle kempston mouse(s)
+            break; case 'FIRJ':  ZX_JOYSTICK_AUTOFIRE =(ZX_JOYSTICK_AUTOFIRE+1)%4;if(cmdarg_) ZX_JOYSTICK_AUTOFIRE=atoi(cmdarg_);
+            break; case 'FIRM':  ZX_MOUSE_AUTOFIRE = (ZX_MOUSE_AUTOFIRE+1)%4;     if(cmdarg_) ZX_MOUSE_AUTOFIRE=atoi(cmdarg_);
+            break; case 'MICE':  ZX_MOUSE = (ZX_MOUSE+1)%3;                       if(cmdarg_) ZX_MOUSE=atoi(cmdarg_);      if(ZX_GUNSTICK) ZX_JOYSTICK = 0; // cycle mouse/guns
             break; case 'ULA':   ZX_ULAPLUS = (ZX_ULAPLUS+1)%3;                   if(cmdarg_) ZX_ULAPLUS=atoi(cmdarg_);    // cycle ulaplus
             break; case 'RUN':   ZX_RUNAHEAD = (ZX_RUNAHEAD+1)%3;                 if(cmdarg_) ZX_RUNAHEAD=atoi(cmdarg_);   // cycle runahead mode
             break; case 'DEV':   ZX_DEBUG ^= 1;                                   if(cmdarg_) ZX_DEBUG=atoi(cmdarg_);
@@ -2506,7 +2627,6 @@ if( do_runahead == 0 ) {
             break; case 'HELP':  help();
 
             break; case 'SCAN':  for( const char *f = cmdarg_ && cmdarg_[0] ? cmdarg_ : app_selectfolder("Select games folder", ZX_FOLDER); f ; f = 0 ) {
-            						if( ZX_FOLDER != f ) free(ZX_FOLDER), ZX_FOLDER = STRDUP(f);
                                     rescan( ZX_FOLDER ), /*browser = !!numgames,*/ ui_dialog_new(NULL);
                                 }
 
@@ -2535,7 +2655,7 @@ if( do_runahead == 0 ) {
                 char *list[256] = {0};
 
                 const char *url; int slot = -1;
-                ui_dialog_new("- Change media -");
+                ui_dialog_new("- Select media -");
                 do {
                     url = zxdb_url(z, va("%d",++slot));
                     if(!url) continue;
@@ -2623,13 +2743,18 @@ if( do_runahead == 0 ) {
 
                     }
 
-                    ui_dialog_separator(), ui_dialog_separator(), ui_dialog_cancel();
+                    ui_dialog_separator(), ui_dialog_separator();
+
+                    ui_dialog_option(1,1/*( ZX_AUTOLOCALE)*/+"\5"EJECT_STR"\fEject\f\f",NULL,'WIPE',0);
+
+                    ui_dialog_cancel();
                 }
 
                 zxdb_free(z);
             }
 
             break; case 'ZXDB': {
+
                 // @fixme: make a char *zxdb_v2_url(id); util func instead
                 if( ZX == 300 ) {
                     char *prev = va("%s", ZX_MEDIA); if(strchr(prev,'@')) *strchr(prev,'@') = 0;
@@ -2648,7 +2773,7 @@ if( do_runahead == 0 ) {
                     // small addendum for tape files that require a separate rom download
                     /**/ if( !strcmp(cmdarg_,"#4424") ) cmdarg_ = "#4424#10"; // shadow of the unicorn
                     else cmdarg_ = 0;
-                    //
+                    // load roms
                     if( cmdarg_ ) {
                         int len; char *bank = zxdb_download2(cmdarg_, &len);
                         zxdb_unpack2(&bank, &len);
@@ -2656,6 +2781,10 @@ if( do_runahead == 0 ) {
                         if( bank ) free(bank);
                         ZX_KLMODE = 0, ZX_TURBOROM = 0; // avoid further patches
                         z80_reset(&cpu);
+                    }
+                    // if not rom, and only a #NUMBER, display a menu for media selection
+                    if( !cmdarg_ && strcnt(ZX_MEDIA,'#') == 1 ) {
+                        cmdkey = 'LIST', cmdarg = va("#%d", atoi(ZX_MEDIA+1));
                     }
                 } else {
                     // show error dialog
@@ -2665,18 +2794,18 @@ if( do_runahead == 0 ) {
             }
 
             break; case 'PAL0':
-                if( cmdarg_ &&  strcmp(cmdarg_, "^1") ) ZX_PALETTE = atoi(cmdarg_) % countof(ZXPaletteNames);
+                if( cmdarg_ &&  strcmp(cmdarg_, "^1") ) ZX_PALETTE = atoi(cmdarg_) % countof(ZXPalettes);
                 if( cmdarg_ && !strcmp(cmdarg_, "^1") ) ZX_PALETTE_PREVIEW ^= 1;
 
                 int ext = countof(ZXPaletteNames) - 1, is_ext_loaded = !!ZXPalettes[ext][1]; // !!is_file(".Spectral/Spectral.pal");
 
                 ui_dialog_new("- Toggle Palette -");
                 for( int i = 0; i < ext; ++i)
-                ui_dialog_option(1|4,va((ZX_PALETTE!=  i)+"\005%s%s",ZXPaletteNames[i  ],strendi(ZXPaletteNames[i  ],"\n") ? "":" "), NULL,'PAL0',va("%d",i));
-                ui_dialog_option(1|4,va((ZX_PALETTE!=ext)+"\005%s%s",ZXPaletteNames[ext],strendi(ZXPaletteNames[ext],"\n") ? "":" "), NULL,is_ext_loaded ? 'PAL0':'PALB',va("%d",ext));
+                ui_dialog_option(1|4,va((ZX_PALETTE!=  i)+"\005%s%s",2+ZXPaletteNames[i  ],strendi(ZXPaletteNames[i  ],"\n") ? "":" "), NULL,'PAL0',va("%d",i));
+                ui_dialog_option(1|4,va((ZX_PALETTE!=ext)+"\005%s%s",2+ZXPaletteNames[ext],strendi(ZXPaletteNames[ext],"\n") ? "":" "), NULL,is_ext_loaded ? 'PAL0':'PALB',va("%d",ext));
                 ui_dialog_option(1|4,FOLDER_STR"\n\n","- Browse external .pal palette -",'PALB',NULL);
 
-                ui_dialog_checkbox2(&ZX_PALETTE_PREVIEW,"Toolbar  ","- Display Palette toolbar -",NULL);
+                ui_dialog_checkbox2(&ZX_PALETTE_PREVIEW,"Editor  ","- Display Palette editor -",NULL);
 
                 ui_dialog_option(1,"OK\n",0,'PAL',va("%d", ZX_PALETTE));
 
@@ -2700,7 +2829,14 @@ if( do_runahead == 0 ) {
                 UI_JOYSTICK("Sinclair 1", ZX_JOYSTICK& 4, "^4", "=4", "-Left port on Interface 2, mapped to keys 1:5-");
                 UI_JOYSTICK("Sinclair/Interface 2", ZX_JOYSTICK& 8,"^8","=8", "-Right port on Interface 2, mapped to keys 6:0-");
                 UI_JOYSTICK("Cursor (Protek, AGF)",ZX_JOYSTICK& 1, "^1", "=1", "-Early interface with BASIC arrow keys mapping-");
-                UI_JOYSTICK("No joystick\n\n",ZX_JOYSTICK==0,"=0","=0", "-Disable joysticks-");
+                UI_JOYSTICK("No joystick\n",ZX_JOYSTICK==0,"=0","=0", "-Disable joysticks-");
+
+                ui_dialog_combo(1,"<" FIRE_STR " Autofire \5Off|" FIRE_STR " Autofire \5slow|" FIRE_STR " Autofire \5fast|" FIRE_STR " Autofire \5faster","-Select joystick autofire rate-",&ZX_JOYSTICK_AUTOFIRE,0,3);
+                ui_dialog_separator();
+                ui_dialog_separator();
+
+                ui_dialog_separator();
+                ui_dialog_option(1|4," Bindings\f\f","-Remap joystick bindings-",'PAD0',NULL);
                 ui_dialog_option(1|4,"Preset\f\f","-Reset to default configuration-",'JOY',"=19");
                 ui_dialog_option(1,"OK\n",NULL, 0,NULL);
             }
@@ -2717,7 +2853,7 @@ if( do_runahead == 0 ) {
                     int next[] = {[0]=4,[4]=8,[8]=1,[1]=2,[2]=1|2|16,[1|2|16]=0,[255]=0};
                     ZX_JOYSTICK = next[ZX_JOYSTICK];
                 }
-                if(ZX_JOYSTICK) ZX_GUNSTICK = 0; // prevent gunstick/lightgun conflict
+                if(ZX_JOYSTICK) ZX_MOUSE = 0; // prevent gunstick/lightgun conflict
             }
 
             break; case 'PAD0': { // setup remap
@@ -2737,11 +2873,12 @@ if( do_runahead == 0 ) {
 
                 ui_dialog_separator();
 
-                ui_dialog_checkbox2(&ZX_HORACE, "Toggle screenmate\n", "- Keep Horace around -", NULL );
+                ui_dialog_checkbox2(&ZX_HORACE, "Display screenmate\n", "- Keep Horace around -", NULL );
 
                 ui_dialog_separator();
-                ui_dialog_option(1,"Save\n",0,'PAD2',0);
-                ui_dialog_option(1,"Cancel\n",0, 0,NULL);
+                ui_dialog_option(1|4,"Preset ",0,'PAD3',NULL);
+                ui_dialog_option(1,"Cancel ",0,'PAD2',NULL);
+                ui_dialog_option(1,"OK\n",0,0,NULL);
 
                 cmdkey = 'PAD1';
             }
@@ -2754,15 +2891,44 @@ if( do_runahead == 0 ) {
             {
                 cmdkey = 'PAD1'; // repeat
 
-                // scan keyboard
+                // num_buttons
+                enum { _12 = countof(ZX_PAD) };
+
                 int vk = -1;
+                // scan keyboard
                 char *keys = tigrKeys(app);
                 for( int i = 0; i < 256; ++i ) {
-                    if( keys[i] > keys[i+256] ) {
-                        vk = i;
-                        break;
+                    // if pressed...
+                    if( !!keys[i] > !!keys[i+256] ) {
+                        // if not already registered, select this vk
+                        int registered = 0;
+                        for( int j = 0; j < _12; ++j ) {
+                            registered |= ZX_PAD[j] == i;
+                        }
+                        if( !registered ) {
+                            vk = i;
+                            break;
+                        }
                     }
                 }
+                // scan gamepad
+                if( vk < 0 ) {
+                    unsigned pad = gamepad();
+                    if(pad&1) vk = TK_LEFT;
+                    if(pad&2) vk = TK_RIGHT;
+                    if(pad&4) vk = TK_UP;
+                    if(pad&8) vk = TK_DOWN;
+                    if(pad&(8|16|32|64)) vk = TK_TAB;
+
+                    if( vk >= 0 )
+                    for( int j = 0; j < _12; ++j ) {
+                        if( ZX_PAD[j] == vk ) {
+                            vk = -1;
+                            break;
+                        }
+                    }
+                }
+                
                 // scan option. @fixme: this is hacky
                 int option = -1;
                 for( int i = 0; i < num_options; ++i) {
@@ -2772,19 +2938,19 @@ if( do_runahead == 0 ) {
                     }
                 }
                 //
-                static const char *keysicons[256] = {0}, **keysallowed = keysicons;
+                static const char *keyicons[256] = {0}, **keysallowed = keyicons;
                 do_once {
                     static char ascii[256][2] = {0};
                     for( int i = 32; i < 128; ++i ) {
                         ascii[i][0] = i;
-                        keysicons[i] = ascii[i];
+                        keyicons[i] = ascii[i];
                     }
-                    keysicons[TK_SPACE] = "□";
-                    keysicons[TK_LEFT] = "🮤";
-                    keysicons[TK_RIGHT] = "🮥";
-                    keysicons[TK_UP] = "🮧";
-                    keysicons[TK_DOWN] = "🮦";
-                    keysicons[TK_TAB] = ""; //"";
+                    keyicons[TK_SPACE] = "□";
+                    keyicons[TK_LEFT] = "🮤";
+                    keyicons[TK_RIGHT] = "🮥";
+                    keyicons[TK_UP] = "🮧";
+                    keyicons[TK_DOWN] = "🮦";
+                    keyicons[TK_TAB] = ""; //"";
                 //    TK_PAD0=128,TK_PAD1,TK_PAD2,TK_PAD3,TK_PAD4,TK_PAD5,TK_PAD6,TK_PAD7,TK_PAD8,TK_PAD9,
                 //    TK_PADMUL,TK_PADADD,TK_PADENTER,TK_PADSUB,TK_PADDOT,TK_PADDIV,
                 //    TK_F1,TK_F2,TK_F3,TK_F4,TK_F5,TK_F6,TK_F7,TK_F8,TK_F9,TK_F10,TK_F11,TK_F12,
@@ -2796,25 +2962,22 @@ if( do_runahead == 0 ) {
                 //    ,TK_PRINT //< @r-lyeh
                 }
 
-                // num_buttons
-                enum { _12 = countof(ZX_PAD_) };
-
                 // apply (1x8 chars + 2x4 chars)
                 if( option >= 0 && vk >= 0 && (vk == TK_BACKSPACE || keysallowed[vk]) ) {
 
                     // add key to mappings. terminate if no more room.
-                    int slot = 0; while(ZX_PAD_[slot] && slot < _12) slot++;
-                    if( slot < _12 ) ZX_PAD_[slot] = vk;
+                    int slot = 0; while(ZX_PAD[slot] && slot < _12) slot++;
+                    if( slot < _12 ) ZX_PAD[slot] = vk;
 
                     // delete last mapping if requested
                     if( vk == TK_BACKSPACE ) {
-                        if(slot < _12 ) ZX_PAD_[slot] = 0;
-                        if(slot > 0) ZX_PAD_[slot-1] = 0;
+                        if(slot < _12 ) ZX_PAD[slot] = 0;
+                        if(slot > 0) ZX_PAD[slot-1] = 0;
                     }
                 }
 
                 if( key_longpress(TK_BACKSPACE) )
-                    memset(ZX_PAD_, 0, sizeof(ZX_PAD_));
+                    memset(ZX_PAD, 0, sizeof(ZX_PAD));
 
                 if( option >= 0 )
                 {
@@ -2822,11 +2985,11 @@ if( do_runahead == 0 ) {
                     const char *cursor = "▁";
                     char buf[256], *ptr = buf;
                     for( int i = 0; i < _12; ++i ) {
-                        if( ZX_PAD_[i] ) {
+                        if( ZX_PAD[i] ) {
                             if( i < 8 )
-                            ptr += sprintf(ptr, " %s", keysicons[ZX_PAD_[i]]);
+                            ptr += sprintf(ptr, " %s", keyicons[ZX_PAD[i]]);
                             else
-                            ptr += sprintf(ptr, " %s.", keysicons[ZX_PAD_[i]]);
+                            ptr += sprintf(ptr, " %s.", keyicons[ZX_PAD[i]]);
                         } else {
                             if( i < 8 )
                             ptr += sprintf(ptr, " %s", cursor);
@@ -2842,9 +3005,13 @@ if( do_runahead == 0 ) {
                 }
             }
 
-            break; case 'PAD2': // apply remap
+            break; case 'PAD2': // cancel remap
                 memcpy(ZX_PAD, ZX_PAD_, sizeof(ZX_PAD_));
                 //ZX_HORACE = 0;
+
+            break; case 'PAD3': // preset remap
+                memcpy(ZX_PAD, ZX_PAD_PRESET_, sizeof(ZX_PAD_));
+                cmdkey = 'PAD0';
 
             break; case 'MP3P': // mp3 play
                 {
@@ -3071,7 +3238,7 @@ int gui(const char *status) {
         static float vy = 0; // vertical velocity
         static float is_jumping = 0; // jump state
         static float ground, mirror = 0;
-        do_once gx = _320/2, gy = -10, ground = _230;
+        do_once gx = _320/4, gy = -10, ground = _230;
         mv = 0, dn = 0;
 
         static int dragx, dragy, drag;
@@ -3093,32 +3260,30 @@ int gui(const char *status) {
         }
 
         // Other inputs
-        if( ZX_PAD[3] ) if( tigrKeyHeld(app, ZX_PAD[3]) ) dn = 1;
-        if( ZX_PAD[2] ) bt = tigrKeyHeld(app, ZX_PAD[2]);
+        if( TK_DOWN ) if( tigrKeyHeld(app, TK_DOWN) ) dn = 1;
+        if( TK_UP ) bt = tigrKeyHeld(app, TK_UP);
 
         // Horizontal movement (using ZX_PAD[0] for left, ZX_PAD[1] for right)
         if(!dn) {
-        if( ZX_PAD[0] ) if( tigrKeyHeld(app, ZX_PAD[0]) ) gx -= 2, mv = 1, mirror = 1;
-        if( ZX_PAD[1] ) if( tigrKeyHeld(app, ZX_PAD[1]) ) gx += 2, mv = 1, mirror = 0;
+        if( tigrKeyHeld(app, TK_LEFT) ) gx -= 2, mv = 1, mirror = 1;
+        if( tigrKeyHeld(app, TK_RIGHT) ) gx += 2, mv = 1, mirror = 0;
         }
 
         // Jump logic (using ZX_PAD[2] for jump)
-        if( ZX_PAD[4] ) {
-            if( tigrKeyDown(app, ZX_PAD[4]) && !is_jumping && gy >= ground ) {
-                memset32(bgcolors, 0, countof(bgcolors));
+        if( tigrKeyDown(app, TK_TAB) && !is_jumping && gy >= ground ) {
+            memset32(bgcolors, 0, countof(bgcolors));
 
-                if( dn ) {
-                    // duck: consider all colors on ground as transparent and fall down.
-                    for( int x = -4; x < 4; ++x) {
-                        bgcolors[x+4] = app->pix[(int)((gx+x)+gy*_320)].rgba;
-                    }
+            if( dn ) {
+                // duck: consider all colors on ground as transparent and fall down.
+                for( int x = -4; x < 4; ++x) {
+                    bgcolors[x+4] = app->pix[(int)((gx+x)+gy*_320)].rgba;
                 }
-                else {
-                    vy = -6.0f; // Initial upward velocity (tuned for quick jump)
-                    is_jumping = 1;
-                }
-
             }
+            else {
+                vy = -6.0f; // Initial upward velocity (tuned for quick jump)
+                is_jumping = 1;
+            }
+
         }
 
         // Vertical movement
@@ -3157,6 +3322,7 @@ int gui(const char *status) {
             unsigned hit = 0;
             for( int y = gy+0; y < _230 && !hit; ++y ) {
                 ground = y;
+                if(y>=0)
                 for( int x = -4; x < 4; ++x ) {
                     unsigned *fg = &app->pix[(int)(gx + x + y * _320)].rgba;
 
@@ -3223,6 +3389,36 @@ int gui(const char *status) {
         ui_mirror = mirror;
         ui_print(app, gx - 4, gy - 8, ui_colors, sprite);
         //tigrPlot(app, gx, gy, tigrRGB(255,0,0));
+
+        // display keypresses if needed (binding screen)
+        if( 1 ) { // cmdkey == 'PAD0' || cmdkey == 'PAD1' ) {
+
+            static const char *keyicons[256] = {0};
+            do_once {
+                static char ascii[256][2] = {0};
+                for( int i = 32; i < 128; ++i ) {
+                    ascii[i][0] = i;
+                    keyicons[i] = ascii[i];
+                }
+                keyicons[TK_SPACE] = "□";
+                keyicons[TK_LEFT] = "⭠";//🮤";
+                keyicons[TK_RIGHT] = "⭢";//🮥";
+                keyicons[TK_UP] = "⭡";//🮧";
+                keyicons[TK_DOWN] = "⭣";//🮦";
+                keyicons[TK_TAB] = ""; //"";
+            }
+
+            const char *keypress = 0;
+
+            for( int i = 0; i < countof(ZX_PAD); ++i ) {
+                if( ZX_PAD[i] && tigrKeyHeld(app, ZX_PAD[i]) ) {
+                    keypress = keyicons[ZX_PAD[i]];
+                }
+            }
+            
+            if( keypress )
+                ui_print(app, gx + 4, gy - 16, ui_colors, keypress);
+        }
     }
 
     return 1;
@@ -3250,3 +3446,48 @@ int rec(Tigr *canvas) {
     return 1;
 }
 
+void loggers(int m) {
+
+    loggers_(m);
+
+#ifdef _WIN32
+
+    loggers_(0);
+
+    HWND hConsole = GetConsoleWindow();
+    if (hConsole) {
+        ShowWindow(hConsole, SW_HIDE);
+    }
+    FreeConsole();
+
+    if( m )
+    {
+        AllocConsole();
+
+        enable_ansi();
+
+        // Force UTF-8 codepage (Windows 10 build 1903+)
+        SetConsoleCP(65001/*CP_UTF8*/);       // for ReadConsoleA / input
+        SetConsoleOutputCP(65001/*CP_UTF8*/); // for WriteConsoleA / printf
+
+        // Re-attach the streams
+        FILE* dummy;
+        freopen_s(&dummy, "CONOUT$", "w", stdout);
+        freopen_s(&dummy, "CONOUT$", "w", stderr);
+        freopen_s(&dummy, "CONIN$",  "r", stdin);
+
+        // Strongly recommended with UTF-8: Unbuffered so output is immediate
+        setvbuf(stdout, NULL, _IONBF, 0);
+        setvbuf(stderr, NULL, _IONBF, 0);
+
+        loggers_(1);
+    }
+
+#endif
+
+    if( m ) {
+        void logo();
+        logo();
+        puts("open console");
+    }
+}

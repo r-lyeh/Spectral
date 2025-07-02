@@ -354,7 +354,7 @@ static char *zxdb_filename2title(const char *filename, int full_form) {
 
     // trim lead/final spaces and double spaces
     while( s[0] == ' ' ) ++s;
-    while( s[strlen(s)-1] == ' ' ) s[strlen(s)-1] = '\0';
+    while( *s && s[strlen(s)-1] == ' ' ) s[strlen(s)-1] = '\0';
     while( strstr(s, "  ") ) replace(s, "  ", " ");
 
     // reorder prefixes written as suffixes

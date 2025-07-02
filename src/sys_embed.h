@@ -1,6 +1,8 @@
 // find Nth embedded media in executable
 // medias could be a zxdb files or games
 
+#define SPECTRAL_EMBED_WATERMARK "spectralEmBeDdEd" // note that first letter needs to be uppercase
+
 char *embedded(unsigned id, int *length) {
     static int binlen = 0;
     static char *bin = 0;
@@ -8,7 +10,7 @@ char *embedded(unsigned id, int *length) {
     if(!bin) die("cannot read argv[0]");
 
     // find num embedded medias.
-    char watermark[] = "spectralEmBeDdEd";
+    char watermark[] = SPECTRAL_EMBED_WATERMARK;
     watermark[0] -= 32;
 
     int len = binlen;

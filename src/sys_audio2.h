@@ -80,7 +80,8 @@ float mix(float dt) {
         }
     }
 
-    return accum / (voices+!voices);
+    extern int ZX_AY; // ZX_AY==0 means audio off
+    return (accum / (voices+!voices)) * !!ZX_AY;
 }
 
 int play_voice(voice_t w, int sample_id, unsigned count) {

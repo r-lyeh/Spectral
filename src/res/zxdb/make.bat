@@ -1,5 +1,7 @@
 @echo off
 
+if "%1"=="tidy" del *.sqlite *.exe & exit /b
+
 rem checks. compile if needed
 rem where /q rar.exe || (echo cannot find rar.exe in path && exit /b)
 where /q python.exe || (echo cannot find python.exe in path && exit /b)

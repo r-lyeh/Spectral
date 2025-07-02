@@ -118,7 +118,7 @@ char *unrar_mem(const void *inbin, unsigned inlen, unsigned *outlen) { // must r
 }
 
 char *unzip_mem(const void *inbin, unsigned inlen, unsigned *outlen) { // must zip_free()
-    if( inbin && inlen > 4 && !memcmp(inbin, "PK\1\2", 4) ) {
+    if( inbin && inlen > 4 && (!memcmp(inbin, "PK\3\4", 4) || !memcmp(inbin, "PK00", 4)) ) {
         zip *r = zip_openmem(inbin, inlen);
         if( r ) {
             char* out = zip_extract(r, 0);

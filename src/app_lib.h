@@ -329,6 +329,7 @@ int worker_fn( void* userdata ) {
                     screens[id][0][3] = screens[id][1][3] = (const byte*)ui_resize(bitmap, ix, iy, 256/8, 192/8, 0, 0);
                     free(bitmap);
 
+                    if( len >= 768 )
                     for( int i = 0; i < 768; ++i) {
                         int has_flash = ((byte*)bin)[i] & 0x80;
                         if( has_flash ) {
@@ -551,6 +552,8 @@ char *last_scanned_folder;
 void rescan(const char *folder) {
     if(!folder) return;
     if(ZX_PLAYER) return; // zxplayer has no library
+
+    if( ZX_FOLDER ) free(ZX_FOLDER); ZX_FOLDER = STRDUP(folder);
 
     printf("scanning `%s` folder...\n", folder);
 
@@ -797,6 +800,7 @@ int game_browser_keyboard(const int ENTRIES, const int numgames) { // returns cl
     int pg = key_repeat_( TK_PAGEDN, tbl) - key_repeat_( TK_PAGEUP, tbl);
     int home = key_pressed( TK_HOME) || (key_pressed( TK_UP) && key_held(TK_CONTROL));
     int end  = key_pressed( TK_END) || (key_pressed( TK_DOWN) && key_held(TK_CONTROL));
+    int trigger = key_trigger(TK_RETURN) || key_trigger(TK_TAB);
 
     float wheel = mouse().wheel;
     if( wheel ) {
@@ -827,7 +831,7 @@ int game_browser_keyboard(const int ENTRIES, const int numgames) { // returns cl
     int has_finder = !!num_options;
     int any = filters_tick();
 
-    if( key_trigger( TK_RETURN) && !has_finder ) {
+    if( trigger && !has_finder ) {
         return selected;
     }
 
@@ -1041,8 +1045,7 @@ char* game_browser_v2() {
 //  static const char *tab = 0;
     static const char *tabs = "\x17#ABCDEFGHIJKLMNOPQRSTUVWXYZ\x12\x18"; // "⧖"
 
-    do_once tab = tabs+2; // default 'A' tab
-    do_once if( ZX_TAB && strchr(tabs, *ZX_TAB) ) tab = strchr(tabs, *ZX_TAB); // user's tab
+    do_once tab = tabs+ZX_TABS; // look up default 'A' tab
 
     // refresh list if filters were changed
     static int refresh = 0;
@@ -1096,11 +1099,8 @@ char* game_browser_v2() {
     if( tab < first || tab > last ) tab = left ? last : right ? first : tab;
 #endif
 
-#if 0
-    if(tab && *tab != 0x18) { if(ZX_TAB) free(ZX_TAB); ZX_TAB = strdup(va("%c", *tab)); }
-#else
-    if(tab && *tab != 0x18) { static char save; ZX_TAB = &save; 0[(char*)ZX_TAB] = *tab; }
-#endif
+    if(tab && *tab != 0x18) // if no search tab
+        ZX_TABS = (int)(strchr(tabs, *tab) - tabs); // store user's tab
 
     static const char *prev = 0;
     refresh |= tab && prev != tab;
@@ -1425,6 +1425,10 @@ char* game_browser_v2() {
 
             if( !thumbnails ) {
 
+                extern int cmdkey; extern const char *cmdarg;
+                char url[128];
+                snprintf(url, 128-1, "-Open link-\nhttps://spectrumcomputing.co.uk/entry/%.*s", zx_id_len, zx_id);
+
                 ui_label(va("%c %c%3d.%s", colors[0], loaded ? '*':' ', i+1, i==selected ? ">":" "));
 
                 if( ui_click("-Toggle bookmark-", va("%c\f", "\x10\x12"[!!star])) )
@@ -1432,6 +1436,9 @@ char* game_browser_v2() {
 
                 if( ui_click("-Toggle compatibility flags-\n\2fail\7, \6warn\7, \4good", va("%c%s", colors[flag], flag == 0 || flag == 3 ? "✓":"╳")) ) // "":""
                     flagged = 1;
+
+if(1)           if( ui_click(url, "\f\f\x19\f\f") )
+                    cmdkey = 'LINK', cmdarg = va("%s", url + countof("-Open link-\n")-1);
 
                 ui_label(" ");
 
@@ -1445,8 +1452,10 @@ char* game_browser_v2() {
                 int hovers = 0;
                 char *title = full_title; strstr(full_title, " (")[1] = 0;
                 if( ui_monospaced = 0, ui_button(NULL, title) ) { hovers|=ui_hover; if(ui_click) clicked = 1; }
+if(0)           if( ui_monospaced = 0, ui_button(url, "\x19") ) { hovers|=ui_hover; if(ui_click) cmdkey = 'LINK', cmdarg = va("%s", url + countof("-Open link-\n")-1); }
                 if( ui_monospaced = 0, ui_button(NULL, year_) ) { hovers|=ui_hover; if(ui_click) year_[strlen(year_)-1]=0,filters_add(year_+1); }
                 if( ui_monospaced = 0, ui_button(NULL, brand_)) { hovers|=ui_hover; if(ui_click) brand_[strlen(brand_)-1]=0,filters_add(brand_+1); }
+if(0)           if( ui_monospaced = 0, ui_button(url, "\x19") ) { hovers|=ui_hover; if(ui_click) cmdkey = 'LINK', cmdarg = va("%s", url + countof("-Open link-\n")-1); }
 
                 if( hovers ) {
                     if( 1 ) {
