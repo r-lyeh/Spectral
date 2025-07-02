@@ -235,7 +235,7 @@
 // [ ] XL1 (Compilation)
 #endif
 
-#define SPECTRAL "v1.12"
+#define SPECTRAL "v1.13-WIP"
 
 #ifndef DEV
 #if NDEBUG >= 2
