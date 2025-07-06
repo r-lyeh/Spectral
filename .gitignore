@@ -1,0 +1,37 @@
+# Spectral ZX Spectrum Emulator - Git Ignore
+
+# Game files and ROMs (should not be committed)
+*.zip
+*.tap
+*.tzx
+*.sna
+*.z80
+*.dsk
+*.trd
+*.scl
+*.rom
+
+# Spectral configuration and cache directories
+.Spectral/
+*.sav
+
+# Build outputs
+*.linux
+*.exe
+*.app
+*.dmg
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo

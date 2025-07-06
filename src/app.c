@@ -504,7 +504,7 @@ int app_resize() {
     tigrClear(app, tigrRGB(0,0,0));
     return 1;
 }
-void app_apply_shader() {
+void app_apply_shader(const char* unused) {
     if( ZX_SHADED && ZX_CRT ) ZX_SHADED = ZX_CRT = 0, alert("Simultaneous shaders are not yet allowed.");
     if( ZX_SHADED ) ZX_SHADED = !!is_file(".Spectral/Spectral.fx");
     if( ZX_SHADED ) ZX_CRT = 0;
@@ -516,7 +516,7 @@ void app_browse_shader() {
     if( file && strendi(file, ".fx") ) {
         if( load_shader(file) ) {
             ZX_SHADED = 1;
-            app_apply_shader();
+            app_apply_shader(NULL);
         }
     }
 }
@@ -539,7 +539,7 @@ int app_create(const char *title, int fs, int zoom) {
                 free(ZX_SHADER), ZX_SHADER = 0, ZX_SHADED = 0;
         #endif
 
-        app_apply_shader();
+        app_apply_shader(NULL);
 
         //
         app_resize();
@@ -1875,7 +1875,7 @@ int main() {
 
         // refresh postfx + user shader too
         ZX_SHADED = shaded;
-        app_apply_shader();
+        app_apply_shader(NULL);
     }
 
     // main loop
@@ -2409,7 +2409,7 @@ if( do_runahead == 0 ) {
 
             break; case  'RF':  ZX_RF  ^= 1; if(cmdarg_) ZX_RF  = (ZX_RF  * (cmdarg_[0] == '^')) ^ atoi(cmdarg_ + !isdigit(cmdarg_[0]));
             break; case 'CRT':  ZX_CRT ^= 1; if(cmdarg_) ZX_CRT = (ZX_CRT * (cmdarg_[0] == '^')) ^ atoi(cmdarg_ + !isdigit(cmdarg_[0]));
-            break; case  'TV':  { static int mode = 0; do_once mode = ZX_SHADED ? 4 : ZX_RF << 1 | ZX_CRT; mode = (mode + 1) % (ZX_SHADER && ZX_SHADER[0] ? 5 : 4); if(cmdarg_) mode = atoi(cmdarg_); ZX_RF = !!(mode & 2); ZX_CRT = mode & 1; ZX_SHADED = mode == 4; app_apply_shader(); }
+            break; case  'TV':  { static int mode = 0; do_once mode = ZX_SHADED ? 4 : ZX_RF << 1 | ZX_CRT; mode = (mode + 1) % (ZX_SHADER && ZX_SHADER[0] ? 5 : 4); if(cmdarg_) mode = atoi(cmdarg_); ZX_RF = !!(mode & 2); ZX_CRT = mode & 1; ZX_SHADED = mode == 4; app_apply_shader(NULL); }
             break; case 'SHAD': app_browse_shader();
 
             break; case 'FULL': { int mode = cmdarg_ ? atoi(cmdarg_) : (ZX_FULLSCREEN ^ 1);
