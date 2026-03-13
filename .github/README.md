@@ -15,9 +15,9 @@ That being said, Spectral has a very compatible TAP/TZX loader and some other in
 Code is highly experimental and prone to change in the future. I will keep altering/breaking things randomly for good sake.
 
 <p align="center">
-<img src="https://github.com/r-lyeh/Spectral/assets/35402248/8d8ee594-fafd-4538-993f-9840bf9fc245"/><br/>
-<img src="https://github.com/user-attachments/assets/05de75a6-ae3c-4da8-9896-8cc89efbb5e6"/><br/>
-<img src="https://github.com/user-attachments/assets/fcc20345-c619-48df-af26-e37c8af99a6c"/>
+<img src="../assets/screenshots/README_1_MainMenu.webp"/><br/>
+<img src="../assets/screenshots/README_2_Loading.webp"/><br/>
+<img src="../assets/screenshots/README_3_Browser.webp"/>
 </p>
 
 # Roadmap and features
