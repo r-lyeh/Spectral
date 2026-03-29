@@ -4,53 +4,88 @@
 
 // @todo: test dark level at 85% voltage. this means (100%) 0xFF / 0xD8 (85%) tuples. black as 0x00
 
+/* @todo: 16-bit pal
+rgb(   6,   6,   6),rgb( 105,   2, 174),rgb( 134,   2,  98),rgb( 168,   0,   4),rgb( 143,  33,   1),rgb( 209, 105,   1),rgb( 244, 196,   0),rgb( 220, 213, 171),
+rgb(   6,   6,   6),rgb(  16,  37,  88),rgb(   1, 109, 228),rgb(   0, 168, 176),rgb(  71, 254, 145),rgb(  84, 253,   2),rgb( 190, 252,   3),rgb( 244, 255, 223),
+
+sorted as:
+rgb(   6,   6,   6),rgb(  34,  24,  80),rgb( 128,  32,   0),rgb( 137,  12, 137),rgb(  22, 141,  52),rgb(   1, 109, 228),rgb( 209, 105,   1),rgb( 216, 192, 158),
+rgb(   6,   6,   6),rgb(   9,  51, 121),rgb( 183,   0,   4),rgb( 192,   3,  84),rgb( 153, 204,   0),rgb(   0, 216, 128),rgb( 244, 196,   0),rgb( 241, 255, 217),
+*/
+
 #define luma(r,g,b) ((byte)((r)*0.299+(g)*0.587+(b)*0.114))
 #define gray(r,g,b) rgb(luma(r,g,b),luma(r,g,b),luma(r,g,b))
 #define gray3(l)    rgb(l,l,l)
 #define hex(rrggbb) rgb((0x##rrggbb)>>24,(0x##rrggbb&0xff00)>>16,(0x##rrggbb&0xff))
 
-// default palettes used elsewhere
-enum { ZX_PALETTE_PLAYER = 17 }; // gradients now; vivid before
-enum { ZX_PALETTE_EXTERNAL = 33 };
-enum { ZX_PALETTE_GRAY = 29 }; // noir
-
 // first 2-digit number configures ZX_BLOOM
 const char *ZXPaletteNames[] = {
+
     /*#00*/ "00" "Spectral",
     /*#01*/ "00" "Spectral+\n",
+
     /*#02*/ "00" "Lumière",
     /*#03*/ "00" "Modern",
     /*#04*/ "00" "Reborn",
     /*#05*/ "00" "Remix",
     /*#06*/ "00" "Winners\n",
+
     /*#07*/ "00" "Merlot",
     /*#08*/ "00" "Fantasy",
     /*#09*/ "00" "Hue",
     /*#10*/ "00" "Hue+",
     /*#11*/ "00" "Dream",
     /*#12*/ "00" "Skin\n",
-    /*#13*/ "00" "Pico8",
-    /*#14*/ "00" "Petit",
-    /*#15*/ "00" "Bringer",
-    /*#16*/ "00" "Vexed\n",
-    /*#17*/ "00" "Gradients", // best with ZX_BLOOM=40 ?
-    /*#18*/ "00" "Atkinson", // probably best with ZX_BLOOM=20
-    /*#19*/ "00" "Vivid",
-    /*#20*/ "00" "Konni",
-    /*#21*/ "00" "Sintez2\n",
-    /*#22*/ "40" "CPC",
-    /*#23*/ "00" "EGA",
-    /*#24*/ "00" "MSX2",
-    /*#25*/ "00" "Gameboy",
-    /*#26*/ "90" "PCW", // best with ZX_BLOOM=90
-    /*#27*/ "90" "Amber\n", // best with ZX_BLOOM=90
-    /*#28*/ "00" "Ilford",
-    /*#29*/ "00" "Noir",
-    /*#30*/ "00" "TV",
-    /*#31*/ "00" "Graylit",
-    /*#32*/ "20" "Negative\n", // best with ZX_BLOOM=20
-    /*#33*/ "00" "External", // must be last entry
+
+    /*#13*/ "00" "Quirkafleeg",
+    /*#14*/ "00" /*"Quirkafleeg "*/ "II",
+
+    /*#15*/"00" "PurpleRain",
+    /*#16*/"00" "Angrite",
+    /*#17*/"00" "Angrite2\n",
+
+    /*#18*/ "00" "Origins",
+
+    /*#19*/ "00" "Pico8",
+    /*#20*/ "00" "Petit",
+    /*#21*/ "00" "Bringer",
+    /*#22*/"00" "Endesga\n",
+
+    /*#23*/ "00" "Gradients", // best with ZX_BLOOM=40 ?
+    /*#24*/ "00" "Vivid",
+
+    /*#25*/"00" "Spectacle",
+
+    /*#26*/ "00" "Konni\n",
+
+    /*#27*/ "00" "Atkinson", // probably best with ZX_BLOOM=20
+    /*#28*/ "00" "Sintez2\n",
+
+    /*#29*/ "40" "CPC",
+    /*#30*/ "00" "CGA",
+    /*#31*/ "00" "EGA",
+    /*#32*/ "00" "MSX2",
+//"00" "PC6001",
+    /*#33*/ "00" "Gameboy",
+    /*#34*/ "90" "PCW", // best with ZX_BLOOM=90
+    /*#35*/ "90" "Amber\n", // best with ZX_BLOOM=90
+
+    /*#36*/ "00" "Noir",
+    /*#37*/ "00" "Telly",
+
+    /*#38*/ "00" "Ilford",
+    /*#39*/"00" "B&W",
+
+    /*#40*/ "00" "Greylit",
+    /*#41*/ "20" "Negative\n", // best with ZX_BLOOM=20
+/*#42*/ "00" "Extended", // must be last entry minus 1
+    /*#43*/ "00" "External", // must be last entry
 };
+
+// default palettes used elsewhere
+enum { ZX_PALETTE_PLAYER = 23 }; // gradients now; vivid before
+enum { ZX_PALETTE_GRAY = 36 }; // noir
+enum { ZX_PALETTE_EXTERNAL = countof(ZXPaletteNames)-1, ZX_PALETTE_EXTENDED = ZX_PALETTE_EXTERNAL-1 };
 
 rgba ZXPalettes[][64] = {
 
@@ -76,6 +111,7 @@ rgba ZXPalettes[][64] = {
         rgb(  11,  11,  11),rgb(   0,   0, 140),rgb( 111,   0,   0),rgb( 157,   5, 207),rgb(   0, 138,   0),rgb(   0, 129, 221),rgb( 220, 170,   0),rgb( 207, 197, 186), //( 185, 167, 167),
         rgb(  11,  11,  11),rgb(   0,   0, 220),rgb( 200,  33,   1),rgb( 234,   0, 170),rgb(   0, 215,   0),rgb(  54, 222, 245),rgb( 255, 220,   0),rgb( 255, 255, 255),
     },
+
     {
         // "Lumière", inspired by AutoChrome plates from 1907 (orange,emerald,violet)
         rgb(   4,  12,  24),rgb(  64,  12, 184),rgb( 211,  61,   1),rgb( 208,   0,  79),rgb(  22, 165,  40),rgb(   0, 191, 153),rgb( 255, 180,  21),rgb( 192, 192, 192),
@@ -242,6 +278,108 @@ rgba ZXPalettes[][64] = {
         rgb(  0,204,  0),rgb(  0,183,221),rgb(255,174,120),rgb(255,245,204),
     },
     {
+        // Quirkafleeg - sampled from fat freddy's cat issue 5 comic front page: https://comixjoint.com/fatfreddyscat5-1st.html
+        // which is referenced in the Room 16 of JetSetWilly: "We must perform a Quirkafleeg"
+        // PS: there is an alt color scan in http://www.russandem.co.uk/quirk/image/fcover.jpg
+
+#if 0
+        // blacks
+        rgb(  23,  22,  33), OR rgb(  12,  20,  29),
+
+        // pale blues
+        rgb(  25,  57,  96), OR rgb(  18,  38,  62),
+        rgb(  22,  75, 121)
+
+        // purples
+        rgb(  47,  22, 127), OR rgb(  59,  26, 121),
+        rgb(  97,  26, 130), OR rgb( 140,  22, 121),
+
+        // pinks
+        rgb( 229, 105, 112),
+        rgb( 239,  97, 168),
+        
+        // greens
+        rgb(  58, 155,  24),
+        rgb( 119, 187,   4),
+
+        // cyans
+        rgb(  54, 129, 193),
+        rgb(  57, 162, 226),
+
+        // oranges
+        rgb( 175,  84,  27),
+        rgb( 230, 107,  27),
+
+        // yellows
+        rgb( 240, 188,   4),
+        rgb( 250, 227,   2),
+    
+        // whites
+        rgb( 189, 178, 144),
+        rgb( 249, 244, 225),
+#endif
+        
+        // v0: black, purples, reds, pinks...
+        //rgb(  12,  20,  29),rgb(  47,  22, 127),rgb( 176,  49,  17),rgb( 229, 105, 112),rgb(  58, 155,  24),rgb(  54, 129, 193),rgb( 240, 188,   4),rgb( 189, 178, 144),
+        //rgb(  12,  20,  29),rgb(  97,  26, 130),rgb( 227,  50,  19),rgb( 239,  97, 168),rgb( 119, 187,   4),rgb(  57, 162, 226),rgb( 250, 227,   2),rgb( 249, 244, 225),
+
+        // v1: black, pale blues, reds, purples, greens, cyans, yellows, whites        
+        // rgb(  12,  20,  29),rgb(  25,  57,  96),rgb( 176,  49,  17),rgb(  49,  23, 125),rgb(  58, 155,  24),rgb(  54, 129, 193),rgb( 240, 188,   4),rgb( 189, 178, 144),
+        // rgb(  12,  20,  29),rgb(  22,  75, 121),rgb( 227,  50,  19),rgb(  99,  26, 127),rgb( 119, 187,   4),rgb(  57, 162, 226),rgb( 250, 227,   2),rgb( 249, 244, 225),
+
+        // v2: dark pale blue, purples, reds, oranges, greens, cyans, yellows, whites
+        // rgb(  18,  38,  62),rgb(  59,  26, 121),rgb( 176,  49,  17),rgb( 175,  84,  27),rgb(  58, 155,  24),rgb(  54, 129, 193),rgb( 240, 188,   4),rgb( 189, 178, 144),
+        // rgb(  18,  38,  62),rgb(  97,  26, 130),rgb( 227,  50,  19),rgb( 230, 107,  27),rgb( 119, 187,   4),rgb(  57, 162, 226),rgb( 250, 227,   2),rgb( 249, 244, 225),
+
+        // v3: dark pale blue, purples, reds, orange/pink, greens, cyans, yellows, whites
+//        rgb(  18,  38,  62),rgb(  59,  26, 121),rgb( 176,  49,  17),rgb( 230, 107,  27),rgb(  58, 155,  24),rgb(  54, 129, 193),rgb( 240, 188,   4),rgb( 189, 178, 144),
+//        rgb(  18,  38,  62),rgb(  97,  26, 130),rgb( 227,  50,  19),rgb( 239,  97, 168),rgb( 119, 187,   4),rgb(  57, 162, 226),rgb( 250, 227,   2),rgb( 249, 244, 225),
+
+        // v4: dark pale blue, pale blues, reds, purples, greens, cyans, orange/yellow, whites
+        rgb(   6,  25,  40),rgb(  25,  57,  96),rgb( 176,  49,  17),rgb(  97,  26, 130),rgb(  58, 155,  24),rgb(  54, 129, 193),rgb( 255, 154,  17),rgb( 201, 192, 165),
+        rgb(   6,  25,  40),rgb(  22,  75, 121),rgb( 227,  50,  19),rgb( 140,  22, 121),rgb( 119, 187,   4),rgb(  57, 162, 226),rgb( 240, 188,   4),rgb( 249, 244, 225),
+    },
+    {
+        // quirkafleeg II - sampled from a color transfer between fatfreddyscat5->fcover
+
+        // original, washed
+        // rgb(   0,  19,  30),rgb(   0,  58, 108),rgb( 110,  66,  52),rgb( 168,  81, 101),rgb(   0, 130, 121),rgb(   0, 151, 231),rgb( 221, 167,  73),rgb( 148, 168, 190),
+        // rgb(   0,  19,  30),rgb(   0,  91, 143),rgb( 202,  96,  53),rgb( 225, 117, 144),rgb( 199, 219,  80),rgb(   0, 201, 254),rgb( 255, 212,  34),rgb( 216, 254, 254),
+
+        // saturated
+        rgb(   0,  19,  30),rgb(   0,  58, 108),rgb( 107,  39,  21),rgb( 182,  67,  92),rgb(   0, 130, 121),rgb(   0, 151, 231),rgb( 255, 174,  38),rgb( 182, 196, 211),
+        rgb(   0,  19,  30),rgb(   6,  87, 136),rgb( 176,  48,  17),rgb( 248,  95, 133),rgb( 100, 216,  56),rgb(   0, 201, 254),rgb( 255, 212,  34),rgb( 216, 254, 254),
+    },
+    {
+        // purple rain
+        rgb(  24,  20,  37),rgb(   0,  32, 140),rgb( 160,   7,  26),rgb( 146,   6, 157),rgb(   5, 124,  33),rgb(   0, 149, 174),rgb( 220, 176,   0),rgb( 188, 188, 188),
+        rgb(  24,  20,  37),rgb(   0,  32, 219),rgb( 228,   0,   0),rgb( 181,   0, 136),rgb(   0, 199,  33),rgb(   0, 232, 245),rgb( 254, 230,   0),rgb( 255, 255, 255),
+    },
+    {
+        // nwa12774-meteorite https://www.meteorite-times.com/nwa-12774-angrite/
+        //rgb(  6,  6,  6),rgb(  3, 55,103),rgb(177, 37,  0),rgb(176,  0,113),rgb( 70,187,  0),rgb( 27,184,168),rgb(244,196,  0),rgb(220,213,171),
+        //rgb(  6,  6,  6),rgb(  0, 77,165),rgb(255, 85,  0),rgb(255,  0,103),rgb(111,255,  0),rgb( 75,250,201),rgb(255,233,  0),rgb(244,255,223),
+        ///rgb(  6,  6,  6),rgb( 16, 37, 88),rgb(177, 37,  0),rgb(176,  0,113),rgb( 23,161, 45),rgb( 27,184,168),rgb(244,196,  0),rgb(220,213,171),
+        ///rgb(  6,  6,  6),rgb(  5, 60,130),rgb(240, 78,  0),rgb(255,  0,103),rgb(102,240,  0),rgb( 75,250,201),rgb(255,233,  0),rgb(244,255,223),
+        rgb(  6,  6,  6),rgb( 16, 37, 88),rgb(144, 21,  0),rgb(176,  0,113),rgb( 23,161, 45),rgb( 27,184,168),rgb(244,196,  0),rgb(220,213,171),
+        rgb(  6,  6,  6),rgb(  5, 60,130),rgb(177, 37,  0),rgb(255,  0,103),rgb( 98,230,  0),rgb( 75,250,201),rgb(255,233,  0),rgb(244,255,223),
+    },
+    {
+        // angrite2, try to do a 16-bit palette from above
+        // rgb(   6,   6,   6),rgb(  34,  24,  80),rgb( 128,  32,   0),rgb( 137,  12, 137),rgb(  22, 141,  52),rgb(   1, 109, 228),rgb( 209, 105,   1),rgb( 216, 192, 158),
+        // rgb(   6,   6,   6),rgb(   9,  51, 121),rgb( 183,   0,   4),rgb( 192,   3,  84),rgb( 153, 204,   0),rgb(   0, 216, 128),rgb( 244, 196,   0),rgb( 241, 255, 217),
+        ///rgb(   6,   6,   6),rgb(  34,  24,  80),rgb( 128,  32,   0),rgb( 137,  12, 137),rgb(  22, 141,  52),rgb(   1, 109, 228),rgb( 209, 105,   1),rgb( 200, 182, 169),
+        ///rgb(   6,   6,   6),rgb(   9,  51, 121),rgb( 172,   0,   0),rgb( 192,   3,  84),rgb( 153, 204,   0),rgb(   0, 216, 128),rgb( 244, 196,   0),rgb( 235, 222, 205),
+        rgb(   6,  25,  40),rgb(  16,  37,  88),rgb( 128,  32,   0),rgb( 137,  12, 137),rgb(  22, 141,  52),rgb(   1, 109, 228),rgb( 209, 105,   1),rgb( 200, 182, 169),
+        rgb(   6,  25,  40),rgb(  16,  37, 140),rgb( 172,   0,   0),rgb( 192,   3,  84),rgb( 153, 204,   0),rgb(   0, 216, 128),rgb( 244, 196,   0),rgb( 235, 222, 205),
+    },
+    {
+        // origins
+        rgb(   0,  19,  30),rgb(   0,   0, 155),rgb( 145,   0,  29),rgb( 182,   0,  92),rgb(   0, 130,   0),rgb(   0, 151, 231),rgb( 255, 174,   0),rgb( 182, 196, 211),
+        rgb(   0,  19,  30),rgb(  11,   0, 217),rgb( 204,   0,  20),rgb( 248,   0, 133),rgb( 100, 216,   0),rgb(   0, 201, 254),rgb( 255, 212,   0),rgb( 216, 254, 254),
+    },
+
+    {
         // pico8: bright blue had to be added. dark gray dropped
         // rgb(000,000,000),rgb( 29, 43, 83),rgb(171, 82, 54),rgb(126, 37, 83),
         // rgb(000,135, 81),rgb(131,118,156),rgb(255,163,000),rgb(252,202,168),
@@ -267,7 +405,6 @@ rgba ZXPalettes[][64] = {
         rgb(0x00,0x79,0x00),rgb(0x00,0xba,0xfb),rgb(0xfb,0xa2,0x00),rgb(0xfb,0xcb,0xa2),
         rgb(0x00,0x00,0x00),rgb(0x00,0x38,0xf3),rgb(0xfb,0x18,0x00),rgb(0xfb,0x59,0xc3),
         rgb(0x00,0xf3,0x18),rgb(0xba,0xba,0xba),rgb(0xfb,0xe3,0x00),rgb(0xfb,0xfb,0xfb),
-
     },
     {
         // dawnbringer's original
@@ -283,10 +420,11 @@ rgba ZXPalettes[][64] = {
         rgb( 89,199,  0),rgb( 68,216,224),rgb(234,234,  0),rgb(232,252,190),
     },
     {
-        // vexed - adapted from https://lospec.com/palette-list/chroma-noir
-        rgb(  13,  13,  13),rgb(  48,  96, 130),rgb( 156,  58,  43),rgb( 209,  81, 238),rgb(  74, 227, 100),rgb(  99, 155, 255),rgb( 230, 122,  48),rgb( 181, 181, 181),
-        rgb(  13,  13,  13),rgb(  48,  96, 130),rgb( 230,  78,  53),rgb( 248, 115, 228),rgb( 153, 229,  80),rgb(  77, 204, 237),rgb( 247, 199,  86),rgb( 217, 217, 217),
+        // EDG32 adapted from https://lospec.com/palette-list/endesga-32 
+        rgb(   0,   0,   0),rgb(  37,  42,  67),rgb( 162,  38,  51),rgb( 104,  56, 108),rgb(  38,  92,  66),rgb(   0, 155, 180),rgb( 254, 174,  52),rgb( 192, 203, 220),
+        rgb(   0,   0,   0),rgb(  18,  78, 138),rgb( 228,  59,  68),rgb( 181,  80, 136),rgb(  99, 199,  77),rgb(  44, 232, 245),rgb( 254, 231,  97),rgb( 255, 255, 255),
     },
+
     {
         // Gradients (from specemu; probably chev's), needs to be used with gloom so it burns the colors and increases luma
         rgb(000,000,000),rgb(000,000,143),rgb(143,000,000),rgb(143,000,143),
@@ -294,6 +432,32 @@ rgba ZXPalettes[][64] = {
         rgb(000,000,000),rgb(000,000,255),rgb(217,000,000),rgb(217,000,255),
         rgb(000,217,000),rgb(000,217,255),rgb(217,217,000),rgb(217,217,255),
     },
+    {
+        // Vivid: what most pc emulators use. this was a previous spectral palette (C0/FF) with pure blacks.
+        // note: C0->D7 seems fine too
+        // note: D8->FF is another option. see @Polyducks: "A true-to-hardware palette. Please note that the luminesence of the ZX Spectrum is dictated by the voltage output of the hardware (85% voltage for non-bright, 100% for bright) - so instead of using E/F values as dictated in the wikipedia article in the hex for non-bright/bright, the colours are instead D8/FF (D8 being 85% of FF). For example, non-bright red is given as EE0000 in the article - instead it has been portrayed here as D80000 to give as close to hardware output as possible on modern screens."
+        rgb(0x00,0x00,0x00),rgb(0x00,0x00,0xC0),rgb(0xC0,0x00,0x00),rgb(0xC0,0x00,0xC0),
+        rgb(0x00,0xC0,0x00),rgb(0x00,0xC0,0xC0),rgb(0xC0,0xC0,0x00),rgb(0xC0,0xC0,0xC0),
+        rgb(0x00,0x00,0x00),rgb(0x00,0x00,0xFF),rgb(0xFF,0x00,0x00),rgb(0xFF,0x00,0xFF),
+        rgb(0x00,0xFF,0x00),rgb(0x00,0xFF,0xFF),rgb(0xFF,0xFF,0x00),rgb(0xFF,0xFF,0xFF),
+    },
+
+#if 1
+
+// 1 Spectaculator
+{
+    rgb(0x00,0x00,0x00), rgb(0x00,0x00,0xCE), rgb(0xCE,0x00,0x00), rgb(0xCE,0x00,0xCE), rgb(0x00,0xCA,0x00), rgb(0x00,0xCA,0xCE), rgb(0xCE,0xCA,0x00), rgb(0xCE,0xCA,0xCE),
+    rgb(0x00,0x00,0x00), rgb(0x00,0x00,0xFF), rgb(0xFF,0x00,0x00), rgb(0xFF,0x00,0xFF), rgb(0x00,0xFB,0x00), rgb(0x00,0xFB,0xFF), rgb(0xFF,0xFB,0x00), rgb(0xFF,0xFB,0xFF)
+},
+
+#endif
+
+    {
+        // jussi ala-konni's
+        rgb(0x00*4,0x00*4,0x00*4),rgb(0x00*4,0x00*4,0x28*4),rgb(0x30*4,0x00*4,0x00*4),rgb(0x30*4,0x00*4,0x28*4),rgb(0x00*4,0x2c*4,0x00*4),rgb(0x00*4,0x2c*4,0x28*4),rgb(0x30*4,0x2c*4,0x00*4),rgb(0x30*4,0x2c*4,0x28*4),
+        rgb(0x00*4,0x00*4,0x00*4),rgb(0x00*4,0x00*4,0x37*4),rgb(0x3f*4,0x00*4,0x00*4),rgb(0x3f*4,0x00*4,0x37*4),rgb(0x00*4,0x3b*4,0x00*4),rgb(0x00*4,0x3b*4,0x37*4),rgb(0x3f*4,0x3b*4,0x00*4),rgb(0x3f*4,0x3b*4,0x37*4),
+    },
+
     {
         // Richard Atkinson's colors (zx16/48/zx+ only)
 //        rgb(  6,  8,  0),rgb( 13, 19,167),rgb(189,  7,  7),rgb(195, 18,175),rgb(  7,186, 12),rgb( 13,198,180),rgb(188,185, 20),rgb(194,196,188),
@@ -311,20 +475,6 @@ rgba ZXPalettes[][64] = {
         rgb(4, 4, 0), rgb(13, 16, 137), rgb(183, 14, 14), rgb(200, 26, 170),
         rgb(24, 200, 26), rgb(32, 220, 198), rgb(222, 218, 42), rgb(251, 254, 238)
     },
-    {
-        // Vivid: what most pc emulators use. this was a previous spectral palette (C0/FF) with pure blacks.
-        // note: C0->D7 seems fine too
-        // note: D8->FF is another option. see @Polyducks: "A true-to-hardware palette. Please note that the luminesence of the ZX Spectrum is dictated by the voltage output of the hardware (85% voltage for non-bright, 100% for bright) - so instead of using E/F values as dictated in the wikipedia article in the hex for non-bright/bright, the colours are instead D8/FF (D8 being 85% of FF). For example, non-bright red is given as EE0000 in the article - instead it has been portrayed here as D80000 to give as close to hardware output as possible on modern screens."
-        rgb(0x00,0x00,0x00),rgb(0x00,0x00,0xC0),rgb(0xC0,0x00,0x00),rgb(0xC0,0x00,0xC0),
-        rgb(0x00,0xC0,0x00),rgb(0x00,0xC0,0xC0),rgb(0xC0,0xC0,0x00),rgb(0xC0,0xC0,0xC0),
-        rgb(0x00,0x00,0x00),rgb(0x00,0x00,0xFF),rgb(0xFF,0x00,0x00),rgb(0xFF,0x00,0xFF),
-        rgb(0x00,0xFF,0x00),rgb(0x00,0xFF,0xFF),rgb(0xFF,0xFF,0x00),rgb(0xFF,0xFF,0xFF),
-    },
-    {
-        // jussi ala-konni's
-        rgb(0x00*4,0x00*4,0x00*4),rgb(0x00*4,0x00*4,0x28*4),rgb(0x30*4,0x00*4,0x00*4),rgb(0x30*4,0x00*4,0x28*4),rgb(0x00*4,0x2c*4,0x00*4),rgb(0x00*4,0x2c*4,0x28*4),rgb(0x30*4,0x2c*4,0x00*4),rgb(0x30*4,0x2c*4,0x28*4),
-        rgb(0x00*4,0x00*4,0x00*4),rgb(0x00*4,0x00*4,0x37*4),rgb(0x3f*4,0x00*4,0x00*4),rgb(0x3f*4,0x00*4,0x37*4),rgb(0x00*4,0x3b*4,0x00*4),rgb(0x00*4,0x3b*4,0x37*4),rgb(0x3f*4,0x3b*4,0x00*4),rgb(0x3f*4,0x3b*4,0x37*4),
-    },
     {   // sampled from signal sintez 2 capture at https://www.sinclaircollection.site/?page_id=484
         // then adjusted levels, lumas and hues. then major corrections
         rgb(  4,  0, 14),rgb( 12,  3,173),rgb(208, 24, 31),rgb(175, 32,241),
@@ -332,16 +482,34 @@ rgba ZXPalettes[][64] = {
         rgb(  4,  0, 14),rgb( 13, 44,251),rgb(251, 40, 24),rgb(255, 64,230),
         rgb(  2,210,103),rgb( 10,219,255),rgb(225,225,  0),rgb(213,217,234),
     },
+
     {
         // adapted from amstrad cpc - https://www.cpcwiki.eu/index.php/CPC_Palette
         // https://www.grimware.org/doku.php/documentations/devices/gatearray
 
         // using my most compatible matches within CPC palette
-        rgb(000,000,000),rgb(000,000,128),rgb(128,000,000),rgb(128,000,128),
-        rgb(000,128,000),rgb(000,128,128),rgb(128,128,000),rgb(128,128,128),
-        rgb(000,000,000),rgb(000,000,255),rgb(255,000,000),rgb(255,000,255),
-        rgb(000,255,000),rgb(000,255,255),rgb(255,255,000),rgb(255,255,255),
+        // rgb(000,000,000),rgb(000,000,128),rgb(128,000,000),rgb(128,000,128),
+        // rgb(000,128,000),rgb(000,128,128),rgb(128,128,000),rgb(128,128,128),
+        // rgb(000,000,000),rgb(000,000,255),rgb(255,000,000),rgb(255,000,255),
+        // rgb(000,255,000),rgb(000,255,255),rgb(255,255,000),rgb(255,255,255),
+
+        // CPC, more fun variant. i cheated on white7 btw, albeit would look better with 200,172,156
+        rgb(   0,   0,   0),rgb(   0,   0, 128),rgb( 128,   0,   0),rgb( 128,   0, 128),rgb(   0, 128,   0),rgb(   0, 128, 255),rgb( 255, 128,   0),rgb( 172, 172, 172),
+        rgb(   0,   0,   0),rgb(   0,   0, 255),rgb( 255,   0,   0),rgb( 255,   0, 128),rgb(   0, 255,   0),rgb(   0, 255, 255),rgb( 255, 255,   0),rgb( 255, 255, 255),
     },
+{ 
+    // cga
+    //rgb(   0,   0,   0),rgb(   0,   0, 170),rgb( 170,   0,   0),rgb( 170,   0, 170),rgb(   0, 170,   0),rgb(   0, 170, 170),rgb( 170,  85,   0),rgb( 170, 170, 170),
+    //rgb(  85,  85,  85),rgb(  85,  85, 255),rgb( 255,  85,  85),rgb( 255,  85, 255),rgb(  85, 255,  85),rgb(  85, 255, 255),rgb( 255, 255,  85),rgb( 255, 255, 255),
+
+    // c1084s scanned
+    //rgb(  46,  32,  33),rgb(  23,  47, 166),rgb( 162,  36,  27),rgb( 131,  23, 159),rgb(  49, 180,  30),rgb(  43, 147, 150),rgb( 152, 102,  58),rgb( 139, 145, 147),
+    //rgb(  65,  53,  53),rgb(  17,  80, 210),rgb( 201,  65,  53),rgb( 188,  50, 211),rgb(  86, 229,  42),rgb(  24, 194, 203),rgb( 195, 183,  75),rgb( 188, 186, 188),
+
+    // CGA->C1084s, adjusted @fixme: greens too bright
+    rgb(  36,  18,  19),rgb(   0,  29, 173),rgb( 165,  15,   4),rgb( 125,   0, 159),rgb(  28, 190,   3),rgb(   7, 148, 151),rgb( 153,  90,  32),rgb( 152, 159, 163),
+    rgb(  36,  18,  19),rgb(   0,  64, 222),rgb( 208,  44,  29),rgb( 187,  16, 216),rgb(  68, 245,  14),rgb(   0, 196, 207),rgb( 199, 184,  41),rgb( 180, 178, 180),
+},
     {
         // adaptation from EGA64 palette - https://commons.wikimedia.org/wiki/File:EGA64_Full_Palette.png
         rgb(  0,  0,  0),rgb(  0,  0,170),rgb(170,  0,  0),rgb(170,  0, 85),
@@ -354,6 +522,19 @@ rgba ZXPalettes[][64] = {
         rgb( 000, 000, 000),rgb( 000, 000, 156),rgb( 156, 000, 000),rgb( 156, 000, 156),rgb( 000, 156, 000),rgb( 000, 156, 156),rgb( 156, 156, 000),rgb( 156, 156, 156),
         rgb( 000, 000, 000),rgb( 000, 000, 225),rgb( 225, 000, 000),rgb( 225, 000, 225),rgb( 000, 225, 000),rgb( 000, 225, 225),rgb( 225, 225, 000),rgb( 225, 225, 225),
     },
+#if 0
+{ // https://lospec.com/palette-list/nec-p6
+//        rgb(  16,  20,  16),rgb(   0,   0, 255),rgb( 255,   0,   0),rgb( 255,   0, 255),rgb(   0, 255,   0),rgb(   0, 174, 255),rgb( 255, 174,   0),rgb( 173, 174, 173),
+//        rgb(   0,   0,   0),rgb( 173,   0, 255),rgb( 255,   0, 173),rgb(   0, 255, 173),rgb( 173, 255,   0),rgb(   0, 255, 255),rgb( 255, 255,   0),rgb( 255, 255, 255),
+        // https://lospec.com/palette-list/nec-pc-6001-mk2
+        //rgb(   0,   0,   0),rgb(   0,   0, 255),rgb( 255,   0,   0),rgb( 128,   0, 255),rgb(   0, 255,   0),rgb(   0, 255, 128),rgb( 255, 128,   0),rgb( 128, 128, 128),
+        //rgb(   0,   0,   0),rgb(   0, 128, 255),rgb( 255,   0, 128),rgb( 255,   0, 255),rgb( 128, 255,   0),rgb(   0, 255, 255),rgb( 255, 255,   0),rgb( 255, 255, 255),
+        // PC6001. fixed: increased brightness in white7
+        rgb(   0,   0,   0),rgb(   0,   0, 255),rgb( 255,   0,   0),rgb( 128,   0, 255),rgb( 128, 255,   0),rgb(   0, 255, 128),rgb( 255, 128,   0),rgb( 230, 230, 230),
+        rgb(   0,   0,   0),rgb(   0, 128, 255),rgb( 255,   0, 128),rgb( 255,   0, 255),rgb(   0, 255,   0),rgb(   0, 255, 255),rgb( 255, 255,   0),rgb( 255, 255, 255),
+
+},
+#endif
     {
         // gameboy. should be 4 shades, but we're doing 8 shades: many games are unplayable otherwise.
         rgb( 35-10, 84-10, 28-10),rgb( 35, 84, 28),rgb( 59-10,158-10, 59-10),rgb( 59,158, 59),rgb(124-10,186-10, 49-10),rgb(124,186, 49),rgb(174-10,255-10, 38-10),rgb(174,255, 38),
@@ -361,63 +542,45 @@ rgba ZXPalettes[][64] = {
     },
     {
         // pcw-ish. take pc emulators > b/w version > green. expanded to 8 lumas for better vis (should be 4!)
-        rgb(0,luma(0x00,0x20,0x00),luma(0x00,0x20,0x00)*44/100), // there is no black in a pcw monitor afaik. use a dark green instead
-        rgb(0,luma(0x00,0x20,0xEA),luma(0x00,0x20,0xEA)*44/100), // boost G+B
-        rgb(0,luma(0xD0,0x00,0x00),luma(0xD0,0x00,0x00)*44/100),
-        rgb(0,luma(0xD0,0x00,0xD0),luma(0xD0,0x00,0xD0)*44/100),
-        rgb(0,luma(0x00,0xD0,0x00),luma(0x00,0xD0,0x00)*44/100),
-        rgb(0,luma(0x00,0xD0,0xD0),luma(0x00,0xD0,0xD0)*44/100),
-        rgb(0,luma(0xD0,0xD0,0x00),luma(0xD0,0xD0,0x00)*44/100),
-        rgb(0,luma(0xD0,0xD0,0xD0),luma(0xD0,0xD0,0xD0)*44/100),
+        rgb(0,0x20,0x20*44/100), // there is no black in a pcw monitor afaik. use a dark green instead
+        rgb(0,0x30,0x30*44/100), // boost G+B
+        rgb(0,0x3E,0x3E*44/100),
+        rgb(0,0x4C,0x4C*44/100),
+        rgb(0,0x5A,0x5A*44/100),
+        rgb(0,0x69,0x69*44/100),
+        rgb(0,0x77,0x77*44/100),
+        rgb(0,0x85,0x85*44/100),
 
-        rgb(0,luma(0x00,0x20,0x00),luma(0x00,0x20,0x00)*44/100), // there is no black in a pcw monitor afaik. use a dark green instead
-        rgb(0,luma(0x00,0x20,0xEA),luma(0x00,0x20,0xEA)*44/100), // boost G+B
-        rgb(0,luma(0xD0,0x00,0x00),luma(0xD0,0x00,0x00)*44/100),
-        rgb(0,luma(0xD0,0x00,0xD0),luma(0xD0,0x00,0xD0)*44/100),
-        rgb(0,luma(0x00,0xD0,0x00),luma(0x00,0xD0,0x00)*44/100),
-        rgb(0,luma(0x00,0xD0,0xD0),luma(0x00,0xD0,0xD0)*44/100),
-        rgb(0,luma(0xD0,0xD0,0x00),luma(0xD0,0xD0,0x00)*44/100),
-        rgb(0,luma(0xD0,0xD0,0xD0),luma(0xD0,0xD0,0xD0)*44/100),
+        rgb(0,0x20,0x20*44/100), // there is no black in a pcw monitor afaik. use a dark green instead
+        rgb(0,0x30,0x30*44/100), // boost G+B
+        rgb(0,0x3E,0x3E*44/100),
+        rgb(0,0x4C,0x4C*44/100),
+        rgb(0,0x5A,0x5A*44/100),
+        rgb(0,0x69,0x69*44/100),
+        rgb(0,0x77,0x77*44/100),
+        rgb(0,0x85,0x85*44/100),
     },
     {
         // amber-ish. take pc emulators > b/w version > orange. expanded to 8 lumas for better vis
-        rgb(luma(0x00,0x20,0x00),luma(0x00,0x20,0x00)*44/100,0), // there is no black in an amber monitor afaik. use a dark orange instead
-        rgb(luma(0x00,0x20,0xEA),luma(0x00,0x20,0xEA)*44/100,0), // boost G+B
-        rgb(luma(0xD0,0x00,0x00),luma(0xD0,0x00,0x00)*44/100,0),
-        rgb(luma(0xD0,0x00,0xD0),luma(0xD0,0x00,0xD0)*44/100,0),
-        rgb(luma(0x00,0xD0,0x00),luma(0x00,0xD0,0x00)*44/100,0),
-        rgb(luma(0x00,0xD0,0xD0),luma(0x00,0xD0,0xD0)*44/100,0),
-        rgb(luma(0xD0,0xD0,0x00),luma(0xD0,0xD0,0x00)*44/100,0),
-        rgb(luma(0xD0,0xD0,0xD0),luma(0xD0,0xD0,0xD0)*44/100,0),
+        rgb(luma(0x00,0x30,0x00),luma(0x00,0x30,0x00)*44/100,0), // there is no black in an amber monitor afaik. use a dark orange instead
+        rgb(luma(0x00,0x30,0x90),luma(0x00,0x30,0x90)*44/100,0), // boost G+B
+        rgb(luma(0xD8,0x00,0x00),luma(0xD8,0x00,0x00)*44/100,0),
+        rgb(luma(0xE0,0x00,0xE0),luma(0xE0,0x00,0xE0)*44/100,0),
+        rgb(luma(0x00,0xE8,0x00),luma(0x00,0xE8,0x00)*44/100,0),
+        rgb(luma(0x00,0xF0,0xF0),luma(0x00,0xF0,0xF0)*44/100,0),
+        rgb(luma(0xF8,0xF8,0x00),luma(0xF8,0xF8,0x00)*44/100,0),
+        rgb(luma(0xFF,0xFF,0xFF),luma(0xFF,0xFF,0xFF)*44/100,0),
 
-        rgb(luma(0x00,0x20,0x00),luma(0x00,0x20,0x00)*44/100,0), // there is no black in an amber monitor afaik. use a dark orange instead
-        rgb(luma(0x00,0x20,0xEA),luma(0x00,0x20,0xEA)*44/100,0), // boost G+B
-        rgb(luma(0xD0,0x00,0x00),luma(0xD0,0x00,0x00)*44/100,0),
-        rgb(luma(0xD0,0x00,0xD0),luma(0xD0,0x00,0xD0)*44/100,0),
-        rgb(luma(0x00,0xD0,0x00),luma(0x00,0xD0,0x00)*44/100,0),
-        rgb(luma(0x00,0xD0,0xD0),luma(0x00,0xD0,0xD0)*44/100,0),
-        rgb(luma(0xD0,0xD0,0x00),luma(0xD0,0xD0,0x00)*44/100,0),
-        rgb(luma(0xD0,0xD0,0xD0),luma(0xD0,0xD0,0xD0)*44/100,0),
+        rgb(luma(0x00,0x30,0x00),luma(0x00,0x30,0x00)*44/100,0), // there is no black in an amber monitor afaik. use a dark orange instead
+        rgb(luma(0x00,0x30,0x90),luma(0x00,0x30,0x90)*44/100,0), // boost G+B
+        rgb(luma(0xD8,0x00,0x00),luma(0xD8,0x00,0x00)*44/100,0),
+        rgb(luma(0xE0,0x00,0xE0),luma(0xE0,0x00,0xE0)*44/100,0),
+        rgb(luma(0x00,0xE8,0x00),luma(0x00,0xE8,0x00)*44/100,0),
+        rgb(luma(0x00,0xF0,0xF0),luma(0x00,0xF0,0xF0)*44/100,0),
+        rgb(luma(0xF8,0xF8,0x00),luma(0xF8,0xF8,0x00)*44/100,0),
+        rgb(luma(0xFF,0xFF,0xFF),luma(0xFF,0xFF,0xFF)*44/100,0),
     },
-    {
-        // Ilford FP4 Push filter
-        rgb(0x0C,0x0C,0x0C),
-        rgb(0x26,0x26,0x26),
-        rgb(0x48,0x48,0x48),
-        rgb(0x55,0x55,0x55),
-        rgb(0x5F,0x5F,0x5F),
-        rgb(0x69,0x69,0x69),
-        rgb(0x8A,0x8A,0x8A),
-        rgb(0xA8,0xA8,0xA8),
-        rgb(0x0C,0x0C,0x0C),
-        rgb(0x44,0x44,0x44),
-        rgb(0x7D,0x7D,0x7D),
-        rgb(0x91,0x91,0x91),
-        rgb(0x9B,0x9B,0x9B),
-        rgb(0xAF,0xAF,0xAF),
-        rgb(0xC6,0xC6,0xC6),
-        rgb(0xEB,0xEB,0xEB),
-    },
+
     {
         // noir: extremes are well defined. no many mid-colors
         #define filter(r,g,b) (0.2126 * r + 0.7152 * g + 0.0722 * b) // luma(r,g,b) // (r+g+b)/3
@@ -441,13 +604,37 @@ rgba ZXPalettes[][64] = {
         #undef filter
     },
     {
+        // Ilford FP4 Push filter
+        rgb(0x0C,0x0C,0x0C),
+        rgb(0x26,0x26,0x26),
+        rgb(0x48,0x48,0x48),
+        rgb(0x55,0x55,0x55),
+        rgb(0x5F,0x5F,0x5F),
+        rgb(0x69,0x69,0x69),
+        rgb(0x8A,0x8A,0x8A),
+        rgb(0xA8,0xA8,0xA8),
+        rgb(0x0C,0x0C,0x0C),
+        rgb(0x44,0x44,0x44),
+        rgb(0x7D,0x7D,0x7D),
+        rgb(0x91,0x91,0x91),
+        rgb(0x9B,0x9B,0x9B),
+        rgb(0xAF,0xAF,0xAF),
+        rgb(0xC6,0xC6,0xC6),
+        rgb(0xEB,0xEB,0xEB),
+    },
+// 4 B&W palette
+{
+    rgb(0x10,0x10,0x10), rgb(0x29,0x2d,0x29), rgb(0x4a,0x4d,0x4a), rgb(0x6b,0x6d,0x6b), rgb(0x7b,0x7d,0x7b), rgb(0x9c,0x9e,0x9c), rgb(0xbd,0xbe,0xbd), rgb(0xde,0xdf,0xde),
+    rgb(0x10,0x10,0x10), rgb(0x31,0x31,0x31), rgb(0x5a,0x5d,0x5a), rgb(0x7b,0x7d,0x7b), rgb(0x9c,0x9e,0x9c), rgb(0xbd,0xbe,0xbd), rgb(0xe6,0xe3,0xe6), rgb(0xff,0xff,0xff)
+},
+    {
         // gray original, pc emulators, b/w version. c0/ff to luma Y, then rgb(y,y,y)
         // gray(0x00,0x00,0x00),gray(0x00,0x00,0xC0),gray(0xC0,0x00,0x00),gray(0xC0,0x00,0xC0),
         // gray(0x00,0xC0,0x00),gray(0x00,0xC0,0xC0),gray(0xC0,0xC0,0x00),gray(0xC0,0xC0,0xC0),
         // gray(0x00,0x00,0x00),gray(0x00,0x00,0xFF),gray(0xFF,0x00,0x00),gray(0xFF,0x00,0xFF),
         // gray(0x00,0xFF,0x00),gray(0x00,0xFF,0xFF),gray(0xFF,0xFF,0x00),gray(0xFF,0xFF,0xFF),
 
-        // graylit new, D8/FF to luma Y to gamma 2.2
+        // greylit new, D8/FF to luma Y to gamma 2.2
         // y = 0.299 * r + 0.587 * g + 0.114 * b; y = pow(y, 1/2.2); y *= 20
         rgb(0x00,0x00,0x00),rgb(0x56,0x56,0x56),rgb(0x85,0x85,0x85),rgb(0x9A,0x9A,0x9A),
         rgb(0xB5,0xB5,0xB5),rgb(0xC4,0xC4,0xC4),rgb(0xDA,0xDA,0xDA),rgb(0xE6,0xE6,0xE6),
@@ -507,6 +694,78 @@ int pal_load(const char *fname) {
     int rc = pal_loadbin(data, size);
     if( data ) free(data);
     return rc;
+}
+
+int pick_palette_colors(Tigr *app, unsigned* pal16) {
+    extern bool browser;
+
+    int changed = 0;
+
+    int bottom = 0;
+    int offx = 0, offy = bottom ? _240 - 16*2 : 2, offy_bak = offy;
+    
+    struct mouse m = mouse();
+    int mx = m.x, my = m.y, lmb = m.lb, rmb = m.rb;
+    if( browser ) lmb = rmb = 0;
+    if( bottom ) { int swap = rmb; rmb = lmb; lmb = swap; }
+
+    static int selected1 = -1, selected2 = -1;
+
+    // draw colors
+    int _16 = _240 / countof(ZXPalettes); // ZX_ZOOM == 0 || ZX_ZOOM == 1 ? 16 : ZX_ZOOM == 1 ? 8 : 4; 
+    int paloffx = _16 * 3;
+    int inside = 0;
+    int howmany = _240 / _16; if(howmany > countof(ZXPalettes)) howmany = countof(ZXPalettes);
+    for( int h = 0; h < howmany; ++h ) {
+        unsigned *pal16 = ZXPalettes[h];
+        for( int c = 0; c < 16; ++c ) {
+            if( c == 8 ) continue;
+            int tbl[] = { 
+                [0] = 0, [1] = 1, [2] = 3, [3] = 5, [4] = 7, [5] = 9, [6] = 11, [7] = 13, 
+                [9] = 2, [10] = 4, [11] = 6, [12] = 8, [13] = 10, [14] = 12, [15] = 14, [8] = 15};
+            int i = tbl[c];
+            int offx = i*_16; offx += paloffx; // offx = _320/2-(16*_16)/2+offx;
+            tigrFill(app, offx,offy+01,_16,_16, (TPixel){.rgba = pal16[(selected1 == c || selected2 == c  ) && ZXFlashFlag ? 15 : c  ]});
+        }
+        offy += _16;
+    }
+
+    // draw borders
+    {
+        int w = 15*_16;
+        int offx = paloffx; ////int offx = _320/2-w/2+0*16;
+        offy = ZX_PALETTE * _16 + _16 / 2 - 1;
+        tigrLine(app, offx-1,offy+1,offx-1,offy+_16, (TPixel){.rgba = ui_colors[1]} );
+        tigrLine(app, offx+w,offy+1,offx+w,offy+_16, (TPixel){.rgba = ui_colors[1]} );
+        tigrLine(app, offx,offy+_16,offx+w,offy+_16, (TPixel){.rgba = ui_colors[1]} );
+        tigrLine(app, offx,offy,offx+w,offy, (TPixel){.rgba = ui_colors[1]} );
+    }
+
+    // draw hovered color
+    TPixel hovered = tigrGet(app,mx,my);
+    if( mx >= paloffx && mx <= paloffx + _16*16 ) {
+        // draw color rect
+        tigrLine(app, mx-_16/2,my-_16/2,mx+_16/2,my-_16/2, (TPixel){.rgba = ui_colors[1]} );
+        tigrLine(app, mx+_16/2,my-_16/2,mx+_16/2,my+_16/2, (TPixel){.rgba = ui_colors[1]} );
+        tigrLine(app, mx+_16/2,my+_16/2,mx-_16/2,my+_16/2, (TPixel){.rgba = ui_colors[1]} );
+        tigrLine(app, mx-_16/2,my+_16/2,mx-_16/2,my-_16/2, (TPixel){.rgba = ui_colors[1]} );
+
+        if(lmb) {
+            int tbl[] = { 
+                [0] = 0, [1] = 1, [3] = 2, [5] = 3, [7] = 4, [9] = 5, [11] = 6, [13] = 7, 
+                [2] = 9, [4] = 10, [6] = 11, [8] = 12, [10] = 13, [12] = 14, [14] = 15, [15] = 8 };
+
+            int pal = (my-offy_bak)/_16;
+            int col = (mx-paloffx)/_16; col = tbl[col];
+            pal16[col] = ZXPalettes[pal][col];
+
+            changed |= 1;
+        }
+    }
+
+    if( bottom && tape_playing() ) offy -= 24;
+
+    return changed;
 }
 
 int draw_palette(Tigr *app, unsigned* pal16, const char *name) {
@@ -615,6 +874,15 @@ int draw_palette(Tigr *app, unsigned* pal16, const char *name) {
         }
     }
 
+    if( key_pressed(TK_SHIFT) )
+        changed |= pick_palette_colors(app, pal16); 
+
+    return changed;
+}
+
+
+int draw_palettes(Tigr *app) {
+    int changed = 0;
     return changed;
 }
 

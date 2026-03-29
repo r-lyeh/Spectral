@@ -263,7 +263,7 @@ byte mic_read(uint64_t tstates) {
     // * beware of eating silences, these games are sensitive:
     // - may fail at the very end: Alien8, HeadOverHeels(speedlock), Rambo(HitSquad)...
     // - may fail during load: LoneWolf3, Jaws, Renegade(HitSquad), WTSS
-    // - may get stuck before screen$: BookOfTheDeadPart1(CRL/GDB), Cauldron2(Silverbird), ...
+    // - may get stuck before screen$: BookOfTheDeadPart1(CRL/GDB), Cauldron2(Silverbird), DarkStar(pzx) ...
 
     if( diff2 < diff ) diff = diff2;
     if( diff < 0 ) diff = 0;
@@ -283,10 +283,19 @@ byte mic_read(uint64_t tstates) {
         else
 
         if( been_hz > 10 && q.debug == 'u' && PAUSE_REMOVE ) {
+#if 1
             int before = voc_pos;
             while( voc_pos < voc_len && !memcmp(&voc[voc_pos], &q, sizeof(struct tape_block)) ) voc_pos++;
             voc_pos -= 2 * (voc_pos > 1);
             if( voc_pos < before ) voc_pos = before;
+            // printf("pause %d -> %d; [-1]%c [0]%c [1]=%c [2]=%c\n", before, voc_pos, voc[voc_pos-1].debug, voc[voc_pos].debug, voc[voc_pos+1].debug, voc[voc_pos+2].debug);
+#else
+            int before = voc_pos;
+            int len = mic_count(q);
+            voc_pos += len / 2;
+            q = voc[voc_pos];
+            // printf("pause %d -> %d; [-1]%c [0]%c [1]=%c [2]=%c\n", before, voc_pos, voc[voc_pos-1].debug, voc[voc_pos].debug, voc[voc_pos+1].debug, voc[voc_pos+2].debug);
+#endif
         }
     }
 
@@ -295,7 +304,7 @@ byte mic_read(uint64_t tstates) {
         // printf("%c [%d / %d][%d / %d][%d / %d] += %d\n", voc[voc_pos].debug,voc_pos,voc_len, voc_count,q.count, voc_units,q.units, diff);
 
         // fsm0, reset line
-        enum { LEVEL = 64 }; // low(0), high(64)
+        enum { LEVEL = 64 }; // low(0), high(64). high(+) by default; however, +2 models got tape polarity inverted(-) [see: LA6324 quad op-amp (IC302)]
         if( !q.units ) {
             mic = LEVEL ^ 64;
             q = mic_read_tapeblock(voc_pos);

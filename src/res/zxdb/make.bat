@@ -19,11 +19,11 @@ python -m zipfile -e ZXDB\ZXDB_mysql.sql.zip . && ^
 python ZXDB\scripts\ZXDB_to_SQLite.py && ^
 rd /q /s ZXDB >nul 2>nul
 
-rem generate full zxdb, 133 mib
+rem generate full zxdb, 171 mib
 if not exist ZXDB_sqlite.sql (echo Cannot find ZXDB_sqlite.sql && exit /b)
 echo.|sqlite3 -init ZXDB_sqlite.sql  ZXDB_FULL.sqlite
 
-rem generate lite zxdb, 55 mib
+rem generate lite zxdb, 61 mib
 copy /y ZXDB_FULL.sqlite ZXDB.sqlite
 echo.|sqlite3 -init ZXDB_trim.script ZXDB.sqlite
 
@@ -32,7 +32,7 @@ del ZXDB_mysql.sql
 del ZXDB_sqlite.sql
 
 rem prompt user
-echo We have to convert the SQLite database (133 MiB) into a custom one (1 MiB).
+echo We have to convert the SQLite database (171 MiB) into a custom one (1 MiB).
 echo The conversion is painfully slow, though.
 choice /C YN /M "Convert? "
 

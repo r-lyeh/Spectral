@@ -7,9 +7,8 @@ int _getch();
 #define fileno  _fileno  // fucking m$
 */
 
-/* planned for v1.16
+/* planned for v1.17
 
-- [x] allow to mount custom roms
 - [ ] irc/lobby (mount server)
 - [ ] <3<3<3 rating system
 - [ ] standalone .ini options
@@ -20,7 +19,8 @@ int _getch();
 - [ ] multiplayer
 - [ ] 57 Documentation please!
 - [ ] ARM builds (Linux+Win)
-- [ ] invert tape polarity (ZX == 200)
+- [ ] invert tape polarity (if ZX == 200)
+- [ ] pzx: darkstar (PAUSE_REMOVE)
 
 */
 
@@ -327,7 +327,7 @@ void loggers(int m);
 // [ ] XL1 (Compilation)
 #endif
 
-#define SPECTRAL "v1.16"
+#define SPECTRAL "v1.17-WIP"
 
 #ifndef DEV
 #if NDEBUG >= 2
@@ -1915,7 +1915,7 @@ void draw_ui() {
 
 char* game_browser(int version) { // returns true if loaded
     // scan files
-    if( !numgames && !zxdb_loaded() ) {
+    if( !numgames && (!zxdb_loaded() || ZX_BROWSER == 0) ) {
         do_once {
             uint64_t then = time_ns();
             const char *folder = ZX_FOLDER;
@@ -2625,9 +2625,12 @@ if( do_runahead == 0 ) {
         if(!browser)
         mouse_cursor(ZX_GUNSTICK ? 4 : 1);
 
-        if(ZX_PALETTE_PREVIEW)
+        if(ZX_PALETTE_PREVIEW) {
             if(draw_palette(app, ZXPalettes[ZX_PALETTE] /*ZXPalette*/, 2+ZXPaletteNames[ZX_PALETTE % countof(ZXPaletteNames)]))
                 palette_use(ZX_PALETTE, 1);
+            if(draw_palettes(app))
+                {}
+        }
 
         // rec before/after UI,
         int rec(Tigr*);

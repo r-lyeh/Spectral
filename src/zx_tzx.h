@@ -558,15 +558,20 @@ int pzx_load(const byte *fp, int len) {
             for( unsigned num = bytes; num; ) {
                 uint16_t count = 1;
                 uint32_t duration = *(uint16_t*)ptr; ptr += 2; num -= 2;
+
                 if( duration > 0x8000 ) {
                     count = duration & 0x7FFF;
                     duration = *(uint16_t*)ptr; ptr += 2; num -= 2;
                 }
+
                 if( duration >= 0x8000 ) {
                     duration &= 0x7FFF;
                     duration <<= 16;
                     duration |= *(uint16_t*)ptr; ptr += 2; num -= 2;
                 }
+
+                // @todo: special handling for zero-duration pulses + repeat count
+                // emit a pulse only if the count is odd.
 
                 tape_has_turbo |= (duration == 2168 || duration == 667 || duration == 735 ? 0 : 1);
                 tape_render_pilot(count, duration);

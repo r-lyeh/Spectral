@@ -251,7 +251,7 @@ ping -n 2 -w 1500 localhost > nul && rem wait 1s between 2 consecutive pings, so
 where /q rcedit-x64 || curl -LO https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe
 where /q rcedit-x64 && ^
 rcedit-x64 "Spectral.exe" --set-file-version "!year!.!month!.!today!.!today!!month!" && ^
-rcedit-x64 "Spectral.exe" --set-product-version "1.16" && ^
+rcedit-x64 "Spectral.exe" --set-product-version "1.17-WIP" && ^
 rcedit-x64 "Spectral.exe" --set-icon src\res\img\noto_1f47b.ico || goto error
 
 if "%__DOTNET_PREFERRED_BITNESS%"=="32" (
