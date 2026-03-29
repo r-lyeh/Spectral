@@ -19,11 +19,11 @@ python -m zipfile -e ZXDB\ZXDB_mysql.sql.zip . && ^
 python ZXDB\scripts\ZXDB_to_SQLite.py && ^
 rd /q /s ZXDB >nul 2>nul
 
-rem generate full zxdb, 133 mib
+rem generate full zxdb, 171 mib
 if not exist ZXDB_sqlite.sql (echo Cannot find ZXDB_sqlite.sql && exit /b)
 echo.|sqlite3 -init ZXDB_sqlite.sql  ZXDB_FULL.sqlite
 
-rem generate lite zxdb, 55 mib
+rem generate lite zxdb, 61 mib
 copy /y ZXDB_FULL.sqlite ZXDB.sqlite
 echo.|sqlite3 -init ZXDB_trim.script ZXDB.sqlite
 
@@ -31,13 +31,7 @@ rem clean up
 del ZXDB_mysql.sql
 del ZXDB_sqlite.sql
 
-rem prompt user
-echo We have to convert the SQLite database (133 MiB) into a custom one (1 MiB).
-echo The conversion is painfully slow, though.
-choice /C YN /M "Convert? "
-
-rem convert if requested
-if "%errorlevel%"=="1" (
+rem conversion
 python -m gzip -d Spectral.db.gz && git add Spectral.db
 
 rem do 0..64K range in reverse order to avoid being threated as false positive (Trojan:Win32/Wacatac.B!ml) (Windows Defender)
@@ -49,4 +43,3 @@ rem encrypt Spectral.db.gz  Spectral.db.gz  FuckM$Defender 72
 rem encrypt Spectral.db.rar Spectral.db.rar FuckM$Defender 72
     
 git diff Spectral.db >> Spectral.db.diff && git add Spectral.db.diff && git rm Spectral.db -f
-)
