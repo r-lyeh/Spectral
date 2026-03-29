@@ -7,9 +7,8 @@ int _getch();
 #define fileno  _fileno  // fucking m$
 */
 
-/* planned for v1.16
+/* planned for v1.18
 
-- [x] allow to mount custom roms
 - [ ] irc/lobby (mount server)
 - [ ] <3<3<3 rating system
 - [ ] standalone .ini options
@@ -20,7 +19,8 @@ int _getch();
 - [ ] multiplayer
 - [ ] 57 Documentation please!
 - [ ] ARM builds (Linux+Win)
-- [ ] invert tape polarity (ZX == 200)
+- [ ] invert tape polarity (if ZX == 200)
+- [ ] pzx: darkstar (PAUSE_REMOVE)
 
 */
 
@@ -327,7 +327,7 @@ void loggers(int m);
 // [ ] XL1 (Compilation)
 #endif
 
-#define SPECTRAL "v1.16"
+#define SPECTRAL "v1.17"
 
 #ifndef DEV
 #if NDEBUG >= 2
@@ -1915,7 +1915,7 @@ void draw_ui() {
 
 char* game_browser(int version) { // returns true if loaded
     // scan files
-    if( !numgames && !zxdb_loaded() ) {
+    if( !numgames && (!zxdb_loaded() || ZX_BROWSER == 0) ) {
         do_once {
             uint64_t then = time_ns();
             const char *folder = ZX_FOLDER;
@@ -2625,9 +2625,12 @@ if( do_runahead == 0 ) {
         if(!browser)
         mouse_cursor(ZX_GUNSTICK ? 4 : 1);
 
-        if(ZX_PALETTE_PREVIEW)
+        if(ZX_PALETTE_PREVIEW) {
             if(draw_palette(app, ZXPalettes[ZX_PALETTE] /*ZXPalette*/, 2+ZXPaletteNames[ZX_PALETTE % countof(ZXPaletteNames)]))
                 palette_use(ZX_PALETTE, 1);
+            if(draw_palettes(app))
+                {}
+        }
 
         // rec before/after UI,
         int rec(Tigr*);
@@ -2779,7 +2782,7 @@ if( do_runahead == 0 ) {
             break; case 'REC_': cmdkey = 'REC2', ZX_PRINTUI = 1 ^ (!!key_pressed( TK_SHIFT)); // resend recording cmd
             break; case 'REC2':
 
-            break; case 'TURB':  ZX_TURBOROM ^= 1; if(tape_inserted()) boot(ZX, 0|KEEP_MEDIA), reload(ZX, 1); // toggle turborom and reload
+            break; case 'TURB':  ZX_TURBOROM ^= 1; if(tape_inserted()) boot(ZX|ZX_PENTAGON, 0|KEEP_MEDIA), reload(ZX|ZX_PENTAGON, 1); // toggle turborom and reload
             break; case 'CLIP':  if( !app_clipboard ) app_clipboard = tigrGetClipboard(app);
             break; case 'POKE':  pok_apply(cmdarg_);
 
@@ -2808,15 +2811,15 @@ if( do_runahead == 0 ) {
                 cmdkey = 'BOOT';
             }
 
-            break; case 'BOOT':  reset(0|KEEP_MEDIA); if(cmdarg_ && atoi(cmdarg_)) reload(ZX, 1);
+            break; case 'BOOT':  reset(0|KEEP_MEDIA); if(cmdarg_ && atoi(cmdarg_)) reload(ZX|ZX_PENTAGON, 1);
 
-                if(rom[0x03] == 0x76) boot(ZX, 0); // also wipe media on DI+HALT case (our .scr viewer) // @todo: verify
-                if(rom[0x38] == 0xFB) boot(ZX, 0); // wipe on EI case (our .ay player)
+                if(rom[0x03] == 0x76) boot(ZX|ZX_PENTAGON, 0); // also wipe media on DI+HALT case (our .scr viewer) // @todo: verify
+                if(rom[0x38] == 0xFB) boot(ZX|ZX_PENTAGON, 0); // wipe on EI case (our .ay player)
 
             break; case 'NMI':  /*if( pins & Z80_NMI ) pins &= ~Z80_NMI; else*/ pins |= Z80_NMI; RZX_reset();
 
-                if(rom[0x03] == 0x76) boot(ZX, 0); // also wipe media on DI+HALT case (our .scr viewer) // @todo: verify
-                if(rom[0x38] == 0xFB) boot(ZX, 0); // wipe on EI case (our .ay player)
+                if(rom[0x03] == 0x76) boot(ZX|ZX_PENTAGON, 0); // also wipe media on DI+HALT case (our .scr viewer) // @todo: verify
+                if(rom[0x38] == 0xFB) boot(ZX|ZX_PENTAGON, 0); // wipe on EI case (our .ay player)
 
             break; case 'WIPE':
 
@@ -2836,12 +2839,12 @@ if( do_runahead == 0 ) {
 
                     ZXDB = zxdb_free(ZXDB); if(ZX_MEDIA) (free(ZX_MEDIA), ZX_MEDIA = 0); if(ZX_TITLE) (free(ZX_TITLE), ZX_TITLE = 0); titlebar(""); // clear media    KEEP_MEDIA/*|QUICK_RESET*/);
 
-                    if(rom[0x03] == 0x76) boot(ZX, 0); // also wipe media on DI+HALT case (our .scr viewer) // @todo: verify
-                    if(rom[0x38] == 0xFB) boot(ZX, 0); // wipe on EI case (our .ay player)
+                    if(rom[0x03] == 0x76) boot(ZX|ZX_PENTAGON, 0); // also wipe media on DI+HALT case (our .scr viewer) // @todo: verify
+                    if(rom[0x38] == 0xFB) boot(ZX|ZX_PENTAGON, 0); // wipe on EI case (our .ay player)
 
                 } else {
 
-                    reset(0|KEEP_MEDIA), reload(ZX, 1); // reset without touching medias. redo turbo data if needed
+                    reset(0|KEEP_MEDIA), reload(ZX|ZX_PENTAGON, 1); // reset without touching medias. redo turbo data if needed
 
                 }
             
@@ -2861,7 +2864,7 @@ if( do_runahead == 0 ) {
                 ZX = model & 0x1FE;
                 ZX_PENTAGON = model & 1;
 
-                boot(ZX, 0|KEEP_MEDIA), reload(ZX, 1); // toggle model and reload last media
+                boot(ZX|ZX_PENTAGON, 0|KEEP_MEDIA), reload(ZX|ZX_PENTAGON, 1); // toggle model and reload last media
 
                 // hack: force model if something went wrong. @fixme: investigate why
                 if( ZX == 128 ) if( model & 1 ) if(!ZX_PENTAGON) ZX_PENTAGON = 1, rom_restore();

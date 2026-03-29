@@ -157,11 +157,11 @@ int import_state(FILE *fp, unsigned flags) {
     check16(STATE_VERSION);
 
     get16(ZX);
-    boot(ZX, flags);
 
     // @fixme: we should put boolean flags here like: has_snow, has_contended, has_beta128, has_timings, etc
     uint16_t submodel;
     get16(submodel);
+    boot(ZX | !!(submodel & 2), flags); // keep pentagon bit, so reset-time decisions (DISCiPLE) see the right model
     rom_patches |= !!(submodel&0x8000) * TURBO_PATCH;
     ZX_PENTAGON = !!(submodel & 2);
     issue2 = !!(submodel & 1);

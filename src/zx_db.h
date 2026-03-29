@@ -510,17 +510,17 @@ char* zxdb_url(const zxdb z, const char *hint) {
         return NULL;
     }
 
-    if( strstri(hint, "play") ) {
+    if( strstri(hint, "play") ) { // order by: disk > bugfix > tape > rom > snap
         char *media = 0;
+        if(!media) media = zxdb_url(z, "disk");
         if(!media) media = zxdb_url(z, "bugfix");
         if(!media) media = zxdb_url(z, "tape");
-        if(!media) media = zxdb_url(z, "disk");
         if(!media) media = zxdb_url(z, "rom");
         if(!media) media = zxdb_url(z, "snap");
         return media;
     }
 
-    int check_media = 0;
+    int check_media = 0, check_pzx = 0;
 
     /**/ if( strstri(hint, "runn") ) hint = "|2|R"; // .scr, .gif, .png, .jpg, .mc/.mlt, .ifl (multicolor8x2 9216 = 6144+768*4)
     else if( strstri(hint, "screen") ) hint = "|1|L"; // .scr, .gif, .png, .jpg, .mc/.mlt (multicolor8x1 12288 = 6144+768*8)
@@ -528,7 +528,7 @@ char* zxdb_url(const zxdb z, const char *hint) {
     else if( strstri(hint, "inlay") && strstri(hint, "back")) hint = "|6|I";
     else if( strstri(hint, "inlay")) hint = "|5|I";
     else if( strstri(hint, "bugfix")) hint = "|22|B", check_media = 1;
-    else if( strstri(hint, "tape")) hint = "|8|T", check_media = 1;
+    else if( strstri(hint, "tape")) hint = "|8|T", check_media = 1, check_pzx = 1;
     else if( strstri(hint, "snap")) hint = "|10|S", check_media = 1;
     else if( strstri(hint, "disk")) hint = "|11|D", check_media = 1;
     else if( strstri(hint, "rom")) hint = "|17|C", check_media = 1;
@@ -542,6 +542,23 @@ char* zxdb_url(const zxdb z, const char *hint) {
     else if( strstri(hint, "comic")) hint = "|59|C";
     else if( strstri(hint, "rzx")) hint = "|63|R";
     else if( strstri(hint, "pok")) hint = "|74|P";
+
+    if( check_pzx ) { // order by: pzx > tzx > tap
+        for( int i = 0; z.downloads[i]; ++i ) {
+            if( strstri(z.downloads[i], ".pzx.zip|") )
+            if( strstri(z.downloads[i], hint) ) {
+                char slot[6]; snprintf(slot, 6-1, "%d", i);
+                return zxdb_url(z, slot);
+            }
+        }
+        for( int i = 0; z.downloads[i]; ++i ) {
+            if( strstri(z.downloads[i], ".tzx.zip|") )
+            if( strstri(z.downloads[i], hint) ) {
+                char slot[6]; snprintf(slot, 6-1, "%d", i);
+                return zxdb_url(z, slot);
+            }
+        }
+    }
 
     for( int i = 0; z.downloads[i]; ++i ) {
         if( strstri(z.downloads[i], hint) ) {

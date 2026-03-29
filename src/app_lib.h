@@ -286,8 +286,8 @@ struct queue_t {
     zxdb z;
     char *url;
 };
-void* queue_values[144]; // 12x12 thumbnails max
-void* queue_values2[144]; // 12x12 thumbnails max
+void* queue_values[12*12]; // 12x12 thumbnails max
+void* queue_values2[12*12]; // 12x12 thumbnails max
 struct queue_t *queue_t_new(zxdb z,const char *url) {
     struct queue_t *q = malloc(sizeof(struct queue_t));
     q->z = zxdb_dup(z);
@@ -908,7 +908,7 @@ char* game_browser_v2() {
     // background (text mode only)
 
     static rgba *background_texture = 0;
-//    if( thumbnails == 0 )
+    if( thumbnails == 0 )
     if( background_texture ) {
 #if 0
         int factor = 0, f256 = 256/(1<<factor), f192 = 192/(1<<factor);
@@ -1364,24 +1364,19 @@ char* game_browser_v2() {
                 ui_y--; // compact
             }
             else {
-                int t = thumbnails;
-                int w = _320/t, h = (_240-16)/t;
-                int x = (cnt % t) * w, y = 16 + (cnt / t) * h;
+                int t = thumbnails, _16 = 16; // _16 = 28; // progress_y+2;
+                int w = _320/t, h = (_240-_16)/t;
+                int x = (cnt % t) * w, y = _16 + (cnt / t) * h;
                 int has_thumb = 0;
 
-                int factor = t == 3 ? 1 : t == 6 ? 2 : 3;
+                int factor = t >= 12 ? 3 : t >= 6 ? 2 : t >= 3 ? 1 : 0;
                 const char *data = zxdb_screen_async(va("#%.*s", zx_id_len, zx_id), &len, factor);
                 if( data && len ) {
                     // blit
                     const rgba *bitmap = (rgba*)data;
                     int f256 = 256/(1<<factor), f192 = 192/(1<<factor);
-                    #if 0
-                    for(int i = 0; i < f192; ++i) {
-                        memcpy(&ui->pix[x+(y+i)*_320], bitmap + (0+i*f256), f256*4);
-                    }
-                    #else
-                    rgba_blit(ui, bitmap, x,y, 0,0,f256,f192);
-                    #endif
+                    int cx = (_320-_256)/t/2, cy = ((_240-_16)-_192)/t/2;
+                    rgba_blit(ui, bitmap, x+cx,y+0*cy, 0,0,f256,f192);
 
                     has_thumb = 1;
                 }
@@ -1426,15 +1421,11 @@ char* game_browser_v2() {
                             mouse_cursor(2);
                             ui_notify(full_title);
                             clicked = m.lb;
+                        }
 
-                            // prepare to blit larger preview
-                            if( thumbnails == 12 ) {
-                                larger_preview = (const rgba *)zxdb_screen_async(va("#%.*s", zx_id_len, zx_id), NULL, larger_factor = 1);
-                            }
-                            else
-                            if( thumbnails == 6 ) {
-                                larger_preview = (const rgba *)zxdb_screen_async(va("#%.*s", zx_id_len, zx_id), NULL, larger_factor = 1);
-                            }
+                        // prepare to blit larger preview
+                        if( thumbnails >= 6 ) {
+                            larger_preview = (const rgba *)zxdb_screen_async(va("#%.*s", zx_id_len, zx_id), NULL, larger_factor = 1);
                         }
                     }
                 }
@@ -1492,15 +1483,22 @@ char* game_browser_v2() {
         if( larger_preview ) {
             int f256 = 256/(1<<larger_factor), f192 = 192/(1<<larger_factor);
 
-            int x = mouse().x; // x = (x + f256) > _320 ? x - f256 : x;
-            int y = mouse().y; // y = (y + f192) > _240 ? y - f192 : y;
+            int x = mouse().x; 
+            int y = mouse().y; 
 
+            {float dt = x / (float)_320; x += 8;  x -= (f256 + 8*2) * dt; }
+            // {float dt = y / (float)_240; y += 16; y -= (f192 + 16*2) * dt; }
+
+            // x = (x + f256) > _320 ? x - f256 - 8 : x + 8;
+            y = (y + f192) > _240 ? y - f192 - 16 : y + 16;
+
+            static float alpha = 0.75;
             static float at_x = 0, at_y = 0; do_once at_x = x, at_y = y;
-            at_x = at_x * 0.90 + x * 0.10;
-            at_y = at_y * 0.90 + y * 0.10;
+            at_x = at_x * alpha + x * (1-alpha);
+            at_y = at_y * alpha + y * (1-alpha);
 
             rgba_blit(ui, larger_preview, at_x,at_y, 0,0,f256,f192);
-            ui_rect(ui, at_x-1,at_y-1,at_x+f256+1,at_y+f192+1);
+            ui_rect(ui, at_x-1,at_y-1,at_x+f256+1-1,at_y+f192+1-1);
         }
 
     }

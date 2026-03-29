@@ -203,6 +203,18 @@ char *ZX_SHADER = 0; // path to the custom shader file
     X(ZX_FOLDER) X(ZX_TITLE) X(ZX_MEDIA) X(ZX_SHADER)
 
 #define INI_OPTIONS_NUM(X) \
+    X(ZX_GAMEPAD[0][0]) X(ZX_GAMEPAD[0][1]) X(ZX_GAMEPAD[0][2]) X(ZX_GAMEPAD[0][3]) X(ZX_GAMEPAD[0][4]) X(ZX_GAMEPAD[0][5]) X(ZX_GAMEPAD[0][6]) X(ZX_GAMEPAD[0][7]) X(ZX_GAMEPAD[0][8]) X(ZX_GAMEPAD[0][9]) X(ZX_GAMEPAD[0][10]) X(ZX_GAMEPAD[0][11]) X(ZX_GAMEPAD[0][12]) X(ZX_GAMEPAD[0][13]) X(ZX_GAMEPAD[0][14]) X(ZX_GAMEPAD[0][15]) \
+    X(ZX_GAMEPAD[1][0]) X(ZX_GAMEPAD[1][1]) X(ZX_GAMEPAD[1][2]) X(ZX_GAMEPAD[1][3]) X(ZX_GAMEPAD[1][4]) X(ZX_GAMEPAD[1][5]) X(ZX_GAMEPAD[1][6]) X(ZX_GAMEPAD[1][7]) X(ZX_GAMEPAD[1][8]) X(ZX_GAMEPAD[1][9]) X(ZX_GAMEPAD[1][10]) X(ZX_GAMEPAD[1][11]) X(ZX_GAMEPAD[1][12]) X(ZX_GAMEPAD[1][13]) X(ZX_GAMEPAD[1][14]) X(ZX_GAMEPAD[1][15]) \
+    X(ZX_GAMEPAD[2][0]) X(ZX_GAMEPAD[2][1]) X(ZX_GAMEPAD[2][2]) X(ZX_GAMEPAD[2][3]) X(ZX_GAMEPAD[2][4]) X(ZX_GAMEPAD[2][5]) X(ZX_GAMEPAD[2][6]) X(ZX_GAMEPAD[2][7]) X(ZX_GAMEPAD[2][8]) X(ZX_GAMEPAD[2][9]) X(ZX_GAMEPAD[2][10]) X(ZX_GAMEPAD[2][11]) X(ZX_GAMEPAD[2][12]) X(ZX_GAMEPAD[2][13]) X(ZX_GAMEPAD[2][14]) X(ZX_GAMEPAD[2][15]) \
+    X(ZX_GAMEPAD[3][0]) X(ZX_GAMEPAD[3][1]) X(ZX_GAMEPAD[3][2]) X(ZX_GAMEPAD[3][3]) X(ZX_GAMEPAD[3][4]) X(ZX_GAMEPAD[3][5]) X(ZX_GAMEPAD[3][6]) X(ZX_GAMEPAD[3][7]) X(ZX_GAMEPAD[3][8]) X(ZX_GAMEPAD[3][9]) X(ZX_GAMEPAD[3][10]) X(ZX_GAMEPAD[3][11]) X(ZX_GAMEPAD[3][12]) X(ZX_GAMEPAD[3][13]) X(ZX_GAMEPAD[3][14]) X(ZX_GAMEPAD[3][15]) \
+    X(ZX_GAMEPAD[4][0]) X(ZX_GAMEPAD[4][1]) X(ZX_GAMEPAD[4][2]) X(ZX_GAMEPAD[4][3]) X(ZX_GAMEPAD[4][4]) X(ZX_GAMEPAD[4][5]) X(ZX_GAMEPAD[4][6]) X(ZX_GAMEPAD[4][7]) X(ZX_GAMEPAD[4][8]) X(ZX_GAMEPAD[4][9]) X(ZX_GAMEPAD[4][10]) X(ZX_GAMEPAD[4][11]) X(ZX_GAMEPAD[4][12]) X(ZX_GAMEPAD[4][13]) X(ZX_GAMEPAD[4][14]) X(ZX_GAMEPAD[4][15]) \
+    X(ZX_JOYSTICKS[0]) X(ZX_JOYSTICKS_AUTOFIRE[0]) X(ZX_JOYSTICKS_DEADZONE[0][0]) X(ZX_JOYSTICKS_DEADZONE[0][1]) \
+    X(ZX_JOYSTICKS[1]) X(ZX_JOYSTICKS_AUTOFIRE[1]) X(ZX_JOYSTICKS_DEADZONE[1][0]) X(ZX_JOYSTICKS_DEADZONE[1][1]) \
+    X(ZX_JOYSTICKS[2]) X(ZX_JOYSTICKS_AUTOFIRE[2]) X(ZX_JOYSTICKS_DEADZONE[2][0]) X(ZX_JOYSTICKS_DEADZONE[2][1]) \
+    X(ZX_JOYSTICKS[3]) X(ZX_JOYSTICKS_AUTOFIRE[3]) X(ZX_JOYSTICKS_DEADZONE[3][0]) X(ZX_JOYSTICKS_DEADZONE[3][1]) \
+    X(ZX_JOYSTICKS[4]) X(ZX_JOYSTICKS_AUTOFIRE[4]) X(ZX_JOYSTICKS_DEADZONE[4][0]) X(ZX_JOYSTICKS_DEADZONE[4][1]) \
+    X(ZX_FN[0]) X(ZX_FN[1]) X(ZX_FN[2]) X(ZX_FN[3]) X(ZX_FN[4]) X(ZX_FN[5]) \
+    X(ZX_FN[6]) X(ZX_FN[7]) X(ZX_FN[8]) X(ZX_FN[9]) X(ZX_FN[10]) X(ZX_FN[11]) X(ZX_FN[12]) \
     X(ZX) \
     X(ZX_RF) \
     X(ZX_CRT) \
@@ -219,18 +231,6 @@ char *ZX_SHADER = 0; // path to the custom shader file
     X(ZX_ALTROMS) \
     X(ZX_PALETTE) X(ZX_PALETTE_PREVIEW) \
     X(ZX_MULTIFACE) \
-    X(ZX_FN[0]) X(ZX_FN[1]) X(ZX_FN[2]) X(ZX_FN[3]) X(ZX_FN[4]) X(ZX_FN[5]) \
-    X(ZX_FN[6]) X(ZX_FN[7]) X(ZX_FN[8]) X(ZX_FN[9]) X(ZX_FN[10]) X(ZX_FN[11]) X(ZX_FN[12]) \
-    X(ZX_JOYSTICKS[0]) X(ZX_JOYSTICKS_AUTOFIRE[0]) X(ZX_JOYSTICKS_DEADZONE[0][0]) X(ZX_JOYSTICKS_DEADZONE[0][1]) \
-    X(ZX_JOYSTICKS[1]) X(ZX_JOYSTICKS_AUTOFIRE[1]) X(ZX_JOYSTICKS_DEADZONE[1][0]) X(ZX_JOYSTICKS_DEADZONE[1][1]) \
-    X(ZX_JOYSTICKS[2]) X(ZX_JOYSTICKS_AUTOFIRE[2]) X(ZX_JOYSTICKS_DEADZONE[2][0]) X(ZX_JOYSTICKS_DEADZONE[2][1]) \
-    X(ZX_JOYSTICKS[3]) X(ZX_JOYSTICKS_AUTOFIRE[3]) X(ZX_JOYSTICKS_DEADZONE[3][0]) X(ZX_JOYSTICKS_DEADZONE[3][1]) \
-    X(ZX_JOYSTICKS[4]) X(ZX_JOYSTICKS_AUTOFIRE[4]) X(ZX_JOYSTICKS_DEADZONE[4][0]) X(ZX_JOYSTICKS_DEADZONE[4][1]) \
-    X(ZX_GAMEPAD[0][0]) X(ZX_GAMEPAD[0][1]) X(ZX_GAMEPAD[0][2]) X(ZX_GAMEPAD[0][3]) X(ZX_GAMEPAD[0][4]) X(ZX_GAMEPAD[0][5]) X(ZX_GAMEPAD[0][6]) X(ZX_GAMEPAD[0][7]) X(ZX_GAMEPAD[0][8]) X(ZX_GAMEPAD[0][9]) X(ZX_GAMEPAD[0][10]) X(ZX_GAMEPAD[0][11]) X(ZX_GAMEPAD[0][12]) X(ZX_GAMEPAD[0][13]) X(ZX_GAMEPAD[0][14]) X(ZX_GAMEPAD[0][15]) \
-    X(ZX_GAMEPAD[1][0]) X(ZX_GAMEPAD[1][1]) X(ZX_GAMEPAD[1][2]) X(ZX_GAMEPAD[1][3]) X(ZX_GAMEPAD[1][4]) X(ZX_GAMEPAD[1][5]) X(ZX_GAMEPAD[1][6]) X(ZX_GAMEPAD[1][7]) X(ZX_GAMEPAD[1][8]) X(ZX_GAMEPAD[1][9]) X(ZX_GAMEPAD[1][10]) X(ZX_GAMEPAD[1][11]) X(ZX_GAMEPAD[1][12]) X(ZX_GAMEPAD[1][13]) X(ZX_GAMEPAD[1][14]) X(ZX_GAMEPAD[1][15]) \
-    X(ZX_GAMEPAD[2][0]) X(ZX_GAMEPAD[2][1]) X(ZX_GAMEPAD[2][2]) X(ZX_GAMEPAD[2][3]) X(ZX_GAMEPAD[2][4]) X(ZX_GAMEPAD[2][5]) X(ZX_GAMEPAD[2][6]) X(ZX_GAMEPAD[2][7]) X(ZX_GAMEPAD[2][8]) X(ZX_GAMEPAD[2][9]) X(ZX_GAMEPAD[2][10]) X(ZX_GAMEPAD[2][11]) X(ZX_GAMEPAD[2][12]) X(ZX_GAMEPAD[2][13]) X(ZX_GAMEPAD[2][14]) X(ZX_GAMEPAD[2][15]) \
-    X(ZX_GAMEPAD[3][0]) X(ZX_GAMEPAD[3][1]) X(ZX_GAMEPAD[3][2]) X(ZX_GAMEPAD[3][3]) X(ZX_GAMEPAD[3][4]) X(ZX_GAMEPAD[3][5]) X(ZX_GAMEPAD[3][6]) X(ZX_GAMEPAD[3][7]) X(ZX_GAMEPAD[3][8]) X(ZX_GAMEPAD[3][9]) X(ZX_GAMEPAD[3][10]) X(ZX_GAMEPAD[3][11]) X(ZX_GAMEPAD[3][12]) X(ZX_GAMEPAD[3][13]) X(ZX_GAMEPAD[3][14]) X(ZX_GAMEPAD[3][15]) \
-    X(ZX_GAMEPAD[4][0]) X(ZX_GAMEPAD[4][1]) X(ZX_GAMEPAD[4][2]) X(ZX_GAMEPAD[4][3]) X(ZX_GAMEPAD[4][4]) X(ZX_GAMEPAD[4][5]) X(ZX_GAMEPAD[4][6]) X(ZX_GAMEPAD[4][7]) X(ZX_GAMEPAD[4][8]) X(ZX_GAMEPAD[4][9]) X(ZX_GAMEPAD[4][10]) X(ZX_GAMEPAD[4][11]) X(ZX_GAMEPAD[4][12]) X(ZX_GAMEPAD[4][13]) X(ZX_GAMEPAD[4][14]) X(ZX_GAMEPAD[4][15]) \
     X(ZX_ZOOM) X(ZX_FULLSCREEN) X(ZX_WAVES) X(ZX_LENSLOK) X(ZX_SHADED) X(ZX_LOBBY) X(ZX_HORACE) \
     X(ZX_BLUR) X(ZX_BLOOM) X(ZX_TABS) X(ZX_STEREO) X(ZX_FLASHLOAD) X(ZX_PAUSE) X(ZX_CONSOLE) X(ZX_TURBOSOUND) \
     X(ZX_RESUME) X(ZX_AUTOLOAD) X(ZX_TAPECOUNTER) X(ZX_GRAIN)
@@ -386,6 +386,7 @@ int file_is_supported(const char *filename, int skip) {
 #include "zx_pal.h"
 #include "zx_ula.h"
 #include "zx_lenslok.h"
+#include "zx_disciple.h"
 
 
 
@@ -543,6 +544,9 @@ void port_0x7ffd(byte value) {
         //128:    check bit 4 : rom selection (ROM0/1 -> 0x0000-0x3FFF)
         //+2A/+3: check high bit of rom selection too (same as offset ROM selection to 0x8000) 1x0 101
         MEMr[0]=ROM_BANK((value & 16 ? 1 : 0) | ((page2a & 5) == 4 ? 2 : 0));
+
+        // keep disciple paged in over 0x0000..0x3FFF if active
+        if( disciple_active ) MEMr[0]=disciple_page;
     }
 }
 
@@ -897,12 +901,17 @@ uint64_t transact(uint64_t pins) {
             // @todo: expensive, but may be good place for 0x15E1 K/L mode hook
             // @todo: expensive, but may be good place for .tap traps
 
+            // disciple: auto page-in on opcode fetches at 0x0001/0x0008/0x0066/0x028E
+            if( disciple_enabled ) if( pins & Z80_M1 ) disciple_trap(addr);
+
             uint8_t value = READ8(addr);
             Z80_SET_DATA(pins, value);
         }
         else if( pins & Z80_WR ) {
             uint16_t addr = Z80_GET_ADDR(pins);
             uint8_t value = Z80_GET_DATA(pins);
+            if( disciple_active && addr < 0x4000 ) disciple_write(addr, value);
+            else
             WRITE8(addr, value);
         }
     }
@@ -1122,6 +1131,9 @@ void outport(word port, byte value) {
     logport(port, value, 1);
 #endif
 
+    // disciple ports (A0..A7 decoding)
+    if( disciple_enabled ) if( disciple_out(port, value) ) return;
+
     // XXXXXXXX ---1 1111 when trdos is enabled. ports: 1F,3F,5F,7F,FF
     if( (port & 3) == 3 ) { // (port & 0xff1f) == 0x1f) { // 
         int trdos = ZX_PENTAGON/*beta128*/ && MEMr[0] == (rom + 0x4000 * 2);
@@ -1339,6 +1351,9 @@ byte inport_(word port) {
     //[0102] alien syndrome.dsk ??
     //[0002] alien syndrome.dsk ??
     //[fefe] alien syndrome.dsk
+
+    // disciple ports (A0..A7 decoding). before kempston, which decodes on A5 only
+    if( disciple_enabled ) { byte v; if( disciple_in(port, &v) ) return v; }
 
 
     // XXXXXXXX ---1 1111 when trdos is enabled. ports: 1F,3F,5F,7F,FF
@@ -1757,6 +1772,10 @@ struct quicksave {
     // @todo: pointers needed?
     //#include "dsk.c"
     FDC_DEFINES
+    // disciple
+    int  ZX_DISCIPLE;
+    byte disciple_enabled, disciple_active, disciple_memswap, disciple_control, disciple_printer;
+    byte disciple_page[0x4000];
 #if FULL_QUICKSAVES
     WD1793 wd;
     FDIDisk fdd[NUM_FDI_DRIVES];
@@ -1862,6 +1881,14 @@ void* quicksave(unsigned slot) {
     // @todo
     //#include "dsk.c"
     FDC_EXPORT
+    // disciple
+    c->ZX_DISCIPLE = ZX_DISCIPLE;
+    c->disciple_enabled = disciple_enabled;
+    c->disciple_active = disciple_active;
+    c->disciple_memswap = disciple_memswap;
+    c->disciple_control = disciple_control;
+    c->disciple_printer = disciple_printer;
+    memcpy(c->disciple_page, disciple_page, sizeof(disciple_page));
 #if FULL_QUICKSAVES
     c->wd = wd;
     memcpy(c->fdd, fdd, sizeof(fdd[0]) * 4); // sizeof(fdd));
@@ -1972,6 +1999,15 @@ void* quickload(unsigned slot) {
     // @todo
     //#include "dsk.c"
     FDC_IMPORT
+    // disciple
+    ZX_DISCIPLE = c->ZX_DISCIPLE;
+    disciple_enabled = c->disciple_enabled;
+    disciple_active = c->disciple_active;
+    disciple_memswap = c->disciple_memswap;
+    disciple_control = c->disciple_control;
+    disciple_printer = c->disciple_printer;
+    memcpy(disciple_page, c->disciple_page, sizeof(disciple_page));
+    if( disciple_enabled ) disciple_map();
 #if FULL_QUICKSAVES
     wd = c->wd;
     memcpy(fdd, c->fdd, sizeof(fdd[0]) * 4); // sizeof(fdd));
@@ -2107,6 +2143,8 @@ void reset(unsigned FLAGS) {
         eject(0);
     }
 
+    // disciple: page in boot rom. keep its ram contents (GDOS) on quick resets
+    disciple_reset(!(FLAGS & QUICK_RESET));
 }
 
 void boot0(int model, unsigned FLAGS) {
@@ -2421,6 +2459,8 @@ int guess_v2(const char *filename) {
     guessbin_ = NULL;
     guesslen_ = 0;
 
+    ZX_DISCIPLE = 0; // re-enabled below if a .mgt disk is found
+
     eject(0);
 
     // algorithm:
@@ -2467,6 +2507,8 @@ int guess_v2(const char *filename) {
         int hint2 = 0;
 
 repeat:;
+        // .mgt disks need a DISCiPLE, whatever model gets picked below (128 in filename, zxdb, ...)
+        if( strstri(filename+1, ".mgt") ) ZX_DISCIPLE = 1;
 
         if( strrchr(filename, '/') ) filename = strrchr(filename, '/')+1;
         if( strrchr(filename,'\\') ) filename = strrchr(filename,'\\')+1;
@@ -2479,7 +2521,7 @@ repeat:;
         else if( strstri(filename+1, ".$c") )      model = 129;
         else if( strstri(filename+1, ".scl") )     model = 129;
         else if( strstri(filename+1, ".img") )     model = 129;
-        else if( strstri(filename+1, ".mgt") )     model = 129;
+        else if( strstri(filename+1, ".mgt") )     model = 48; // DISCiPLE on 48K by default
         else if( strstri(filename+1, ".fdi") )     model = 129;
         else if( strstri(filename+1, ".trd") )     model = 129;
         else if( strstr (filename+1, "ZX7") )      hint2 = 128;
@@ -2570,7 +2612,7 @@ repeat:;
         // [4] from zxdata
 
         int hint4 = guess_v1(ptr, len);
-        if( hint4 ) model = hint4;
+        if( hint4 ) if( !ZX_DISCIPLE ) model = hint4; // .mgt disks stay on 48K+DISCiPLE (guess_v1 would pick pentagon)
         if( hint2 ) if( !model ) model = hint2;
 
         guessbin_ = ptr;

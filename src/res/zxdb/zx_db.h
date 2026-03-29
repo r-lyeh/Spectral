@@ -214,6 +214,20 @@ void zxdb_init(const char *dbfile) {
             //db_query("pragma synchronous = normal;"),
             //db_query("pragma journal_size_limit = 6144000;");
 
+            // perf: ZXDB_to_SQLite.py strips *all* secondary indexes from the
+            // generated schema (it blindly removes every `KEY ...` line from the
+            // mysqldump, which is how MySQL declares non-primary indexes). That
+            // leaves several entry_id-filtered lookups below with no usable index,
+            // so sqlite falls back to a full table scan on every single call.
+            // Since zxdb2txt hits these once per id over a 0..65536 range, those
+            // scans dominate runtime (observed ~45x wall-clock cost on the full
+            // conversion). Re-create the missing indexes once at startup: cheap/
+            // idempotent (IF NOT EXISTS) even if ZXDB.sqlite is regenerated from
+            // scratch, and a no-op if a future schema already includes them.
+            db_query("create index if not exists idx_downloads_entry_id on downloads(entry_id);"),
+            db_query("create index if not exists idx_contents_entry_id on contents(entry_id);"),
+            db_query("create index if not exists idx_scores_entry_id on scores(entry_id);");
+
     // db_print(db_query("select * from aliases limit 1;"));
     // db_print(db_query("select * from entries where title like 'myth%' limit 1;"));
     // db_print(db_query(sql_findgame(argc > 1 ? argv[1] : "myth*", 1)));
@@ -223,7 +237,10 @@ zxdb zxdb_search_by_expr(const char *expr) {
     // create _tags temp table
     do_once
         db_query("create temp table _tags0 as select entry_id,(select name from tags where id = M.tag_id) as tag from members M;"),
-        db_query("create temp table _tags as select entry_id, concat('#',group_concat(tag,'#')) as tags from ( select entry_id, tag from _tags0 order by entry_id, tag) group by entry_id;");
+        db_query("create temp table _tags as select entry_id, concat('#',group_concat(tag,'#')) as tags from ( select entry_id, tag from _tags0 order by entry_id, tag) group by entry_id;"),
+        // perf: _tags is an in-memory temp table with no index at all (see note
+        // in zxdb_init above); it's probed by entry_id once per search too.
+        db_query("create index if not exists idx__tags_entry_id on _tags(entry_id);");
 
     // returns query "#id|year|title|alias|publisher|max_players|score|genre|tags"
     // sorted by descending score, so first pick in list is likely the right one (see: multiple Eliminator titles)

@@ -128,6 +128,12 @@ unsigned strcnt(const char *text, char ch) {
     return count;
 }
 
+#ifdef _MSC_VER
+    #define STRTOK(str, delim, ctx) strtok_s((str), (delim), (ctx))
+#else
+    #define STRTOK(str, delim, ctx) strtok_r((str), (delim), (ctx))
+#endif
+
 #ifdef _WIN32 // better than strtok(). preserves empty strings within delimiters
 char *strsep(char **sp, const char *sep) {
     if( sp && *sp && **sp ) {

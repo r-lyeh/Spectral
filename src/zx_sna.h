@@ -61,20 +61,16 @@ int scr_load(const byte *src, int len) { // screenshot
     // @todo: .mc/.mlt (multicolor8x1 12288 = 6144+768*8)
     // @todo: ulaplus+ screen$ (6912+64)
     if(len != 6912) return 0;
-#if 0
-    //boot(48, 0);
-#else
-    //boot(48, 0);
-    /*
-    page128 &= ~32;
-    port_0x7ffd(32|16);
-    */
-    ZXBorderColor = 0;
-    PC(cpu) = 0;
-#endif
+
     memcpy(rom, "\xF3\x00\x00\x76\x00\x00\x00", 7); // di, nop2, halt, nop3
     memcpy(VRAM, src, 6912);
 
+    // detect border color based on 4 corners. if they mismatch, likely 0 would just fit better
+    byte *chr0 = &VRAM[6144+0], *chr1 = chr0 + 31, *chr2 = chr0 + 767, *chr3 = chr2 - 31; 
+    int paper0 = (*chr0 >> 3) & 7, paper1 = (*chr1 >> 3) & 7, paper2 = (*chr2 >> 3) & 7, paper3 = (*chr3 >> 3) & 7;
+    ZXBorderColor = paper0 == paper1 && paper1 == paper2 && paper2 == paper3 ? paper0 : 0;
+
+    PC(cpu) = 0;
     pins = z80_prefetch(&cpu, cpu.pc);
     return 1;
 }
