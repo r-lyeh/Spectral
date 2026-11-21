@@ -1,1 +1,1 @@
-#define ZXDB_VERSION "Version 1.0.244"
+#define ZXDB_VERSION "Version 1.0.246"

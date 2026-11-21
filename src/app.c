@@ -327,7 +327,7 @@ void loggers(int m);
 // [ ] XL1 (Compilation)
 #endif
 
-#define SPECTRAL "v1.17"
+#define SPECTRAL "v1.18-WIP"
 
 #ifndef DEV
 #if NDEBUG >= 2
