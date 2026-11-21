@@ -2521,7 +2521,7 @@ repeat:;
         else if( strstri(filename+1, ".$c") )      model = 129;
         else if( strstri(filename+1, ".scl") )     model = 129;
         else if( strstri(filename+1, ".img") )     model = 129;
-        else if( strstri(filename+1, ".mgt") )     model = 48; // DISCiPLE on 48K by default
+        else if( strstri(filename+1, ".mgt") )     model = 128; // DISCiPLE on 128K by default
         else if( strstri(filename+1, ".fdi") )     model = 129;
         else if( strstri(filename+1, ".trd") )     model = 129;
         else if( strstr (filename+1, "ZX7") )      hint2 = 128;
@@ -2612,7 +2612,7 @@ repeat:;
         // [4] from zxdata
 
         int hint4 = guess_v1(ptr, len);
-        if( hint4 ) if( !ZX_DISCIPLE ) model = hint4; // .mgt disks stay on 48K+DISCiPLE (guess_v1 would pick pentagon)
+        if( hint4 ) if( !ZX_DISCIPLE ) model = hint4; // .mgt disks stay on 128K+DISCiPLE (guess_v1 would pick pentagon)
         if( hint2 ) if( !model ) model = hint2;
 
         guessbin_ = ptr;
